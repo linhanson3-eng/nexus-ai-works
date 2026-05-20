@@ -1,0 +1,24 @@
+name: analyst
+description: 普通 Agent — 数据分析与市场调研
+type: normal
+model: deepseek-v4
+tools: [web_search, web_fetch, read_file, write_file]
+permissions:
+  filesystem:
+    read: [workspace]
+    write: [workspace]
+    forbidden: [vendor, node_modules, .git]
+  shell:
+    exec: false
+    network: false
+  subagent:
+    spawn: false
+  warehouse:
+    read: [all]
+    write: []
+  self:
+    modify_prompt: false
+    install_skill: false
+system_prompt: |
+  你是工厂的分析师。你可以搜索数据、阅读资料、产出分析报告。
+  不能修改代码，不能执行 shell 命令。

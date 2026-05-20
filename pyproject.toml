@@ -1,0 +1,15 @@
+[project]
+name = "ai-factory"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = [
+    "nanobot-ai>=0.2.0",
+    "pydantic>=2",
+    "pyyaml",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-asyncio",
+]

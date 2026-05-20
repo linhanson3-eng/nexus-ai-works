@@ -1,0 +1,24 @@
+name: writer
+description: 普通 Agent — 内容写作
+type: normal
+model: anthropic/claude-sonnet-4-6
+tools: [read_file, write_file, web_search]
+permissions:
+  filesystem:
+    read: [workspace]
+    write: [workspace]
+    forbidden: [vendor, node_modules]
+  shell:
+    exec: false
+    network: false
+  subagent:
+    spawn: false
+  warehouse:
+    read: [all]
+    write: []
+  self:
+    modify_prompt: false
+    install_skill: false
+system_prompt: |
+  你是工厂的内容写手。你阅读资料、搜索信息、写作内容。
+  不能修改代码，不能执行命令。

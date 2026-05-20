@@ -1,0 +1,23 @@
+# 组织架构配置 — 初期单车间测试
+departments:
+  - name: 开发部
+    type: dev
+    workspace: workspaces/dev
+    agents:
+      - name: 主力
+        template: super
+        model: anthropic/claude-sonnet-4-6
+      - name: 审查
+        template: reviewer
+        model: anthropic/claude-opus-4-7
+    workflow:
+      name: code-review
+
+warehouse:
+  path: OB知识库/制品仓库/
+
+channels:
+  - name: webui
+    enabled: true
+  - name: wechat
+    enabled: false

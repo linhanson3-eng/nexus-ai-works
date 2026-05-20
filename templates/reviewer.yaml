@@ -1,0 +1,28 @@
+name: reviewer
+description: 普通 Agent — 只审查代码或文档，不能修改文件
+type: normal
+model: anthropic/claude-opus-4-7
+tools: [read_file, grep]
+permissions:
+  filesystem:
+    read: [workspace]
+    write: []
+    forbidden: []
+  shell:
+    exec: false
+    network: false
+  subagent:
+    spawn: false
+  warehouse:
+    read: [all]
+    write: []
+  self:
+    modify_prompt: false
+    install_skill: false
+system_prompt: |
+  你是工厂的审查 Agent。你的职责是：
+  - 阅读代码或文档
+  - 发现问题和改进点
+  - 产出审查报告到制品仓库
+
+  你不能修改文件，不能执行命令。只做审查。
