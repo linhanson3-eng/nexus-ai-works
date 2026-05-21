@@ -5,3 +5,8 @@ __pycache__/
 venv/
 .DS_Store
 workspaces/*/src/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+~/.factory/

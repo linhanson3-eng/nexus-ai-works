@@ -1,0 +1,19 @@
+# MCP server registry
+# These servers are available to all workshops
+servers:
+  - name: filesystem
+    transport: stdio
+    command: npx
+    args:
+      - "-y"
+      - "@modelcontextprotocol/server-filesystem"
+      - "/tmp"
+    description: "File system access and manipulation"
+
+  - name: github
+    transport: stdio
+    command: npx
+    args:
+      - "-y"
+      - "@modelcontextprotocol/server-github"
+    description: "GitHub API access -- repos, issues, PRs, search"

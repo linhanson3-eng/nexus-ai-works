@@ -16,6 +16,7 @@ from typing import Any
 from factory.memory import MemoryStore, SourceTree, SourceKind, VaultWriter
 from factory.memory.tree import BucketSeal
 from factory.tokenjuice import compact_tool_output, load_rules
+from factory.kanban.sync import KanbanSync, TaskEvent
 
 
 @dataclass
@@ -42,11 +43,13 @@ class FactoryAgentRunner:
         store: MemoryStore,
         *,
         vault_path: str = "~/.factory/vault",
+        kanban_sync: KanbanSync | None = None,
     ):
         self.spec = agent_spec
         self.workshop = workshop
         self.store = store
         self.vault = VaultWriter(vault_path)
+        self.kanban_sync = kanban_sync
 
         # 初始化记忆树
         self.source_tree = SourceTree(
@@ -58,6 +61,16 @@ class FactoryAgentRunner:
 
     async def run(self, task: str) -> TaskResult:
         """执行单个任务。"""
+        task_id = f"task-{self.source_tree.tree_id}"
+
+        # 通知看板：任务开始
+        if self.kanban_sync:
+            await self.kanban_sync.on_task_event(TaskEvent(
+                agent_name=self.spec.name,
+                task_id=task_id,
+                event_type="task_started",
+                title=task[:200],
+            ))
 
         # 1. 从 Source Tree 组装上下文
         relevant_memories = self.source_tree.query(task, limit=5)
@@ -97,6 +110,16 @@ class FactoryAgentRunner:
 
         # 6. 写 INDEX
         self.vault.write_index(self.store)
+
+        # 通知看板：任务完成/失败
+        if self.kanban_sync:
+            await self.kanban_sync.on_task_event(TaskEvent(
+                agent_name=self.spec.name,
+                task_id=task_id,
+                event_type="task_completed" if not result.error else "task_failed",
+                title=task[:200],
+                detail=result.error or result.content[:200],
+            ))
 
         return result
 

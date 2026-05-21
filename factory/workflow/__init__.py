@@ -190,3 +190,7 @@ class WorkflowLibrary:
     def get(self, name: str) -> WorkflowTemplate | None:
         """获取模板。先查自定义，再查内置。"""
         return self._custom.get(name) or self.BUILTIN.get(name)
+
+
+# Re-export engine classes for convenience
+from factory.workflow.engine import WorkflowRunner, StageResult, WorkflowResult  # noqa: E402, F401

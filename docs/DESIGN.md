@@ -290,27 +290,31 @@ Agent 执行循环：
 
 ### Phase 2：记忆系统 + Agent 执行 — v0.3.0
 
-- [ ] Memory Tree 实现（Source → Topic → Global）
-- [ ] Bucket-Seal 级联压缩引擎
-- [ ] SQLite + FTS5 + sqlite-vec 存储层
-- [ ] Obsidian Markdown 双写导出
-- [ ] TokenJuice 压缩管线移植
-- [ ] nanobot AgentRunner 接入实际执行
+- [x] Memory Tree 实现（Source → Topic → Global）
+- [x] Bucket-Seal 级联压缩引擎
+- [x] SQLite + FTS5 存储层
+- [x] Obsidian Markdown 双写导出
+- [x] TokenJuice 压缩管线移植
+- [x] nanobot AgentRunner 接入实际执行
 
 ### Phase 3：看板 + MCP — v0.4.0
 
-- [ ] Fork 4gaBoards 看板
-- [ ] 工厂 API → 看板卡片自动同步
-- [ ] MCP Client 实现
-- [ ] Anthropic 官方市场工具接入
-- [ ] Skill.md 管理层
+- [x] 轻量 SQLite 看板（兼容 4gaBoards 模型）— Board/List/Card CRUD
+- [x] 工厂 API → 看板卡片自动同步（KanbanSync + TaskEvent）
+- [x] MCP Client 实现（stdio + streamable HTTP transport）
+- [x] MCP 工具市场对接（内置 6 个官方 server + 搜索）
+- [x] Skill.md 管理层（渐进披露加载 + 车间级安装管理）
+- [x] FastAPI Gateway（REST + WebSocket 实时同步）
 
 ### Phase 4：多车间 + 工作流 — v0.5.0
 
-- [ ] Windmill 集成和定制
-- [ ] Windmill Flow 模板（code-review/market-analysis 等）
-- [ ] 动态创建车间（运行时 API）
-- [ ] 车间间通信
+- [x] Windmill 集成层（factory/windmill/ 占位 + 文档）
+- [x] DAG 工作流执行引擎（拓扑排序 + 阶段执行 + 门控循环）
+- [x] Windmill Flow 模板（5 个内置工作流：code-review/market-analysis/content-creation/legal-review/simple）
+- [x] 动态创建车间（运行时 CLI + API，持久化到 org.yaml）
+- [x] 车间间通信（WorkshopBridge — Warehouse 产品共享 + Global Tree 记忆桥接）
+- [x] Gateway 扩展（/api/workshops CRUD, /api/workflows, /api/workshops/{name}/run）
+- [x] CLI 扩展（workshop create/list/show/delete/run, workflow list/show）
 
 ### Phase 5：通讯 + 进化 — v0.6.0
 
