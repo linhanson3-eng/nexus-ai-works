@@ -339,10 +339,9 @@ Agent 执行循环：
 
 ### Phase 8：打磨开源 — v0.9.0
 
-- [ ] 安全加固（沙箱隔离、命令白名单）
-- [ ] 性能优化
-- [ ] 完整文档（README、CONTRIBUTING、ARCHITECTURE）
-- [ ] 开源准备（LICENSE、CODE_OF_CONDUCT、Issue/PR 模板）
+- [x] 安全加固（命令白名单、路径穿越防护、密钥检测、XSS转义）
+- [x] 完整文档（README.md、ARCHITECTURE.md）
+- [x] factory/security/guard.py — ShellCheck + PathSanitize + SecretDetect + HTML escape
 
 ### 正式发布 — v1.0.0
 
