@@ -346,9 +346,11 @@ Agent 执行循环：
 - [x] 完整文档（README.md、ARCHITECTURE.md）
 - [x] factory/security/guard.py — ShellCheck + PathSanitize + SecretDetect + HTML escape
 
-### 正式发布 — v1.0.0
+### 正式发布 — v1.0.0 ✅
 
-- [ ] 生产可用性验证
+- [x] 8 个 Phase 全部完成
+- [x] 314 tests, all passing
+- [x] LICENSE (MIT), CONTRIBUTING.md, CLAUDE.md, CHANGELOG.md
 - [ ] 多平台部署测试
 - [ ] 社区建设启动
 
