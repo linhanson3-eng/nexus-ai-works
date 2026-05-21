@@ -325,10 +325,11 @@ Agent 执行循环：
 
 ### Phase 6：WebUI — v0.7.0
 
-- [ ] React + shadcn/ui 管理后台
-- [ ] 车间可视化管理
-- [ ] Agent 实时状态监控
-- [ ] 知识库浏览/编辑界面
+- [x] React + Vite + TypeScript + Tailwind CSS 管理后台
+- [x] Bento 网格仪表板（Dark Luxury 风格，琥珀强调色）
+- [x] 车间可视化管理（列表 + 详情 + 运行时创建/删除/执行工作流）
+- [x] 实时看板（WebSocket 同步，卡片拖拽移动）
+- [x] 工作流模板浏览（DAG 阶段可视化）
 
 ### Phase 7：进化引擎完善 — v0.8.0
 

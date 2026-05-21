@@ -64,7 +64,7 @@ def create_app(org, kanban_store):
         org: OrgEngine instance with .status(), .workshops, etc.
         kanban_store: KanbanStore instance for board/Card CRUD.
     """
-    app = FastAPI(title="AI Factory Gateway", version="0.5.0")
+    app = FastAPI(title="AI Factory Gateway", version="0.7.0")
     ws_manager = KanbanWSManager()
 
     # Attach shared state to app for route access
@@ -84,7 +84,7 @@ def create_app(org, kanban_store):
     # --- Health ---
     @app.get("/health")
     async def health():
-        return {"status": "ok", "version": "0.5.0"}
+        return {"status": "ok", "version": "0.7.0"}
 
     # --- Board CRUD ---
 
