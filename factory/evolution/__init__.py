@@ -10,6 +10,10 @@ from factory.evolution.types import (
 from factory.evolution.reflector import Reflector
 from factory.evolution.mutator import Mutator
 from factory.evolution.selector import Selector
+from factory.evolution.logger import EvolutionLogger
+from factory.evolution.lifecycle import SkillLifecycle, SkillMeta
+from factory.evolution.rollback import RollbackManager
+from factory.evolution.hook import EvolutionHook
 
 __all__ = [
     "EvolutionEngine",
@@ -20,4 +24,9 @@ __all__ = [
     "Reflector",
     "Mutator",
     "Selector",
+    "EvolutionLogger",
+    "SkillLifecycle",
+    "SkillMeta",
+    "RollbackManager",
+    "EvolutionHook",
 ]

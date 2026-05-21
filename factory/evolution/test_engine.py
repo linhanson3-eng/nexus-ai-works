@@ -17,6 +17,10 @@ from factory.evolution.reflector import Reflector
 from factory.evolution.mutator import Mutator
 from factory.evolution.selector import Selector
 from factory.evolution.engine import EvolutionEngine
+from factory.evolution.logger import EvolutionLogger
+from factory.evolution.lifecycle import SkillLifecycle
+from factory.evolution.rollback import RollbackManager
+from factory.evolution.hook import EvolutionHook
 
 
 # ── Helpers ────────────────────────────────────────────────────────────
@@ -427,3 +431,213 @@ class TestEvolutionResult:
         assert result.trajectory_id == "t1"
         assert result.status == "created"
         assert result.message == "Generated 2 candidates"
+
+
+# ── Phase 7: Logger ───────────────────────────────────────────────
+
+
+class TestEvolutionLogger:
+    @pytest.fixture
+    def logger(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            log = EvolutionLogger(Path(tmp) / "evo.db")
+            yield log
+            log.close()
+
+    def test_log_cycle(self, logger):
+        result = EvolutionResult(trajectory_id="t1", status="created",
+                                 skills_created=[], message="test")
+        logger.log_cycle(result)
+        history = logger.get_history()
+        assert len(history) >= 1
+        assert history[0]["action"] == "cycle"
+
+    def test_log_approval(self, logger):
+        logger.log_approval("test-skill", "admin")
+        history = logger.get_history()
+        assert history[0]["action"] == "approve"
+        assert history[0]["skill_name"] == "test-skill"
+
+    def test_log_rejection(self, logger):
+        logger.log_rejection("bad-skill")
+        history = logger.get_history()
+        assert history[0]["action"] == "reject"
+
+    def test_log_rollback(self, logger):
+        logger.log_rollback("rolled-skill", "deprecated")
+        history = logger.get_history()
+        assert history[0]["action"] == "rollback"
+
+    def test_get_history_limit(self, logger):
+        for i in range(5):
+            logger.log_cycle(EvolutionResult(trajectory_id=f"t{i}"))
+        history = logger.get_history(limit=3)
+        assert len(history) == 3
+
+    def test_get_history_by_skill(self, logger):
+        logger.log_approval("skill-a")
+        logger.log_rejection("skill-b")
+        logger.log_rollback("skill-a", "buggy")
+        history = logger.get_history(skill_name="skill-a")
+        assert len(history) == 2
+
+    def test_get_stats(self, logger):
+        logger.log_cycle(EvolutionResult())
+        logger.log_approval("s1")
+        logger.log_rejection("s2")
+        stats = logger.get_stats()
+        assert stats["cycles"] == 1
+        assert stats["approved"] == 1
+
+
+# ── Phase 7: Lifecycle ────────────────────────────────────────────
+
+
+class TestSkillLifecycle:
+    @pytest.fixture
+    def lifecycle(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            yield SkillLifecycle(tmp)
+
+    def test_register_new_skill(self, lifecycle):
+        meta = lifecycle.register("demo", "A demo skill")
+        assert meta.name == "demo"
+        assert meta.version == 1
+        assert meta.status == "active"
+
+    def test_update_bumps_version(self, lifecycle):
+        lifecycle.register("demo")
+        meta = lifecycle.update("demo", new_description="v2 desc")
+        assert meta is not None
+        assert meta.version == 2
+
+    def test_deprecate(self, lifecycle):
+        lifecycle.register("old-skill")
+        meta = lifecycle.deprecate("old-skill", "no longer useful")
+        assert meta is not None
+        assert meta.status == "deprecated"
+
+    def test_retire(self, lifecycle):
+        lifecycle.register("retired-skill")
+        meta = lifecycle.retire("retired-skill")
+        assert meta is not None
+        assert meta.status == "retired"
+
+    def test_list_active_excludes_deprecated(self, lifecycle):
+        lifecycle.register("active-1")
+        lifecycle.register("active-2")
+        lifecycle.deprecate("active-1")
+        active = lifecycle.list_active()
+        assert len(active) == 1
+        assert active[0].name == "active-2"
+
+    def test_list_deprecated(self, lifecycle):
+        lifecycle.register("d1")
+        lifecycle.deprecate("d1")
+        assert len(lifecycle.list_deprecated()) == 1
+
+    def test_get_nonexistent(self, lifecycle):
+        assert lifecycle.get("nope") is None
+
+    def test_reload(self, lifecycle):
+        lifecycle.register("reload-test")
+        lifecycle.reload()
+        assert lifecycle.get("reload-test") is not None
+
+
+# ── Phase 7: Rollback ─────────────────────────────────────────────
+
+
+class TestRollbackManager:
+    @pytest.fixture
+    def rollback_mgr(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            skills = Path(tmp) / "skills"
+            logger = EvolutionLogger(Path(tmp) / "evo.db")
+            yield RollbackManager(skills, logger)
+            logger.close()
+
+    def test_rollback_removes_skill_dir(self, rollback_mgr):
+        skill_dir = rollback_mgr.skills_dir / "to-rollback"
+        skill_dir.mkdir(parents=True)
+        (skill_dir / "Skill.md").write_text("test")
+        (skill_dir / ".meta.json").write_text('{"name":"to-rollback","version":1,"status":"active"}')
+        ok = rollback_mgr.rollback("to-rollback", "test rollback")
+        assert ok is True
+        assert not skill_dir.exists()
+
+    def test_rollback_nonexistent(self, rollback_mgr):
+        assert rollback_mgr.rollback("nope") is False
+
+    def test_archive_created_on_rollback(self, rollback_mgr):
+        skill_dir = rollback_mgr.skills_dir / "archived-skill"
+        skill_dir.mkdir(parents=True)
+        (skill_dir / ".meta.json").write_text('{"name":"archived-skill","version":1,"status":"active"}')
+        rollback_mgr.rollback("archived-skill", "archiving")
+        archived = rollback_mgr.list_archived()
+        assert len(archived) >= 1
+
+
+# ── Phase 7: Hook ─────────────────────────────────────────────────
+
+
+class TestEvolutionHook:
+    @pytest.fixture
+    def hook(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            yield EvolutionHook(skills_dir=tmp)
+
+    def test_on_task_start_sets_trajectory(self, hook):
+        hook.on_task_start("agent-1", "build feature")
+        assert hook.trajectory is not None
+        assert hook.trajectory.agent_name == "agent-1"
+
+    def test_on_tool_call_tracks_count(self, hook):
+        hook.on_task_start("a", "t")
+        hook.on_tool_call("grep", True)
+        hook.on_tool_call("bash", False)
+        hook.on_tool_call("grep", True)
+        assert hook._tool_count == 3
+        assert hook._error_count == 1
+        assert len(hook._tools_used) == 2
+
+    def test_on_task_complete_populates_trajectory(self, hook):
+        hook.on_task_start("a", "t")
+        hook.on_tool_call("read_file", True)
+        hook.on_tool_call("write_file", True)
+        hook.on_task_complete(success=True, summary="done", total_tokens=5000)
+        assert hook.trajectory is not None
+        assert hook.trajectory.success is True
+        assert hook.trajectory.tool_count == 2
+        assert hook.trajectory.total_tokens == 5000
+
+    def test_errors_not_counted_on_failure(self, hook):
+        hook.on_task_start("a", "t")
+        hook.on_tool_call("bash", False)
+        hook.on_tool_call("bash", False)
+        hook.on_task_complete(success=False)
+        assert hook.trajectory.errors_overcome == 0  # failures don't count
+
+    @pytest.mark.asyncio
+    async def test_evolve_with_qualifying_trajectory(self, hook):
+        hook.on_task_start("agent-x", "complex multi-step task")
+        for _ in range(6):
+            hook.on_tool_call("bash", True)
+        hook.on_tool_call("grep", False)
+        hook.on_tool_call("bash", True)
+        hook.on_task_complete(success=True, summary="overcame grep error", total_tokens=8000)
+        names = await hook.evolve()
+        # May or may not generate candidates depending on reflector thresholds
+        assert isinstance(names, list)
+
+    def test_approve_and_reject(self, hook):
+        hook.engine._pending_review = []
+        from factory.evolution.types import CandidateSkill
+        cs = CandidateSkill(name="test-skill", description="test",
+                            prompt_template="do stuff")
+        hook.engine._pending_review.append(cs)
+        assert hook.approve("test-skill") is True

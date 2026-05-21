@@ -333,10 +333,12 @@ Agent 执行循环：
 
 ### Phase 7：进化引擎完善 — v0.8.0
 
-- [ ] GEPA 反思变异实现
-- [ ] 帕累托前沿选择
-- [ ] Skill 自动创建/更新/淘汰
-- [ ] 进化日志和回滚
+- [x] GEPA 反思变异实现（Reflector + Mutator 完善）
+- [x] 帕累托前沿选择（Selector 三维评分）
+- [x] Skill 生命周期管理（register/update/deprecate/retire + 版本化 .meta.json）
+- [x] EvolutionLogger — SQLite 进化审计日志（cycle/approve/reject/rollback）
+- [x] RollbackManager — Skill 回滚 + 归档到 .retired/
+- [x] EvolutionHook — AgentRunner 集成（轨迹收集 + 自动进化触发）
 
 ### Phase 8：打磨开源 — v0.9.0
 
