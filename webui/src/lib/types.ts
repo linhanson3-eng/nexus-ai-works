@@ -71,3 +71,29 @@ export interface WSMessage {
   event: string;
   data: unknown;
 }
+
+// ── Settings ──
+
+export interface ProviderConfig {
+  name: string;
+  provider_type: string;
+  base_url: string;
+  api_key: string;
+}
+
+export interface SkillEntry {
+  name: string;
+  description: string;
+  version: string;
+}
+
+export interface ToolConfig {
+  name?: string;
+  [key: string]: unknown;
+}
+
+export interface PluginEntry {
+  name: string;
+  enabled: boolean;
+  healthy: boolean;
+}

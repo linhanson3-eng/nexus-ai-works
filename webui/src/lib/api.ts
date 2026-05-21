@@ -74,6 +74,28 @@ export const api = {
   updateCard: (cardId: string, data: Partial<KanbanCard>) =>
     put<KanbanCard>(`/cards/${cardId}`, data),
   deleteCard: (cardId: string) => del(`/cards/${cardId}`),
+
+  // ── Settings ──
+
+  // Providers (LLM Keys)
+  listProviders: () => get<Record<string, { provider_type: string; base_url: string; api_key: string }>>("/settings/providers"),
+  saveProvider: (name: string, data: { provider_type?: string; base_url?: string; api_key?: string }) =>
+    post(`/settings/providers`, { name, ...data }),
+  deleteProvider: (name: string) => del(`/settings/providers/${name}`),
+
+  // Skills
+  listSkills: () => get<{ name: string; description: string; version: string }[]>("/settings/skills"),
+  syncSkills: () => post<{ status: string; count: number }>("/settings/skills/sync", {}),
+
+  // Tools (MCP + profiles)
+  listTools: () => get<{ mcp_servers: unknown[]; profiles: Record<string, unknown> }>("/settings/tools"),
+  saveTool: (name: string, data: Record<string, unknown>) => post("/settings/tools", { name, ...data }),
+  syncTools: () => post<{ status: string; count: number }>("/settings/tools/sync", {}),
+
+  // Plugins
+  listPlugins: () => get<Record<string, { name: string; enabled: boolean; healthy: boolean }>>("/settings/plugins"),
+  savePlugin: (name: string, data: { enabled?: boolean }) => post("/settings/plugins", { name, ...data }),
+  deletePlugin: (name: string) => del(`/settings/plugins/${name}`),
 };
 
 // ── WebSocket ──

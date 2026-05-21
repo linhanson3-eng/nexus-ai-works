@@ -4,6 +4,11 @@
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
+:root {
+  --color-surface: #02040a;
+  --color-text: #e2e8f0;
+}
+
 body {
   background: #02040a;
   color: #e2e8f0;
@@ -14,3 +19,24 @@ body {
 ::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 4px; }
+
+/* Toast animations */
+@keyframes slide-in-from-right {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes zoom-in {
+  from { transform: scale(0.95); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+.animate-in.slide-in-from-right { animation: slide-in-from-right 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
+.animate-in.zoom-in { animation: zoom-in 0.2s cubic-bezier(0.16, 1, 0.3, 1); }
+
+/* Skeleton pulse */
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+.animate-pulse { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
