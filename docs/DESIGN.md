@@ -318,10 +318,10 @@ Agent 执行循环：
 
 ### Phase 5：通讯 + 进化 — v0.6.0
 
-- [ ] Channel 插件接口
-- [ ] WeChat / Feishu 迁移
-- [ ] GEPA 自我进化引擎
-- [ ] 三级记忆分层（Agent → 车间 → 工厂）
+- [x] Channel 插件接口（Adapter 模式 + 全局注册表 + DummyChannel）
+- [x] GEPA 自我进化引擎（Reflect → Mutate → Select → Review 闭环）
+- [x] 三级记忆分层跨树迁移（TopicTree.aggregate_from + GlobalTree.rollup_from）
+- [ ] WeChat / Feishu 迁移（Phase 7 随 WebUI 一起）
 
 ### Phase 6：WebUI — v0.7.0
 

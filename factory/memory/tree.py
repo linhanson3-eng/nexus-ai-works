@@ -199,6 +199,28 @@ class TopicTree(MemoryTree):
     def query_entity(self, entity: str, query: str, limit: int = 20) -> list[dict]:
         return self.store.search(f"{entity} {query}", limit)
 
+    def aggregate_from(self, source_tree: MemoryTree, entity: str = "",
+                       limit: int = 50) -> list[Chunk]:
+        """Pull chunks from a SourceTree into this TopicTree.
+
+        Copies recent chunks from the source tree, re-tagged under the
+        given entity for cross-agent topic aggregation.
+        """
+        chunks = source_tree.get_chunks(limit)
+        results = []
+        for c in chunks:
+            tags = (f"entity/{entity}",) if entity else ()
+            meta = {"entity": entity, "source_tree": source_tree.tree_id}
+            chunk = self.append(
+                c["content"],
+                SourceKind.DOCUMENT,
+                source_id=c.get("id", ""),
+                tags=tags,
+                metadata=meta,
+            )
+            results.append(chunk)
+        return results
+
 
 class GlobalTree(MemoryTree):
     """工厂级全局树 — daily → weekly → monthly 级联摘要。"""
@@ -209,6 +231,34 @@ class GlobalTree(MemoryTree):
         date_str = date_str or datetime.now(timezone.utc).strftime("%Y-%m-%d")
         summaries = self.store.get_summaries(self.tree_id, level=1)
         return [s for s in summaries if date_str in (s.get("time_start") or "")]
+
+    def rollup_from(self, topic_tree: MemoryTree, date_str: str = "",
+                    limit: int = 50) -> list[dict]:
+        """Roll up summaries from a TopicTree into this GlobalTree.
+
+        Pulls level-1 summaries (daily) from the topic tree and copies
+        them into the global tree as level-2 (weekly/monthly) entries.
+        """
+        summaries = topic_tree.store.get_summaries(topic_tree.tree_id, level=1)
+        results = []
+        for s in summaries[:limit]:
+            if date_str and date_str not in (s.get("time_start") or ""):
+                continue
+            content = s.get("content", "")
+            if not content:
+                continue
+            # Copy into global tree as a document chunk with source reference
+            chunk = self.append(
+                content,
+                SourceKind.DOCUMENT,
+                source_id=s.get("id", ""),
+                metadata={
+                    "source_tree": topic_tree.tree_id,
+                    "original_level": str(s.get("level", 1)),
+                },
+            )
+            results.append(chunk)
+        return results
 
 
 async def dummy_summariser(contents: list[str], tree_id: str) -> str:
