@@ -179,7 +179,11 @@ export const api = {
 
 // ── WebSocket ──
 
-export function connectWS(boardId: string, onMessage: (event: string, data: unknown) => void): () => void {
+export function connectWS(
+  boardId: string,
+  onMessage: (event: string, data: unknown) => void,
+  onClose?: () => void,
+): () => void {
   const protocol = location.protocol === "https:" ? "wss:" : "ws:";
   const ws = new WebSocket(`${protocol}//${location.host}/ws/boards/${boardId}`);
 
@@ -187,10 +191,13 @@ export function connectWS(boardId: string, onMessage: (event: string, data: unkn
     try {
       const msg = JSON.parse(e.data);
       onMessage(msg.event, msg.data);
-    } catch { /* ignore */ }
+    } catch { /* ignore malformed messages */ }
   };
 
-  ws.onclose = () => { /* reconnect handled by caller */ };
+  ws.onclose = () => onClose?.();
 
-  return () => ws.close();
+  return () => {
+    ws.onclose = null;
+    ws.close();
+  };
 }

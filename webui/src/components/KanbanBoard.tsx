@@ -45,27 +45,45 @@ export function KanbanBoard() {
     }
   }, [toast]);
 
-  // WebSocket with reconnect
+  // WebSocket with event-driven reconnect (exponential backoff)
+  const reconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const attemptRef = useRef(0);
+
   useEffect(() => {
     if (!selectedBoard) {
       wsCleanupRef.current?.();
       wsCleanupRef.current = null;
+      if (reconnectRef.current) clearTimeout(reconnectRef.current);
+      attemptRef.current = 0;
       return;
     }
+
     loadBoard(selectedBoard);
 
-    let cleanup = connectWS(selectedBoard, () => loadBoard(selectedBoard));
-    wsCleanupRef.current = cleanup;
+    const scheduleReconnect = () => {
+      const delay = Math.min(1000 * 2 ** attemptRef.current, 30000);
+      attemptRef.current += 1;
+      reconnectRef.current = setTimeout(() => {
+        const cleanup = connectWS(
+          selectedBoard!,
+          () => loadBoard(selectedBoard!),
+          scheduleReconnect,
+        );
+        wsCleanupRef.current = cleanup;
+      }, delay);
+    };
 
-    // Reconnect on close
-    const interval = setInterval(() => {
-      cleanup = connectWS(selectedBoard!, () => loadBoard(selectedBoard!));
-      wsCleanupRef.current = cleanup;
-    }, 5000);
+    const cleanup = connectWS(
+      selectedBoard,
+      () => loadBoard(selectedBoard),
+      scheduleReconnect,
+    );
+    wsCleanupRef.current = cleanup;
 
     return () => {
       cleanup();
-      clearInterval(interval);
+      if (reconnectRef.current) clearTimeout(reconnectRef.current);
+      attemptRef.current = 0;
     };
   }, [selectedBoard, loadBoard]);
 

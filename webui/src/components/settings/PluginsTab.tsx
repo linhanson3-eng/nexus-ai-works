@@ -1,0 +1,137 @@
+import { useEffect, useState, useCallback } from "react";
+import { Plus, Trash2, Loader2, AlertTriangle, Blocks, Shield } from "lucide-react";
+import { api } from "../../lib/api";
+import type { ToastFn } from "../Toast";
+import { ConfirmDialog } from "../ConfirmDialog";
+import type { PluginEntry } from "../../lib/types";
+
+export function PluginsTab({ toast }: { toast: ToastFn }) {
+  const [plugins, setPlugins] = useState<Record<string, PluginEntry>>({});
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      setPlugins(await api.listPlugins());
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "加载失败");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const toggle = async (name: string, enabled: boolean) => {
+    try {
+      await api.savePlugin(name, { enabled });
+      toast.success(`"${name}" ${enabled ? "已启用" : "已禁用"}`);
+      load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "切换失败");
+    }
+  };
+
+  const remove = async (name: string) => {
+    try {
+      await api.deletePlugin(name);
+      toast.success(`"${name}" 已删除`);
+      setDeleteTarget(null);
+      load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "删除失败");
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12 gap-2">
+        <Loader2 className="w-5 h-5 text-accent animate-spin" />
+        <span className="text-sm text-muted">加载插件列表...</span>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center gap-3 py-12">
+        <AlertTriangle className="w-8 h-8 text-warning" />
+        <p className="text-sm text-muted">{error}</p>
+        <button onClick={load} className="flex items-center gap-2 px-4 py-2 bg-accent/10 text-accent border border-accent/20 rounded-xl text-sm hover:bg-accent/20 transition-colors">
+          <RefreshCw className="w-3.5 h-3.5" /> 重试
+        </button>
+      </div>
+    );
+  }
+
+  const entries = Object.values(plugins);
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-muted">Channel 适配器和平台插件。让 Nexus AI Works 接入微信、飞书、钉钉等外部平台。</p>
+        <button
+          onClick={() => {
+            const name = window.prompt("插件名称:");
+            if (name) api.savePlugin(name, { enabled: true }).then(() => load()).catch(e => toast.error(e.message));
+          }}
+          className="flex items-center gap-2 px-4 py-2 bg-accent/10 text-accent border border-accent/20 rounded-xl text-sm hover:bg-accent/20 transition-colors shrink-0"
+        >
+          <Plus className="w-4 h-4" /> 安装插件
+        </button>
+      </div>
+
+      {entries.length === 0 ? (
+        <div className="flex flex-col items-center gap-3 py-12">
+          <Blocks className="w-10 h-10 text-muted" />
+          <p className="text-sm text-muted">尚未安装任何插件</p>
+          <p className="text-xs text-muted">安装插件以接入外部平台</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {entries.map(p => (
+            <div key={p.name} className="flex items-center justify-between bg-surface border border-border rounded-xl px-4 py-3">
+              <div className="flex items-center gap-3">
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${p.healthy ? "bg-success/10" : "bg-warning/10"}`}>
+                  <Shield className={`w-4 h-4 ${p.healthy ? "text-success" : "text-warning"}`} />
+                </div>
+                <div>
+                  <span className="text-sm text-white font-medium">{p.name}</span>
+                  <p className="text-xs text-muted mt-0.5">{p.healthy ? "运行中" : "未连接"}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => toggle(p.name, !p.enabled)}
+                  className={`relative w-10 h-5 rounded-full transition-colors ${p.enabled ? "bg-success/30" : "bg-border"}`}
+                >
+                  <div className={`absolute w-4 h-4 bg-white rounded-full top-0.5 transition-all ${p.enabled ? "left-5" : "left-0.5"}`} />
+                </button>
+                <button
+                  onClick={() => setDeleteTarget(p.name)}
+                  className="text-muted hover:text-warning transition-colors"
+                  title="卸载插件"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {deleteTarget && (
+        <ConfirmDialog
+          title="卸载插件"
+          message={`确定要卸载插件 "${deleteTarget}" 吗？关联的 Channel 将停止工作。`}
+          confirmLabel="卸载"
+          onConfirm={() => remove(deleteTarget)}
+          onCancel={() => setDeleteTarget(null)}
+        />
+      )}
+    </div>
+  );
+}

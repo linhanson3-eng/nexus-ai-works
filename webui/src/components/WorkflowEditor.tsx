@@ -132,7 +132,7 @@ export function WorkflowEditor({ templateName, onBack }: Props) {
   useEffect(() => {
     api.listWorkshops().then(data => {
       setWorkshops(data.map((w: { name: string }) => ({ name: w.name })));
-    }).catch(() => {});
+    }).catch((err) => { console.warn("加载车间列表失败", err); });
   }, []);
 
   // Sync runStatus to node data for canvas indicators

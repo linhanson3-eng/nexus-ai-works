@@ -1,14 +1,10 @@
 import { useEffect, useState, useCallback, useRef } from "react";
-import { AlertTriangle, Plus, Trash2, Play, Loader2, Blocks, RefreshCw, Bot, Settings, X, Shield, FileText, Wrench, Zap, Download, Upload, Package } from "lucide-react";
+import { AlertTriangle, Plus, Trash2, Play, Loader2, Blocks, RefreshCw, Bot, Settings, Zap, Download, Upload } from "lucide-react";
 import { api } from "../lib/api";
 import { useToast } from "./Toast";
 import { ConfirmDialog } from "./ConfirmDialog";
+import { AgentEditor } from "./AgentEditor";
 import type { Workshop, WorkflowResult, AgentInfo } from "../lib/types";
-
-const AVAILABLE_TOOLS = [
-  "think", "search", "deep_search", "read_file", "write_file",
-  "execute_command", "task", "web_fetch", "ask_user_question",
-];
 
 export function WorkshopList() {
   const [workshops, setWorkshops] = useState<Workshop[]>([]);
@@ -30,16 +26,6 @@ export function WorkshopList() {
   const [agentsLoading, setAgentsLoading] = useState(false);
   const [showAgentEditor, setShowAgentEditor] = useState(false);
   const [editingAgent, setEditingAgent] = useState<AgentInfo | null>(null);
-  const [agentForm, setAgentForm] = useState({
-    name: "", mode: "super" as "super" | "normal",
-    model: "anthropic/claude-sonnet-4-6",
-    system_prompt: "", guide_file: "", guide_content: "", skills: "",
-    tools: "" as string | string[],
-    file_write: true, shell_exec: true, subagent_spawn: true,
-  });
-  const [agentSaving, setAgentSaving] = useState(false);
-  const [availableSkills, setAvailableSkills] = useState<{ name: string; description: string }[]>([]);
-  const [skillsDropdownOpen, setSkillsDropdownOpen] = useState(false);
 
   // Import/Export
   const [exporting, setExporting] = useState<string | null>(null);
@@ -73,23 +59,8 @@ export function WorkshopList() {
         }
       }
       setProviderModels(models);
-    }).catch(() => {});
+    }).catch((err) => { console.warn("加载模型列表失败", err); });
   }, []);
-
-  // Load available skills for dropdown
-  useEffect(() => {
-    api.listSkills().then(data => {
-      setAvailableSkills(data.map((s: { name: string; description: string }) => ({ name: s.name, description: s.description || "" })));
-    }).catch(() => {});
-  }, []);
-
-  // Close skills dropdown on outside click
-  useEffect(() => {
-    if (!skillsDropdownOpen) return;
-    const handler = () => setSkillsDropdownOpen(false);
-    document.addEventListener("click", handler);
-    return () => document.removeEventListener("click", handler);
-  }, [skillsDropdownOpen]);
 
   const create = async () => {
     const trimmed = name.trim();
@@ -120,8 +91,6 @@ export function WorkshopList() {
       setDeleteTarget(null);
     }
   };
-
-  // ── Export / Import / Remove ──────────────────────────────────
 
   const exportWorkspace = async (wsName: string) => {
     setExporting(wsName);
@@ -190,100 +159,15 @@ export function WorkshopList() {
     }
   };
 
-  // ── Agent CRUD ────────────────────────────────────────────────
-
   const loadAgents = async (wsName: string) => {
     setAgentsLoading(true);
     try {
       setAgents(await api.listAgents(wsName));
-    } catch {
+    } catch (err) {
+      console.warn("加载 Agent 列表失败", err);
       setAgents([]);
     } finally {
       setAgentsLoading(false);
-    }
-  };
-
-  const openAgentCreate = () => {
-    setEditingAgent(null);
-    setAgentForm({
-      name: "", mode: "super", model: "anthropic/claude-sonnet-4-6",
-      system_prompt: "", guide_file: "GUIDE.md", guide_content: "", skills: "",
-      tools: "", file_write: true, shell_exec: true, subagent_spawn: true,
-    });
-    setShowAgentEditor(true);
-  };
-
-  const openAgentEdit = async (a: AgentInfo) => {
-    setEditingAgent(a);
-    // Try to load guide file content
-    let guideContent = "";
-    if (a.guide_file && selected) {
-      try {
-        const res = await fetch(`/api/workshops/${selected.name}/files/${a.guide_file}`);
-        if (res.ok) {
-          const data = await res.json();
-          guideContent = data.content || "";
-        }
-      } catch { /* file may not exist yet */ }
-    }
-    setAgentForm({
-      name: a.name,
-      mode: a.mode || (a.is_super ? "super" : "normal"),
-      model: a.model,
-      system_prompt: a.system_prompt || "",
-      guide_file: a.guide_file || "",
-      guide_content: guideContent,
-      skills: (a.skills || []).join(", "),
-      tools: a.tools_all ? "" : (a.tools || []).join(", "),
-      file_write: a.permissions?.file_write ?? false,
-      shell_exec: a.permissions?.shell_exec ?? false,
-      subagent_spawn: a.permissions?.subagent_spawn ?? false,
-    });
-    setShowAgentEditor(true);
-  };
-
-  const saveAgent = async () => {
-    if (!selected || !agentForm.name.trim()) return;
-    setAgentSaving(true);
-
-    const mode = agentForm.mode;
-    const isSuper = mode === "super";
-    const toolsStr = typeof agentForm.tools === "string" ? agentForm.tools : agentForm.tools.join(", ");
-
-    const tools: string[] = isSuper
-      ? []
-      : (toolsStr ? toolsStr.split(",").map(t => t.trim()).filter(Boolean) : ["think", "search", "read_file"]);
-
-    const payload: Record<string, unknown> = {
-      name: agentForm.name.trim(),
-      mode,
-      model: agentForm.model,
-      tools,
-      system_prompt: agentForm.system_prompt,
-      guide_file: agentForm.guide_file,
-      guide_content: agentForm.guide_content,
-      skills: agentForm.skills ? agentForm.skills.split(",").map(s => s.trim()).filter(Boolean) : [],
-      permissions: {
-        file_write: agentForm.file_write,
-        shell_exec: agentForm.shell_exec,
-        subagent_spawn: agentForm.subagent_spawn,
-      },
-    };
-
-    try {
-      if (editingAgent) {
-        await api.updateAgent(selected.name, editingAgent.name, payload);
-        toast.success(`Agent "${payload.name}" 已更新`);
-      } else {
-        await api.createAgent(selected.name, payload);
-        toast.success(`Agent "${payload.name}" 已创建`);
-      }
-      setShowAgentEditor(false);
-      loadAgents(selected.name);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "保存失败");
-    } finally {
-      setAgentSaving(false);
     }
   };
 
@@ -332,7 +216,6 @@ export function WorkshopList() {
     );
   }
 
-  // ── Content ──
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -451,7 +334,7 @@ export function WorkshopList() {
                 <div>
                   <div className="flex items-center justify-between">
                     <span className="text-[10px] uppercase tracking-widest text-muted font-medium">Agents</span>
-                    <button onClick={(e) => { e.stopPropagation(); openAgentCreate(); }}
+                    <button onClick={(e) => { e.stopPropagation(); setEditingAgent(null); setShowAgentEditor(true); }}
                       className="flex items-center gap-1 text-xs text-accent hover:text-white transition-colors">
                       <Plus className="w-3 h-3" /> 添加 Agent
                     </button>
@@ -484,7 +367,7 @@ export function WorkshopList() {
                             </div>
                           </div>
                           <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-                            <button onClick={(e) => { e.stopPropagation(); openAgentEdit(a); }}
+                            <button onClick={(e) => { e.stopPropagation(); setEditingAgent(a); setShowAgentEditor(true); }}
                               className="p-1.5 rounded-lg text-muted hover:text-white hover:bg-white/5 transition-colors">
                               <Settings className="w-3 h-3" />
                             </button>
@@ -557,217 +440,13 @@ export function WorkshopList() {
 
       {/* Agent Editor Dialog */}
       {showAgentEditor && selected && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowAgentEditor(false)}>
-          <div className="bg-card border border-border rounded-[20px] p-6 w-full max-w-lg space-y-4 shadow-2xl max-h-[85vh] overflow-auto" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-bold text-white">{editingAgent ? `编辑 Agent: ${editingAgent.name}` : "新建 Agent"}</h2>
-              <button onClick={() => setShowAgentEditor(false)} className="p-1.5 rounded-lg text-muted hover:text-white transition-colors">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* Name */}
-            <div>
-              <label className="text-[10px] uppercase tracking-widest text-muted">名称</label>
-              <input value={agentForm.name} onChange={e => setAgentForm(f => ({ ...f, name: e.target.value }))}
-                placeholder="Agent 名称"
-                disabled={!!editingAgent}
-                className="w-full bg-surface border border-border rounded-xl px-3 py-2 text-sm text-white placeholder:text-muted focus:outline-none focus:border-accent/30 mt-1 disabled:opacity-50" />
-            </div>
-
-            {/* Mode + Model */}
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-[10px] uppercase tracking-widest text-muted">模式</label>
-                <div className="flex gap-2 mt-1">
-                  <button type="button" onClick={() => setAgentForm(f => ({
-                    ...f, mode: "super",
-                    tools: "", file_write: true, shell_exec: true, subagent_spawn: true,
-                  }))}
-                    className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium border transition-colors ${
-                      agentForm.mode === "super"
-                        ? "bg-warning/10 text-warning border-warning/30"
-                        : "bg-surface border-border text-muted hover:text-white"
-                    }`}>
-                    <Zap className="w-3.5 h-3.5" /> 超级
-                  </button>
-                  <button type="button" onClick={() => setAgentForm(f => ({
-                    ...f, mode: "normal",
-                    tools: "think, search, read_file", file_write: false, shell_exec: false, subagent_spawn: false,
-                  }))}
-                    className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium border transition-colors ${
-                      agentForm.mode === "normal"
-                        ? "bg-info/10 text-info border-info/30"
-                        : "bg-surface border-border text-muted hover:text-white"
-                    }`}>
-                    <Bot className="w-3.5 h-3.5" /> 普通
-                  </button>
-                </div>
-              </div>
-              <div>
-                <label className="text-[10px] uppercase tracking-widest text-muted">模型</label>
-                <select value={agentForm.model} onChange={e => setAgentForm(f => ({ ...f, model: e.target.value }))}
-                  className="w-full bg-surface border border-border rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/30 mt-1">
-                  {providerModels.map(m => (
-                    <option key={m} value={m}>{m}</option>
-                  ))}
-                  <option value="__custom__">自定义输入...</option>
-                </select>
-                {agentForm.model === "__custom__" && (
-                  <input value="" onChange={e => setAgentForm(f => ({ ...f, model: e.target.value }))}
-                    placeholder="输入模型名，如 anthropic/claude-opus-4-7"
-                    autoFocus
-                    className="w-full bg-surface border border-accent/30 rounded-xl px-3 py-2 text-sm text-white placeholder:text-muted focus:outline-none focus:border-accent/50 mt-1" />
-                )}
-              </div>
-            </div>
-
-            {/* System prompt */}
-            <div>
-              <label className="text-[10px] uppercase tracking-widest text-muted flex items-center gap-1.5">
-                <FileText className="w-3 h-3" /> 系统提示词
-              </label>
-              <textarea value={agentForm.system_prompt} onChange={e => setAgentForm(f => ({ ...f, system_prompt: e.target.value }))}
-                placeholder="Agent 的系统级指令..."
-                rows={3}
-                className="w-full bg-surface border border-border rounded-xl px-3 py-2 text-sm text-white placeholder:text-muted focus:outline-none focus:border-accent/30 mt-1 resize-none" />
-            </div>
-
-            {/* Tools — only for normal mode */}
-            {agentForm.mode === "normal" && (
-              <div>
-                <label className="text-[10px] uppercase tracking-widest text-muted flex items-center gap-1.5">
-                  <Wrench className="w-3 h-3" /> 工具
-                </label>
-                <input value={typeof agentForm.tools === "string" ? agentForm.tools : agentForm.tools.join(", ")}
-                  onChange={e => setAgentForm(f => ({ ...f, tools: e.target.value }))}
-                  placeholder="think, search, read_file, write_file..."
-                  className="w-full bg-surface border border-border rounded-xl px-3 py-2 text-sm text-white placeholder:text-muted focus:outline-none focus:border-accent/30 mt-1" />
-                <div className="flex flex-wrap gap-1 mt-1.5">
-                  {AVAILABLE_TOOLS.map(t => (
-                    <button key={t} type="button"
-                      onClick={() => {
-                        const current = typeof agentForm.tools === "string" ? agentForm.tools.split(",").map(s => s.trim()).filter(Boolean) : agentForm.tools;
-                        const next = current.includes(t) ? current.filter(x => x !== t) : [...current, t];
-                        setAgentForm(f => ({ ...f, tools: next.join(", ") }));
-                      }}
-                      className={`text-[10px] px-2 py-0.5 rounded-md border transition-colors ${
-                        (typeof agentForm.tools === "string" ? agentForm.tools : agentForm.tools.join(",")).includes(t)
-                          ? "bg-accent/10 text-accent border-accent/30"
-                          : "bg-surface border-border text-muted hover:text-white"
-                      }`}>{t}</button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Guide file */}
-            <div>
-              <label className="text-[10px] uppercase tracking-widest text-muted flex items-center gap-1.5">
-                <FileText className="w-3 h-3" /> 引导文件
-              </label>
-              <div className="flex gap-2 mt-1">
-                <input value={agentForm.guide_file} onChange={e => setAgentForm(f => ({ ...f, guide_file: e.target.value }))}
-                  placeholder="GUIDE.md"
-                  className="w-36 bg-surface border border-border rounded-xl px-3 py-2 text-sm text-white placeholder:text-muted focus:outline-none focus:border-accent/30" />
-                <span className="text-[10px] text-muted self-center">.md Markdown 文件</span>
-              </div>
-              <textarea value={agentForm.guide_content} onChange={e => setAgentForm(f => ({ ...f, guide_content: e.target.value }))}
-                placeholder="# Agent 引导指令&#10;&#10;## 角色&#10;你是一个...&#10;&#10;## 工作流程&#10;1. ...&#10;2. ...&#10;&#10;## 规则&#10;- ..."
-                rows={8}
-                className="w-full bg-surface border border-border rounded-xl px-3 py-2 text-sm text-white placeholder:text-muted focus:outline-none focus:border-accent/30 mt-2 resize-none font-mono" />
-            </div>
-
-            {/* Skills */}
-            <div className="relative">
-              <label className="text-[10px] uppercase tracking-widest text-muted flex items-center gap-1.5">
-                <Zap className="w-3 h-3" /> 技能
-              </label>
-              <div className="flex flex-wrap gap-1 mt-1 mb-1.5">
-                {agentForm.skills ? agentForm.skills.split(",").map(s => s.trim()).filter(Boolean).map(skill => (
-                  <span key={skill} className="inline-flex items-center gap-1 px-2 py-0.5 bg-accent/10 text-accent border border-accent/20 rounded-lg text-xs">
-                    {skill}
-                    <button onClick={() => {
-                      const current = agentForm.skills.split(",").map(s => s.trim()).filter(Boolean);
-                      setAgentForm(f => ({ ...f, skills: current.filter(x => x !== skill).join(", ") }));
-                    }} className="text-accent/60 hover:text-accent">
-                      <X className="w-3 h-3" />
-                    </button>
-                  </span>
-                )) : null}
-              </div>
-              <button type="button" onClick={(e) => { e.stopPropagation(); setSkillsDropdownOpen(!skillsDropdownOpen); }}
-                className="w-full flex items-center justify-between bg-surface border border-border rounded-xl px-3 py-2 text-sm text-muted hover:text-white transition-colors">
-                <span>{agentForm.skills ? "已选 " + agentForm.skills.split(",").filter(Boolean).length + " 个技能" : "选择技能..."}</span>
-                <span className="text-[10px]">{skillsDropdownOpen ? "▲" : "▼"}</span>
-              </button>
-              {skillsDropdownOpen && (
-                <div className="absolute z-50 w-full mt-1 bg-card border border-border rounded-xl shadow-xl max-h-48 overflow-auto">
-                  {availableSkills.length === 0 ? (
-                    <p className="text-xs text-muted p-3">暂无可用技能，请先在设置中同步</p>
-                  ) : (
-                    availableSkills.map(skill => {
-                      const selected = agentForm.skills.split(",").map(s => s.trim()).includes(skill.name);
-                      return (
-                        <button key={skill.name} type="button" onClick={() => {
-                          const current = agentForm.skills ? agentForm.skills.split(",").map(s => s.trim()).filter(Boolean) : [];
-                          const next = selected ? current.filter(x => x !== skill.name) : [...current, skill.name];
-                          setAgentForm(f => ({ ...f, skills: next.join(", ") }));
-                        }}
-                          className={`w-full text-left px-3 py-2 text-xs hover:bg-white/5 transition-colors flex items-center justify-between ${
-                            selected ? "text-accent" : "text-slate-300"
-                          }`}>
-                          <span>{skill.name}</span>
-                          {skill.description && <span className="text-[10px] text-muted truncate ml-2 max-w-[200px]">{skill.description}</span>}
-                        </button>
-                      );
-                    })
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Permissions */}
-            <div>
-              <label className="text-[10px] uppercase tracking-widest text-muted flex items-center gap-1.5 mb-2">
-                <Shield className="w-3 h-3" /> 权限
-              </label>
-              <div className="space-y-2">
-                {[
-                  { key: "file_write", label: "文件写入", desc: "允许读写工作区文件" },
-                  { key: "shell_exec", label: "Shell 执行", desc: "允许执行终端命令" },
-                  { key: "subagent_spawn", label: "子 Agent", desc: "允许创建子 Agent 执行子任务" },
-                ].map(perm => (
-                  <label key={perm.key} className="flex items-center justify-between p-2.5 bg-surface border border-border rounded-xl cursor-pointer hover:border-accent/20 transition-colors">
-                    <div>
-                      <span className="text-sm text-white">{perm.label}</span>
-                      <p className="text-[10px] text-muted">{perm.desc}</p>
-                    </div>
-                    <button type="button" onClick={() => {
-                      setAgentForm(f => ({ ...f, [perm.key]: !(f as Record<string, unknown>)[perm.key] as boolean }));
-                    }}
-                      className={`w-9 h-5 rounded-full transition-colors relative ${
-                        (agentForm as Record<string, unknown>)[perm.key] ? "bg-accent" : "bg-muted/30"
-                      }`}>
-                      <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${
-                        (agentForm as Record<string, unknown>)[perm.key] ? "left-4" : "left-0.5"
-                      }`} />
-                    </button>
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-2 pt-2">
-              <button onClick={() => setShowAgentEditor(false)}
-                className="px-4 py-2 bg-surface border border-border rounded-xl text-sm text-muted hover:text-white transition-colors">取消</button>
-              <button onClick={saveAgent} disabled={agentSaving || !agentForm.name.trim()}
-                className="flex items-center gap-1.5 px-4 py-2 bg-accent/10 text-accent border border-accent/20 rounded-xl text-sm font-medium hover:bg-accent/20 transition-colors disabled:opacity-30">
-                {agentSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : null} 保存
-              </button>
-            </div>
-          </div>
-        </div>
+        <AgentEditor
+          workshopName={selected.name}
+          existingAgent={editingAgent}
+          onClose={() => setShowAgentEditor(false)}
+          onSaved={() => loadAgents(selected.name)}
+          toast={toast}
+        />
       )}
 
       {/* Delete confirmation */}

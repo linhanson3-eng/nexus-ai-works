@@ -1,5 +1,6 @@
-import { NavLink, Outlet } from "react-router-dom";
-import { MessageSquare, Activity, Blocks, Kanban, GitBranch, GitMerge, Package, Zap, Settings, Store } from "lucide-react";
+import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { MessageSquare, Activity, Blocks, Kanban, GitBranch, GitMerge, Package, Zap, Settings, Store, LogOut, User } from "lucide-react";
+import { useAuth } from "../lib/AuthContext";
 
 const navItems = [
   { to: "/chat", label: "对话", icon: MessageSquare },
@@ -20,6 +21,14 @@ const navLinkClass = ({ isActive }: { isActive: boolean }) =>
   }`;
 
 export function Layout() {
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    logout();
+    navigate("/auth", { replace: true });
+  };
+
   return (
     <div className="flex h-screen bg-surface">
       {/* Sidebar */}
@@ -33,6 +42,24 @@ export function Layout() {
           </div>
           <p className="text-[10px] text-muted mt-1.5 uppercase tracking-widest font-medium">管理控制台 v1.0</p>
         </div>
+
+        {/* User info */}
+        {user && (
+          <div className="px-4 py-3 border-b border-border">
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg bg-accent/10 flex items-center justify-center shrink-0">
+                <User className="w-3.5 h-3.5 text-accent" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm text-white font-medium truncate">{user.username}</p>
+                {user.is_vip && (
+                  <span className="text-[9px] text-accent bg-accent/10 px-1.5 py-0.5 rounded-full">VIP</span>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
         <nav className="flex-1 p-3 space-y-0.5">
           {navItems.map(({ to, label, icon: Icon }) => (
             <NavLink key={to} to={to} className={navLinkClass}>
@@ -41,12 +68,16 @@ export function Layout() {
             </NavLink>
           ))}
         </nav>
-        {/* Settings at bottom */}
-        <div className="p-3 border-t border-border">
+        {/* Settings + Logout at bottom */}
+        <div className="p-3 border-t border-border space-y-0.5">
           <NavLink to="/settings" className={navLinkClass}>
             <Settings className="w-4 h-4" />
             设置
           </NavLink>
+          <button onClick={handleLogout} className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-slate-400 hover:text-warning hover:bg-white/5 transition-all duration-150 w-full">
+            <LogOut className="w-4 h-4" />
+            退出登录
+          </button>
         </div>
         <div className="p-4 border-t border-border">
           <div className="flex items-center gap-2">

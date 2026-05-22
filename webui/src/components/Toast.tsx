@@ -16,6 +16,8 @@ interface ToastContextValue {
   info: (msg: string) => void;
 }
 
+export type ToastFn = ToastContextValue;
+
 const ToastContext = createContext<ToastContextValue | null>(null);
 
 let nextId = 0;

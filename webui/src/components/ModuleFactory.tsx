@@ -66,7 +66,7 @@ export function ModuleFactory() {
 
   // Load workshops for store
   const loadWorkshops = useCallback(async () => {
-    try { setWorkshops(await api.listWorkshops()); } catch { /* */ }
+    try { setWorkshops(await api.listWorkshops()); } catch (err) { console.warn("加载车间列表失败", err); }
   }, []);
 
   // Init
@@ -88,7 +88,7 @@ export function ModuleFactory() {
                 skills: a.skills ? a.skills.split(",").map((s: string) => s.trim()).filter(Boolean) : [],
                 permissions: { file_write: a.file_write, shell_exec: a.shell_exec, subagent_spawn: a.subagent_spawn },
               });
-            } catch { /* may exist */ }
+            } catch (err) { console.warn("创建 Agent 失败（可能已存在）", err); }
           }
         }
         try {
