@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass, field
+from enum import Enum
 from pathlib import Path
 from typing import Any
 
@@ -31,6 +32,18 @@ from factory.tokenjuice import compact_tool_output, load_rules
 from factory.kanban.sync import KanbanSync, TaskEvent
 
 
+class ErrorKind(str, Enum):
+    """Structured error classification for agent task failures."""
+
+    NONE = ""
+    TOOL_FAILURE = "tool_failure"
+    API_ERROR = "api_error"
+    BUDGET_EXCEEDED = "budget_exceeded"
+    TIMEOUT = "timeout"
+    PERMISSION_DENIED = "permission_denied"
+    UNKNOWN = "unknown"
+
+
 @dataclass
 class TaskResult:
     """Result of one agent execution."""
@@ -38,6 +51,8 @@ class TaskResult:
     content: str
     tools_used: list[str] = field(default_factory=list)
     error: str | None = None
+    error_kind: ErrorKind = ErrorKind.NONE
+    error_context: dict[str, str] = field(default_factory=dict)
     chunks_written: int = 0
     summaries_generated: int = 0
     session_id: str = ""
@@ -270,10 +285,22 @@ class NexusAgentRunner:
         for evt in tool_events:
             self.record_tool_call(evt["tool"], evt.get("output", ""), result.session_id or "session")
 
+        error_kind = ErrorKind.NONE
+        error_context_info: dict[str, str] = {}
+        if result.stop_reason and result.stop_reason != "end_turn":
+            error_kind = _classify_error(result.stop_reason, result.final_output or "")
+            error_context_info = {
+                "stop_reason": result.stop_reason,
+                "tools_called": ", ".join(tool_names) if tool_names else "none",
+                "turns_used": str(result.turns),
+            }
+
         return TaskResult(
             content=result.final_output or "",
             tools_used=tool_names,
             error=result.stop_reason if result.stop_reason and result.stop_reason != "end_turn" else None,
+            error_kind=error_kind,
+            error_context=error_context_info,
             session_id=result.session_id or "",
             turns=result.turns,
             cost_usd=result.total_cost_usd or 0.0,
@@ -283,7 +310,7 @@ class NexusAgentRunner:
     async def _run_simulated(self, task: str, context: str) -> TaskResult:
         """Fallback when claw-code-agent is unavailable (tests only)."""
         content = f"[simulated] Task: {task}\nContext: {context[:200]}"
-        return TaskResult(content=content, tools_used=[])
+        return TaskResult(content=content, tools_used=[], error_kind=ErrorKind.NONE, error_context={})
 
     # ── Memory recording ────────────────────────────────────────
 
@@ -342,6 +369,22 @@ def _extract_tool_events(transcript: tuple) -> list[dict]:
                 "output": "",
             })
     return events
+
+
+def _classify_error(stop_reason: str, output: str) -> ErrorKind:
+    """Classify error stop reason into structured ErrorKind."""
+    reason_lower = (stop_reason + " " + output[:500]).lower()
+    if any(k in reason_lower for k in ("tool_error", "tool_call", "tool_use_failed", "tool_execution")):
+        return ErrorKind.TOOL_FAILURE
+    if any(k in reason_lower for k in ("429", "rate", "limit", "quota", "billing", "budget", "max_token")):
+        return ErrorKind.BUDGET_EXCEEDED
+    if any(k in reason_lower for k in ("timeout", "timed out", "deadline")):
+        return ErrorKind.TIMEOUT
+    if any(k in reason_lower for k in ("401", "403", "unauthorized", "forbidden", "permission")):
+        return ErrorKind.PERMISSION_DENIED
+    if any(k in reason_lower for k in ("api_error", "server_error", "500", "502", "503", "connect", "refused")):
+        return ErrorKind.API_ERROR
+    return ErrorKind.UNKNOWN
 
 
 def _make_dummy_summariser():
