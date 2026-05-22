@@ -28,12 +28,16 @@ from marketplace.store import MarketplaceStore
 
 app = FastAPI(title="Nexus Solution Marketplace", version="1.0.0")
 
+cors_origins = os.environ.get(
+    "CORS_ORIGINS",
+    "http://localhost:5173,http://localhost:8600",
+).split(",")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=cors_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "DELETE"],
+    allow_headers=["Content-Type", "Authorization", "X-CSRF-Token"],
 )
 
 store = MarketplaceStore()

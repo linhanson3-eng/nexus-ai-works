@@ -12,9 +12,28 @@ import hmac
 import json
 import os
 import secrets
+import sys
 import time
+from pathlib import Path
 
-JWT_SECRET = os.environ.get("MARKETPLACE_JWT_SECRET", secrets.token_hex(32))
+JWT_SECRET_PATH = Path("~/.nexus/marketplace_jwt_secret").expanduser()
+
+
+def _get_jwt_secret() -> str:
+    """Get JWT secret from env var, file, or generate + persist a new one."""
+    env_secret = os.environ.get("MARKETPLACE_JWT_SECRET", "")
+    if env_secret:
+        return env_secret
+    JWT_SECRET_PATH.parent.mkdir(parents=True, exist_ok=True)
+    if JWT_SECRET_PATH.exists():
+        return JWT_SECRET_PATH.read_text().strip()
+    secret = secrets.token_hex(32)
+    JWT_SECRET_PATH.write_text(secret)
+    JWT_SECRET_PATH.chmod(0o600)
+    return secret
+
+
+JWT_SECRET = _get_jwt_secret()
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRE_HOURS = 720
 
@@ -33,23 +52,27 @@ def _b64url_decode(s: str) -> bytes:
 
 
 def hash_password(password: str) -> str:
-    """Hash a password with a random salt.
+    """Hash a password using PBKDF2-HMAC-SHA256 with 100,000 iterations.
 
-    Returns format: salt:hash (both hex-encoded).
+    Returns format: salt:key (both hex-encoded).
     """
     salt = secrets.token_hex(16)
-    h = hashlib.sha256(f"{salt}:{password}".encode("utf-8")).hexdigest()
-    return f"{salt}:{h}"
+    key = hashlib.pbkdf2_hmac(
+        "sha256", password.encode("utf-8"), salt.encode("utf-8"), 100_000
+    )
+    return f"{salt}:{key.hex()}"
 
 
 def verify_password(password: str, stored_hash: str) -> bool:
-    """Verify a password against a stored salt:hash string."""
+    """Verify a password against a stored salt:key PBKDF2 hash."""
     try:
-        salt, expected = stored_hash.split(":", 1)
+        salt, h = stored_hash.split(":", 1)
     except ValueError:
         return False
-    actual = hashlib.sha256(f"{salt}:{password}".encode("utf-8")).hexdigest()
-    return hmac.compare_digest(actual, expected)
+    key = hashlib.pbkdf2_hmac(
+        "sha256", password.encode("utf-8"), salt.encode("utf-8"), 100_000
+    )
+    return hmac.compare_digest(key.hex(), h)
 
 
 def create_token(user_id: str, username: str) -> str:
@@ -110,11 +133,15 @@ def decode_token(token: str) -> dict | None:
         return None
 
 
-import os as _os
-
-ADMIN_TOKEN_HASH = _os.environ.get("MARKETPLACE_ADMIN_TOKEN_HASH", "")
+ADMIN_TOKEN_HASH = os.environ.get("MARKETPLACE_ADMIN_TOKEN_HASH", "")
 if not ADMIN_TOKEN_HASH:
-    ADMIN_TOKEN_HASH = hash_password("nexus-admin-secret")
+    admin_token = secrets.token_hex(24)
+    ADMIN_TOKEN_HASH = hash_password(admin_token)
+    print(
+        f"[marketplace] Generated admin token: {admin_token} "
+        f"(set MARKETPLACE_ADMIN_TOKEN_HASH to persist)",
+        file=sys.stderr,
+    )
 
 
 def verify_admin_token(token: str) -> bool:

@@ -1,7 +1,7 @@
 """HMAC request signing for local-cloud API communication.
 
-Shared secret stored at ~/.nexus/marketplace_secret.
-Generated on first run.
+Shared secret stored at ~/.nexus/marketplace_shared_secret.
+Generated on first run. Migrates from old marketplace_secret path.
 """
 
 from __future__ import annotations
@@ -11,14 +11,24 @@ import hmac
 import secrets
 from pathlib import Path
 
-SECRET_PATH = Path("~/.nexus/marketplace_secret").expanduser()
+SECRET_PATH = Path("~/.nexus/marketplace_shared_secret").expanduser()
+OLD_SECRET_PATH = Path("~/.nexus/marketplace_secret").expanduser()
 
 
 def get_or_create_secret() -> str:
-    """Get existing secret or generate a new one."""
+    """Get existing secret or generate a new one.
+
+    Migrates from old ~/.nexus/marketplace_secret path if present.
+    """
     SECRET_PATH.parent.mkdir(parents=True, exist_ok=True)
     if SECRET_PATH.exists():
         return SECRET_PATH.read_text().strip()
+    # Migrate from old path
+    if OLD_SECRET_PATH.exists():
+        secret = OLD_SECRET_PATH.read_text().strip()
+        SECRET_PATH.write_text(secret)
+        SECRET_PATH.chmod(0o600)
+        return secret
     secret = secrets.token_hex(32)
     SECRET_PATH.write_text(secret)
     SECRET_PATH.chmod(0o600)
