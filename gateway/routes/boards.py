@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
+
+from gateway.auth import require_auth
 
 router = APIRouter(prefix="/api", tags=["kanban"])
 
@@ -19,7 +21,7 @@ def _ws_manager(request: Request):
 # ── Board CRUD ──
 
 
-@router.post("/boards")
+@router.post("/boards", dependencies=[Depends(require_auth)])
 async def create_board(request: Request):
     body = await request.json()
     store = _kanban_store(request)
@@ -56,7 +58,7 @@ async def get_board(board_id: str, request: Request):
     return JSONResponse(content=full)
 
 
-@router.delete("/boards/{board_id}")
+@router.delete("/boards/{board_id}", dependencies=[Depends(require_auth)])
 async def delete_board(board_id: str, request: Request):
     store = _kanban_store(request)
     existing = store.get_board(board_id)
@@ -69,7 +71,7 @@ async def delete_board(board_id: str, request: Request):
 # ── List CRUD ──
 
 
-@router.post("/boards/{board_id}/lists")
+@router.post("/boards/{board_id}/lists", dependencies=[Depends(require_auth)])
 async def create_list(board_id: str, request: Request):
     store = _kanban_store(request)
     existing = store.get_board(board_id)
@@ -101,7 +103,7 @@ async def get_lists(board_id: str, request: Request):
     return JSONResponse(content=lists)
 
 
-@router.put("/lists/{list_id}/move")
+@router.put("/lists/{list_id}/move", dependencies=[Depends(require_auth)])
 async def move_list(list_id: str, request: Request):
     store = _kanban_store(request)
     existing = store.get_list(list_id)
@@ -115,7 +117,7 @@ async def move_list(list_id: str, request: Request):
     return JSONResponse(content={"id": list_id, "position": new_position})
 
 
-@router.delete("/lists/{list_id}")
+@router.delete("/lists/{list_id}", dependencies=[Depends(require_auth)])
 async def delete_list(list_id: str, request: Request):
     store = _kanban_store(request)
     existing = store.get_list(list_id)
@@ -130,7 +132,7 @@ async def delete_list(list_id: str, request: Request):
 # ── Card CRUD ──
 
 
-@router.post("/lists/{list_id}/cards")
+@router.post("/lists/{list_id}/cards", dependencies=[Depends(require_auth)])
 async def create_card(list_id: str, request: Request):
     store = _kanban_store(request)
     existing = store.get_list(list_id)
@@ -183,7 +185,7 @@ async def get_card(card_id: str, request: Request):
     return JSONResponse(content=card)
 
 
-@router.put("/cards/{card_id}")
+@router.put("/cards/{card_id}", dependencies=[Depends(require_auth)])
 async def update_card(card_id: str, request: Request):
     store = _kanban_store(request)
     existing = store.get_card(card_id)
@@ -198,7 +200,7 @@ async def update_card(card_id: str, request: Request):
     return JSONResponse(content=updated)
 
 
-@router.put("/cards/{card_id}/move")
+@router.put("/cards/{card_id}/move", dependencies=[Depends(require_auth)])
 async def move_card(card_id: str, request: Request):
     store = _kanban_store(request)
     existing = store.get_card(card_id)
@@ -217,7 +219,7 @@ async def move_card(card_id: str, request: Request):
     return JSONResponse(content=moved)
 
 
-@router.delete("/cards/{card_id}")
+@router.delete("/cards/{card_id}", dependencies=[Depends(require_auth)])
 async def delete_card(card_id: str, request: Request):
     store = _kanban_store(request)
     existing = store.get_card(card_id)
@@ -239,7 +241,7 @@ async def get_cards_by_agent(agent_name: str, request: Request):
     return JSONResponse(content=cards)
 
 
-@router.post("/cards/upsert-from-task")
+@router.post("/cards/upsert-from-task", dependencies=[Depends(require_auth)])
 async def upsert_card_from_task(request: Request):
     body = await request.json()
     store = _kanban_store(request)

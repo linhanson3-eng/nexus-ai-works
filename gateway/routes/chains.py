@@ -5,8 +5,10 @@ from __future__ import annotations
 import asyncio
 import json
 
-from fastapi import APIRouter, Body, Request
+from fastapi import APIRouter, Body, Depends, Request
 from fastapi.responses import JSONResponse, StreamingResponse
+
+from gateway.auth import require_auth
 
 router = APIRouter(prefix="/api", tags=["chains"])
 
@@ -40,7 +42,7 @@ async def get_chain(name: str, request: Request):
     return JSONResponse(content=chain.to_dict())
 
 
-@router.post("/chains")
+@router.post("/chains", dependencies=[Depends(require_auth)])
 async def save_chain(body: dict = Body(...), request: Request = None):  # type: ignore[assignment]
     from factory.workflow.chain import Chain, ChainStep
 
@@ -55,7 +57,7 @@ async def save_chain(body: dict = Body(...), request: Request = None):  # type: 
     return JSONResponse(content={"saved": str(path), **chain.to_dict()})
 
 
-@router.delete("/chains/{name}")
+@router.delete("/chains/{name}", dependencies=[Depends(require_auth)])
 async def delete_chain(name: str, request: Request):
     deleted = _chain_store(request).delete(name)
     if not deleted:
@@ -63,7 +65,7 @@ async def delete_chain(name: str, request: Request):
     return JSONResponse(content={"deleted": name})
 
 
-@router.post("/chains/{name}/execute")
+@router.post("/chains/{name}/execute", dependencies=[Depends(require_auth)])
 async def execute_chain_stream(name: str, request: Request):
     from factory.workflow.chain import ChainRunner
 
@@ -76,10 +78,13 @@ async def execute_chain_stream(name: str, request: Request):
     if not task:
         return JSONResponse(content={"detail": "task is required"}, status_code=400)
 
-    queue: asyncio.Queue = asyncio.Queue()
+    queue: asyncio.Queue = asyncio.Queue(maxsize=100)
 
     async def on_status(event: str, target: str, detail: str) -> None:
-        await queue.put((event, {"target": target, "detail": detail[:500]}))
+        try:
+            queue.put_nowait((event, {"target": target, "detail": detail[:500]}))
+        except asyncio.QueueFull:
+            pass  # drop event if consumer is too slow
 
     runner = ChainRunner(_org(request), _kanban_store(request), on_status=on_status)
 
@@ -109,6 +114,13 @@ async def execute_chain_stream(name: str, request: Request):
             })
         except Exception as exc:
             yield _sse("error", {"message": str(exc)})
+        finally:
+            if not run_task.done():
+                run_task.cancel()
+                try:
+                    await run_task
+                except asyncio.CancelledError:
+                    pass
 
         yield _sse("done", {})
 

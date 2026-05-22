@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
 
 from factory.library.models import EntryType, InstallRequest, SaveRequest
+from gateway.auth import require_auth
 from factory.library.store import (
     LibraryStore,
     save_agent_to_library,
@@ -27,7 +28,7 @@ def _org(request: Request):
 # ── Save ──
 
 
-@router.post("/{entry_type}")
+@router.post("/{entry_type}", dependencies=[Depends(require_auth)])
 async def save_entry(entry_type: str, body: SaveRequest, request: Request):
     try:
         et = EntryType(entry_type)
@@ -103,7 +104,7 @@ async def get_entry(entry_type: str, name: str):
 # ── Install ──
 
 
-@router.post("/{entry_type}/{name}/install")
+@router.post("/{entry_type}/{name}/install", dependencies=[Depends(require_auth)])
 async def install_entry(entry_type: str, name: str, body: InstallRequest, request: Request):
     try:
         et = EntryType(entry_type)
@@ -134,7 +135,7 @@ async def install_entry(entry_type: str, name: str, body: InstallRequest, reques
 # ── Delete ──
 
 
-@router.delete("/{entry_type}/{name}")
+@router.delete("/{entry_type}/{name}", dependencies=[Depends(require_auth)])
 async def delete_entry(entry_type: str, name: str):
     try:
         et = EntryType(entry_type)

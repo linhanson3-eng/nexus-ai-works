@@ -5,8 +5,10 @@ from __future__ import annotations
 import asyncio
 import json
 
-from fastapi import APIRouter, Body, Request
+from fastapi import APIRouter, Body, Depends, Request
 from fastapi.responses import JSONResponse, StreamingResponse
+
+from gateway.auth import require_auth
 
 router = APIRouter(prefix="/api", tags=["workflows"])
 
@@ -36,7 +38,7 @@ async def get_workflow(name: str, request: Request):
     return JSONResponse(content=tmpl.to_dict())
 
 
-@router.post("/workflows")
+@router.post("/workflows", dependencies=[Depends(require_auth)])
 async def save_workflow(body: dict = Body(...), request: Request = None):  # type: ignore[assignment]
     from factory.workflow.models import WorkflowNode, WorkflowTemplate
 
@@ -52,7 +54,7 @@ async def save_workflow(body: dict = Body(...), request: Request = None):  # typ
     return JSONResponse(content={"saved": str(path), **tmpl.to_dict()})
 
 
-@router.delete("/workflows/{name}")
+@router.delete("/workflows/{name}", dependencies=[Depends(require_auth)])
 async def delete_workflow(name: str, request: Request):
     deleted = _org(request).workflow_store.delete(name)
     if not deleted:
@@ -60,7 +62,7 @@ async def delete_workflow(name: str, request: Request):
     return JSONResponse(content={"deleted": name})
 
 
-@router.post("/workflows/{name}/execute")
+@router.post("/workflows/{name}/execute", dependencies=[Depends(require_auth)])
 async def execute_workflow_stream(name: str, request: Request):
     from factory.workshop.manager import WorkshopManager
     from factory.workflow.engine import WorkflowRunner
@@ -82,10 +84,13 @@ async def execute_workflow_stream(name: str, request: Request):
     if ws is None:
         return JSONResponse(content={"detail": f"Workshop not found: {workshop_name}"}, status_code=404)
 
-    queue: asyncio.Queue = asyncio.Queue()
+    queue: asyncio.Queue = asyncio.Queue(maxsize=100)
 
     async def on_status(node_id: str, status: str, detail: str) -> None:
-        await queue.put(("node_status", {"node_id": node_id, "status": status, "detail": detail[:500]}))
+        try:
+            queue.put_nowait(("node_status", {"node_id": node_id, "status": status, "detail": detail[:500]}))
+        except asyncio.QueueFull:
+            pass  # drop event if consumer is too slow
 
     runner = WorkflowRunner(ws, store=org.workflow_store, on_status=on_status)
 
@@ -118,6 +123,13 @@ async def execute_workflow_stream(name: str, request: Request):
             })
         except Exception as exc:
             yield _sse("error", {"message": str(exc)})
+        finally:
+            if not run_task.done():
+                run_task.cancel()
+                try:
+                    await run_task
+                except asyncio.CancelledError:
+                    pass
 
         yield _sse("done", {})
 

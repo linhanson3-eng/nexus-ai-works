@@ -8,10 +8,38 @@ import zipfile
 import io
 from pathlib import Path
 
-from fastapi import APIRouter, Body, Request
+from fastapi import APIRouter, Body, Depends, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 
+from gateway.auth import require_auth
+
 router = APIRouter(prefix="/api", tags=["workshops"])
+
+
+def _validate_zip_contents(extract_dir: str) -> None:
+    """Verify all extracted files are within extract_dir. Raises ValueError if not."""
+    root = os.path.realpath(extract_dir)
+    for dirpath, _, filenames in os.walk(extract_dir):
+        for fname in filenames:
+            real = os.path.realpath(os.path.join(dirpath, fname))
+            if not real.startswith(root + os.sep) and real != root:
+                raise ValueError(f"Zip path traversal detected: {real}")
+
+
+def _safe_workspace_path(workspace: str, filename: str) -> str | None:
+    """Resolve a safe, validated path within the workspace. Returns None if path traversal is detected."""
+    # Sanitize: strip leading slashes and remove .. segments
+    filename = filename.strip().lstrip("/")
+    parts = [p for p in filename.split("/") if p and p != ".."]
+    filename = "/".join(parts)
+    if not filename:
+        return None
+    raw_path = os.path.join(workspace, filename)
+    real_path = os.path.realpath(raw_path)
+    workspace_root = os.path.realpath(workspace)
+    if not real_path.startswith(workspace_root + os.sep) and real_path != workspace_root:
+        return None
+    return real_path
 
 
 def _org(request: Request):
@@ -25,7 +53,7 @@ def _kanban_store(request: Request):
 # ── Workshop CRUD ──
 
 
-@router.post("/workshops")
+@router.post("/workshops", dependencies=[Depends(require_auth)])
 async def create_workshop(request: Request):
     from factory.workshop.manager import WorkshopManager
 
@@ -72,7 +100,7 @@ async def get_workshop(name: str, request: Request):
     return JSONResponse(content=status)
 
 
-@router.delete("/workshops/{name}")
+@router.delete("/workshops/{name}", dependencies=[Depends(require_auth)])
 async def delete_workshop(name: str, request: Request):
     from factory.workshop.manager import WorkshopManager
 
@@ -86,7 +114,7 @@ async def delete_workshop(name: str, request: Request):
 # ── Workshop Export/Import ──
 
 
-@router.post("/workshops/{name}/export")
+@router.post("/workshops/{name}/export", dependencies=[Depends(require_auth)])
 async def export_workshop_api(name: str, request: Request):
     from factory.workshop.manager import WorkshopManager
 
@@ -115,7 +143,7 @@ async def export_workshop_api(name: str, request: Request):
         )
 
 
-@router.post("/workshops/import")
+@router.post("/workshops/import", dependencies=[Depends(require_auth)])
 async def import_workspace_api(request: Request):
     from factory.workshop.manager import WorkshopManager
 
@@ -142,6 +170,7 @@ async def import_workspace_api(request: Request):
             if fname.endswith(".zip") or zipfile.is_zipfile(filepath):
                 with zipfile.ZipFile(filepath, "r") as zf:
                     zf.extractall(pkg_dir)
+                _validate_zip_contents(str(pkg_dir))
             else:
                 pkg_dir = filepath
 
@@ -171,7 +200,7 @@ async def list_workshop_agents(name: str, request: Request):
     return JSONResponse(content=agents)
 
 
-@router.post("/workshops/{name}/agents")
+@router.post("/workshops/{name}/agents", dependencies=[Depends(require_auth)])
 async def create_workshop_agent(name: str, body: dict = Body(...), request: Request = None):  # type: ignore[assignment]
     from factory.workshop.manager import WorkshopManager
     from config.schema import (
@@ -227,7 +256,9 @@ async def create_workshop_agent(name: str, body: dict = Body(...), request: Requ
     guide_content = body.get("guide_content", "")
     guide_file = body.get("guide_file", "")
     if guide_content and guide_file:
-        filepath = os.path.join(str(ws.workspace), guide_file)
+        filepath = _safe_workspace_path(str(ws.workspace), guide_file)
+        if filepath is None:
+            return JSONResponse(content={"detail": "Forbidden"}, status_code=403)
         os.makedirs(os.path.dirname(filepath), exist_ok=True)
         with open(filepath, "w", encoding="utf-8") as f:
             f.write(guide_content)
@@ -236,7 +267,7 @@ async def create_workshop_agent(name: str, body: dict = Body(...), request: Requ
     return JSONResponse(content=agents_list[-1] if agents_list else {}, status_code=201)
 
 
-@router.put("/workshops/{name}/agents/{agent_name}")
+@router.put("/workshops/{name}/agents/{agent_name}", dependencies=[Depends(require_auth)])
 async def update_workshop_agent(name: str, agent_name: str, body: dict = Body(...), request: Request = None):  # type: ignore[assignment]
     from factory.workshop.manager import WorkshopManager
 
@@ -251,7 +282,9 @@ async def update_workshop_agent(name: str, agent_name: str, body: dict = Body(..
     if guide_content and guide_file:
         ws = mgr.get(name)
         if ws:
-            filepath = os.path.join(str(ws.workspace), guide_file)
+            filepath = _safe_workspace_path(str(ws.workspace), guide_file)
+            if filepath is None:
+                return JSONResponse(content={"detail": "Forbidden"}, status_code=403)
             os.makedirs(os.path.dirname(filepath), exist_ok=True)
             with open(filepath, "w", encoding="utf-8") as f:
                 f.write(guide_content)
@@ -264,7 +297,7 @@ async def update_workshop_agent(name: str, agent_name: str, body: dict = Body(..
     return JSONResponse(content=updated)
 
 
-@router.delete("/workshops/{name}/agents/{agent_name}")
+@router.delete("/workshops/{name}/agents/{agent_name}", dependencies=[Depends(require_auth)])
 async def delete_workshop_agent(name: str, agent_name: str, request: Request):
     from factory.workshop.manager import WorkshopManager
 
@@ -278,7 +311,7 @@ async def delete_workshop_agent(name: str, agent_name: str, request: Request):
 # ── Workflow Execution ──
 
 
-@router.post("/workshops/{name}/run")
+@router.post("/workshops/{name}/run", dependencies=[Depends(require_auth)])
 async def run_workflow(name: str, request: Request):
     from factory.workshop.manager import WorkshopManager
     from factory.workflow.engine import WorkflowRunner
@@ -322,7 +355,11 @@ async def read_workshop_file(name: str, filename: str, request: Request):
     ws = mgr.get(name)
     if ws is None:
         return JSONResponse(content={"detail": "Workshop not found"}, status_code=404)
-    filepath = os.path.join(str(ws.workspace), filename)
+    raw_path = os.path.join(str(ws.workspace), filename)
+    filepath = os.path.realpath(raw_path)
+    workspace_root = os.path.realpath(str(ws.workspace))
+    if not filepath.startswith(workspace_root + os.sep) and filepath != workspace_root:
+        return JSONResponse(content={"detail": "Forbidden"}, status_code=403)
     if not os.path.isfile(filepath):
         return JSONResponse(content={"detail": "File not found"}, status_code=404)
     with open(filepath, encoding="utf-8") as f:

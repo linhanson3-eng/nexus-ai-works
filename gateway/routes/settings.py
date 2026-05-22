@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Body, Request
+from fastapi import APIRouter, Body, Depends, Request
 from fastapi.responses import JSONResponse
+
+from gateway.auth import require_auth
 
 router = APIRouter(prefix="/api", tags=["settings"])
 
@@ -20,7 +22,7 @@ async def list_providers(request: Request):
     return JSONResponse(content=_settings_store(request).list_providers())
 
 
-@router.post("/settings/providers")
+@router.post("/settings/providers", dependencies=[Depends(require_auth)])
 async def save_provider(request: Request):
     body = await request.json()
     name = body.pop("name", "")
@@ -30,7 +32,7 @@ async def save_provider(request: Request):
     return JSONResponse(content=result)
 
 
-@router.delete("/settings/providers/{name}")
+@router.delete("/settings/providers/{name}", dependencies=[Depends(require_auth)])
 async def delete_provider(name: str, request: Request):
     ok = _settings_store(request).delete_provider(name)
     if not ok:
@@ -56,7 +58,7 @@ async def list_settings_skills():
     ])
 
 
-@router.post("/settings/skills/sync")
+@router.post("/settings/skills/sync", dependencies=[Depends(require_auth)])
 async def sync_skills():
     from factory.skills.marketplace import SkillMarketplace
 
@@ -113,7 +115,7 @@ async def list_settings_tools():
     return JSONResponse(content=servers)
 
 
-@router.post("/settings/tools")
+@router.post("/settings/tools", dependencies=[Depends(require_auth)])
 async def save_tool(request: Request):
     body = await request.json()
     name = body.pop("name", "")
@@ -123,7 +125,7 @@ async def save_tool(request: Request):
     return JSONResponse(content=result)
 
 
-@router.post("/settings/tools/sync")
+@router.post("/settings/tools/sync", dependencies=[Depends(require_auth)])
 async def sync_tools():
     from factory.mcp.registry import MCPRegistry
 
@@ -164,7 +166,7 @@ async def list_settings_plugins(request: Request):
     return JSONResponse(content=result)
 
 
-@router.post("/settings/plugins")
+@router.post("/settings/plugins", dependencies=[Depends(require_auth)])
 async def save_plugin(request: Request):
     body = await request.json()
     name = body.pop("name", "")
@@ -174,7 +176,7 @@ async def save_plugin(request: Request):
     return JSONResponse(content=result)
 
 
-@router.delete("/settings/plugins/{name}")
+@router.delete("/settings/plugins/{name}", dependencies=[Depends(require_auth)])
 async def delete_plugin(name: str, request: Request):
     ok = _settings_store(request).delete_plugin(name)
     if not ok:
@@ -190,7 +192,7 @@ async def get_search_config(request: Request):
     return JSONResponse(content=_settings_store(request).get_search())
 
 
-@router.post("/settings/search")
+@router.post("/settings/search", dependencies=[Depends(require_auth)])
 async def save_search_config(body: dict = Body(...), request: Request = None):  # type: ignore[assignment]
     allowed = {
         "tavily_api_key", "brave_api_key", "searxng_base_url",

@@ -1,6 +1,7 @@
 """方案市场本地代理 — 转发请求到云端 API."""
 from __future__ import annotations
 
+import logging
 import os
 import tempfile
 import zipfile
@@ -15,8 +16,20 @@ from fastapi.responses import JSONResponse, StreamingResponse
 
 from gateway.signature import sign_request
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/api/market", tags=["market"])
 CLOUD_URL = os.environ.get("MARKETPLACE_API_URL", "http://127.0.0.1:8800")
+
+
+def _validate_zip_contents(extract_dir: str) -> None:
+    """Verify all extracted files are within extract_dir. Raises ValueError if not."""
+    root = os.path.realpath(extract_dir)
+    for dirpath, _, filenames in os.walk(extract_dir):
+        for fname in filenames:
+            real = os.path.realpath(os.path.join(dirpath, fname))
+            if not real.startswith(root + os.sep) and real != root:
+                raise ValueError(f"Zip path traversal detected: {real}")
 
 
 def _forward_headers(request: Request) -> dict[str, str]:
@@ -150,6 +163,7 @@ async def install_package(package_id: str, request: Request):
             if zipfile.is_zipfile(zip_path):
                 with zipfile.ZipFile(zip_path, "r") as zf:
                     zf.extractall(extract_dir)
+                _validate_zip_contents(str(extract_dir))
             else:
                 # Not a zip — treat as raw directory?
                 return JSONResponse(
@@ -185,8 +199,6 @@ async def install_package(package_id: str, request: Request):
             content={"detail": "Marketplace API request timed out"},
             status_code=504,
         )
-    except Exception as exc:
-        return JSONResponse(
-            content={"detail": f"Install failed: {exc}"},
-            status_code=500,
-        )
+    except Exception as e:
+        logger.error("Marketplace install failed: %s", e, exc_info=True)
+        return JSONResponse(content={"detail": "Install failed"}, status_code=500)

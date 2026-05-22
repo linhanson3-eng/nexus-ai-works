@@ -10,6 +10,7 @@ import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
 from factory.kanban.store import KanbanStore
+from gateway.auth import get_or_create_api_key
 from gateway.server import KanbanWSManager, create_app
 
 
@@ -47,6 +48,7 @@ async def client(app):
         resp = await c.get("/api/csrf-token")
         token = resp.json()["token"]
         c.headers["X-CSRF-Token"] = token
+        c.headers["X-API-Key"] = get_or_create_api_key()
         yield c
 
 

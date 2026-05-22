@@ -6,8 +6,14 @@ import asyncio
 import json
 import re
 
-from fastapi import APIRouter, Request
+import logging
+
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse, StreamingResponse
+
+from gateway.auth import require_auth
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api", tags=["agent"])
 
@@ -32,7 +38,7 @@ def _sse(event: str, data: dict) -> str:
     return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
 
 
-@router.post("/agent/run")
+@router.post("/agent/run", dependencies=[Depends(require_auth)])
 async def agent_run(request: Request):
     from factory.workshop.manager import WorkshopManager
     from factory.runner import NexusAgentRunner
@@ -77,10 +83,11 @@ async def agent_run(request: Request):
             "error": result.error,
         })
     except Exception as exc:
-        return JSONResponse(content={"reply": f"执行失败: {exc}", "error": str(exc)}, status_code=500)
+        logger.error("Agent execution failed: %s", exc, exc_info=True)
+        return JSONResponse(content={"reply": "执行失败，请稍后重试", "error": "internal_error"}, status_code=500)
 
 
-@router.post("/agent/run/stream")
+@router.post("/agent/run/stream", dependencies=[Depends(require_auth)])
 async def agent_run_stream(request: Request):
     from factory.workshop.manager import WorkshopManager
     from factory.runner import NexusAgentRunner
@@ -153,7 +160,7 @@ async def poll_question(request_id: str, request: Request):
     })
 
 
-@router.post("/agent/answer")
+@router.post("/agent/answer", dependencies=[Depends(require_auth)])
 async def submit_answer(request: Request):
     body = await request.json()
     request_id = body.get("request_id", "")
@@ -167,7 +174,7 @@ async def submit_answer(request: Request):
 # ── Agent Chat ──
 
 
-@router.post("/agent/chat")
+@router.post("/agent/chat", dependencies=[Depends(require_auth)])
 async def agent_chat(request: Request):
     from factory.workshop.manager import WorkshopManager
     from factory.workflow.engine import WorkflowRunner
