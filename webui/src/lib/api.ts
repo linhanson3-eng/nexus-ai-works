@@ -1,4 +1,4 @@
-import type { KanbanBoard, KanbanCard, KanbanList, OrgStatus, WorkflowResult, WorkflowTemplate, Workshop } from "./types";
+import type { KanbanBoard, KanbanCard, KanbanList, OrgStatus, SearchConfig, SkillDetail, WorkflowInfo, WorkflowResult, WorkflowTemplate, Workshop } from "./types";
 
 const BASE = "/api";
 
@@ -45,8 +45,8 @@ export const api = {
   // Workshops
   listWorkshops: () => get<Workshop[]>("/workshops"),
   getWorkshop: (name: string) => get<Workshop>(`/workshops/${name}`),
-  createWorkshop: (name: string, workflow?: string) =>
-    post<Workshop>("/workshops", { name, workflow_name: workflow || "simple" }),
+  createWorkshop: (name: string, workflow?: string, model?: string) =>
+    post<Workshop>("/workshops", { name, workflow_name: workflow || "simple", model: model || "anthropic/claude-sonnet-4-6" }),
   deleteWorkshop: (name: string) => del(`/workshops/${name}`),
   runWorkflow: (name: string, workflow: string, task: string) =>
     post<WorkflowResult>(`/workshops/${name}/run`, { workflow, task }),
@@ -54,8 +54,10 @@ export const api = {
     get<{ workshop: string; products: string[] }>(`/workshops/${name}/products`),
 
   // Workflows
-  listWorkflows: () => get<WorkflowTemplate[]>("/workflows"),
+  listWorkflows: () => get<WorkflowInfo[]>("/workflows"),
   getWorkflow: (name: string) => get<WorkflowTemplate>(`/workflows/${name}`),
+  saveWorkflow: (data: WorkflowTemplate) => post<WorkflowTemplate>("/workflows", data),
+  deleteWorkflow: (name: string) => del(`/workflows/${name}`),
 
   // Kanban
   listBoards: () => get<KanbanBoard[]>("/boards"),
@@ -78,17 +80,22 @@ export const api = {
   // ── Settings ──
 
   // Providers (LLM Keys)
-  listProviders: () => get<Record<string, { provider_type: string; base_url: string; api_key: string }>>("/settings/providers"),
-  saveProvider: (name: string, data: { provider_type?: string; base_url?: string; api_key?: string }) =>
+  listProviders: () => get<Record<string, { provider_type: string; base_url: string; api_key: string; models: string[] }>>("/settings/providers"),
+  saveProvider: (name: string, data: { provider_type?: string; base_url?: string; api_key?: string; models?: string[] }) =>
     post(`/settings/providers`, { name, ...data }),
   deleteProvider: (name: string) => del(`/settings/providers/${name}`),
 
+  // Search
+  getSearchConfig: () => get<SearchConfig>("/settings/search"),
+  saveSearchConfig: (data: Partial<SearchConfig>) => post("/settings/search", data),
+
   // Skills
-  listSkills: () => get<{ name: string; description: string; version: string }[]>("/settings/skills"),
-  syncSkills: () => post<{ status: string; count: number }>("/settings/skills/sync", {}),
+  listSkills: () => get<import("./types").SkillEntry[]>("/settings/skills"),
+  syncSkills: () => post<{ status: string; count: number; skills: import("./types").SkillEntry[] }>("/settings/skills/sync", {}),
+  getSkillDetail: (name: string) => get<SkillDetail>(`/settings/skills/${name}`),
 
   // Tools (MCP + profiles)
-  listTools: () => get<{ mcp_servers: unknown[]; profiles: Record<string, unknown> }>("/settings/tools"),
+  listTools: () => get<{ name: string; description: string; category: string; install_command?: string }[]>("/settings/tools"),
   saveTool: (name: string, data: Record<string, unknown>) => post("/settings/tools", { name, ...data }),
   syncTools: () => post<{ status: string; count: number }>("/settings/tools/sync", {}),
 
@@ -96,6 +103,20 @@ export const api = {
   listPlugins: () => get<Record<string, { name: string; enabled: boolean; healthy: boolean }>>("/settings/plugins"),
   savePlugin: (name: string, data: { enabled?: boolean }) => post("/settings/plugins", { name, ...data }),
   deletePlugin: (name: string) => del(`/settings/plugins/${name}`),
+
+  // Agents
+  listAgents: (workshop: string) => get<import("./types").AgentInfo[]>(`/workshops/${workshop}/agents`),
+  createAgent: (workshop: string, data: Record<string, unknown>) =>
+    post<import("./types").AgentInfo>(`/workshops/${workshop}/agents`, data),
+  updateAgent: (workshop: string, name: string, data: Record<string, unknown>) =>
+    put<import("./types").AgentInfo>(`/workshops/${workshop}/agents/${name}`, data),
+  deleteAgent: (workshop: string, name: string) => del(`/workshops/${workshop}/agents/${name}`),
+
+  // Chains
+  listChains: () => get<import("./types").ChainInfo[]>("/chains"),
+  getChain: (name: string) => get<import("./types").ChainTemplate>("/chains/" + name),
+  saveChain: (data: import("./types").ChainTemplate) => post<import("./types").ChainTemplate>("/chains", data),
+  deleteChain: (name: string) => del("/chains/" + name),
 };
 
 // ── WebSocket ──

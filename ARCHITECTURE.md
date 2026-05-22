@@ -1,4 +1,4 @@
-# AI 工厂 — 架构文档
+# Nexus AI Works — 架构文档
 
 ## 设计理念
 
@@ -10,15 +10,23 @@
 
 | 层 | 技术 | 理由 |
 |----|------|------|
-| Agent 运行时 | nanobot (MIT, ~3500 行) | 不改一行，作为 shell 使用 |
-| 工厂层 | Python 3.11+ | 与 nanobot 同语言 |
-| 记忆存储 | SQLite WAL + FTS5 | 零运维，单机够用 |
+| Agent 运行时 | claw-code-agent (~36,000 行, 65 tools) | Claude Code 完整 Python 移植 |
+| 引擎桥接层 | factory/engine/bridge.py | 唯一 vendor 导入点，引擎可替换 |
+| 工厂层 | Python 3.11+ | 与 claw-code-agent 同语言 |
+| 记忆存储 | SQLite WAL + FTS5 + 文件型语义记忆 V2 | 机器读 + 人可读双模式 |
 | 人读知识库 | Obsidian Markdown | [[wikilinks]] 可带走 |
-| Web 框架 | FastAPI | 异步，WebSocket 原生 |
+| Web 框架 | FastAPI | 异步，WebSocket + SSE 原生 |
 | 数据模型 | Pydantic v2 (配置) + frozen dataclass (领域) | 类型安全 |
-| 测试 | pytest + pytest-asyncio | 261 tests |
+| 测试 | pytest + pytest-asyncio | 314 tests |
 
 ## 模块设计
+
+### 0. 引擎桥接层 (factory/engine/)
+
+**唯一 vendor 导入边界。** bridge.py 封装 claw-code-agent 的 LocalCodingAgent、
+ModelConfig、AgentRuntimeConfig、BudgetConfig、AgentRunResult，对外暴露 Nexus 自有类型。
+tools.py 提供工具名映射（Nexus 符号名 → claw-code 工具名）+ 权限过滤。
+pool.py 管理 Agent 池（ThreadPoolExecutor(8) + asyncio.Semaphore(8) + 超时控制）。
 
 ### 1. 组织架构 (factory/org.py)
 
@@ -38,7 +46,7 @@ SQLite WAL + FTS5 机器读，Obsidian Markdown 人读。
 ### 3. 工作流引擎 (factory/workflow/)
 
 DAG 拓扑排序 → 逐阶段执行 → 审核门控循环。
-5 个内置模板：code-review, market-analysis, content-creation, legal-review, simple。
+内置 simple 默认工作流（单阶段直通）。用户通过 YAML 文件自定义工作流模板。
 
 门控逻辑：review 阶段输出匹配 pass/fail 关键词 →
 通过则继续，不通过则跳回上游阶段重试（最多 3 次）。
@@ -90,10 +98,12 @@ Reflect → Mutate → Select → Review 闭环。
 
 | 层 | 策略 |
 |----|------|
-| Agent 执行 | 死规则白名单 > LLM 判断 |
-| Shell 命令 | 禁止模式 + 命令白名单 |
-| 路径访问 | 工作区沙箱 + 禁止路径清单 |
-| 密钥管理 | 代码中检测硬编码密钥 |
+| Agent 执行 | 死规则白名单 > LLM 判断，已接入工具拦截器 |
+| Shell 命令 | claw-code-agent bash_security + 禁止模式 + 命令白名单 |
+| 路径访问 | 工作区沙箱 + 禁止路径清单 + 路径穿越检测 |
+| 工具权限 | 按 AgentSpec.permissions 过滤注册工具（shell/file_write/subagent） |
+| 密钥管理 | 代码中检测硬编码密钥（9 种模式） |
+| 预算控制 | BudgetConfig（token/成本/工具调用/模型调用/会话轮次上限） |
 | 进化产出 | 人工 PR review 确认 |
 
 ## 测试

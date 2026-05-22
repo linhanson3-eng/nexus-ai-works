@@ -8,6 +8,7 @@ import { Dashboard } from "./components/Dashboard";
 import { WorkshopList } from "./components/WorkshopList";
 import { KanbanBoard } from "./components/KanbanBoard";
 import { WorkflowList } from "./components/WorkflowList";
+import { ChainList } from "./components/ChainList";
 
 function App() {
   return (
@@ -21,6 +22,7 @@ function App() {
             <Route path="/workshops" element={<ErrorBoundary><WorkshopList /></ErrorBoundary>} />
             <Route path="/kanban" element={<ErrorBoundary><KanbanBoard /></ErrorBoundary>} />
             <Route path="/workflows" element={<ErrorBoundary><WorkflowList /></ErrorBoundary>} />
+            <Route path="/chains" element={<ErrorBoundary><ChainList /></ErrorBoundary>} />
             <Route path="/settings" element={<ErrorBoundary><Settings /></ErrorBoundary>} />
             <Route path="*" element={<Navigate to="/chat" replace />} />
           </Route>

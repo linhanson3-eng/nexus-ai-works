@@ -1,8 +1,8 @@
-# AI Factory — Claude Code 项目指令
+# Nexus AI Works — Claude Code 项目指令
 
 ## 项目
 
-AI 工厂是开源、自进化、多 Agent 协作的模板化开发平台。
+Nexus AI Works 是开源、自进化、多 Agent 协作的模板化开发平台。
 壳固定、组织可变、任意创建车间。
 
 **Python 3.11+**, **React + Vite + TypeScript + Tailwind v3** 前端。

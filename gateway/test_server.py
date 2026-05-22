@@ -20,7 +20,6 @@ class DummyOrg:
         return {
             "departments": [],
             "total_agents": 0,
-            "super_agents": 0,
             "warehouse": "",
             "warehouse_products": {},
         }

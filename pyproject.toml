@@ -1,9 +1,9 @@
 [project]
-name = "ai-factory"
+name = "nexus"
 version = "1.0.0"
+description = "Nexus AI Works — 可自由编排的个人 AI 工作平台"
 requires-python = ">=3.11"
 dependencies = [
-    "nanobot-ai>=0.2.0",
     "pydantic>=2",
     "pyyaml",
     "sqlite-vec>=0.1",

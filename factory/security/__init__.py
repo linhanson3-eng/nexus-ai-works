@@ -1,4 +1,4 @@
-"""Security module — safety guards for the AI Factory platform."""
+"""Security module — safety guards for the Nexus AI Works platform."""
 
 from factory.security.guard import (
     check_shell_command,

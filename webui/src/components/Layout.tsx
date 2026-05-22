@@ -1,12 +1,13 @@
 import { NavLink, Outlet } from "react-router-dom";
-import { MessageSquare, Activity, Blocks, Kanban, GitBranch, Zap, Settings } from "lucide-react";
+import { MessageSquare, Activity, Blocks, Kanban, GitBranch, GitMerge, Zap, Settings } from "lucide-react";
 
 const navItems = [
   { to: "/chat", label: "对话", icon: MessageSquare },
   { to: "/dashboard", label: "总览", icon: Activity },
-  { to: "/workshops", label: "车间", icon: Blocks },
+  { to: "/workshops", label: "工作区", icon: Blocks },
   { to: "/kanban", label: "看板", icon: Kanban },
   { to: "/workflows", label: "工作流", icon: GitBranch },
+  { to: "/chains", label: "协作链", icon: GitMerge },
 ];
 
 const navLinkClass = ({ isActive }: { isActive: boolean }) =>
@@ -26,7 +27,7 @@ export function Layout() {
             <div className="w-8 h-8 rounded-lg bg-accent/20 flex items-center justify-center">
               <Zap className="w-4 h-4 text-accent" />
             </div>
-            <span className="font-semibold text-sm tracking-tight text-white">AI 工厂</span>
+            <span className="font-semibold text-sm tracking-tight text-white">Nexus</span>
           </div>
           <p className="text-[10px] text-muted mt-1.5 uppercase tracking-widest font-medium">管理控制台 v1.0</p>
         </div>

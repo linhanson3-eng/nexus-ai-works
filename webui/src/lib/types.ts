@@ -2,7 +2,7 @@ export interface Workshop {
   name: string;
   workspace: string;
   agent_count: number;
-  super_agents: string[];
+  agent_names: string[];
   workflow_name: string;
   has_kanban: boolean;
   kanban_board_id?: string;
@@ -41,17 +41,25 @@ export interface KanbanCard {
 export interface WorkflowTemplate {
   name: string;
   description: string;
-  source: string;
-  stages?: WorkflowStage[];
+  workspace: string;
+  nodes: WorkflowNode[];
 }
 
-export interface WorkflowStage {
+export interface WorkflowNode {
   id: string;
-  agent: string;
-  action: string;
-  output: string;
-  depends_on?: string[];
-  gate?: { type: string; pass: string; fail: string };
+  label: string;
+  agent_name: string;
+  prompt: string;
+  depends_on: string[];
+  expected_output: string;
+  gate?: { type: string };
+}
+
+export interface WorkflowInfo {
+  name: string;
+  description: string;
+  workspace: string;
+  node_count: number;
 }
 
 export interface WorkflowResult {
@@ -64,7 +72,6 @@ export interface WorkflowResult {
 export interface OrgStatus {
   departments: Workshop[];
   total_agents: number;
-  super_agents: number;
 }
 
 export interface WSMessage {
@@ -79,12 +86,29 @@ export interface ProviderConfig {
   provider_type: string;
   base_url: string;
   api_key: string;
+  models: string[];
+}
+
+export interface SearchConfig {
+  tavily_api_key: string;
+  brave_api_key: string;
+  searxng_base_url: string;
+  active_provider: string;
+  deep_search_enabled: boolean;
+  max_results: number;
 }
 
 export interface SkillEntry {
   name: string;
+  full_name: string;
   description: string;
-  version: string;
+  plugin: string;
+  source: string;
+  file_path?: string;
+}
+
+export interface SkillDetail extends SkillEntry {
+  body: string;
 }
 
 export interface ToolConfig {
@@ -96,4 +120,44 @@ export interface PluginEntry {
   name: string;
   enabled: boolean;
   healthy: boolean;
+}
+
+// ── Agent ──
+
+export interface AgentInfo {
+  name: string;
+  mode: "super" | "normal";
+  model: string;
+  tools: string[];
+  tools_all: boolean;
+  system_prompt: string;
+  guide_file: string;
+  skills: string[];
+  permissions: {
+    file_write: boolean;
+    shell_exec: boolean;
+    subagent_spawn: boolean;
+  };
+  is_super: boolean;
+}
+
+// ── Chain ──
+
+export interface ChainStep {
+  workshop: string;
+  workflow: string;
+  description: string;
+}
+
+export interface ChainTemplate {
+  name: string;
+  description: string;
+  steps: ChainStep[];
+}
+
+export interface ChainInfo {
+  name: string;
+  description: string;
+  step_count: number;
+  steps: string[];
 }

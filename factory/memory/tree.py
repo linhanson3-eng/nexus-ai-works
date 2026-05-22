@@ -3,7 +3,7 @@
 参考 OpenHuman memory/tree/ 实现：
 - MemoryTree: 通用树基类
 - SourceTree: Agent 级，会话 + 工具输出
-- TopicTree: 车间级，实体/主题聚合
+- TopicTree: 工作区级，实体/主题聚合
 - GlobalTree: 工厂级，daily → weekly → monthly
 """
 
@@ -183,7 +183,7 @@ class SourceTree(MemoryTree):
 
 
 class TopicTree(MemoryTree):
-    """车间级主题树 — 按实体/主题跨 Agent 聚合。"""
+    """工作区级主题树 — 按实体/主题跨 Agent 聚合。"""
 
     kind = TreeKind.TOPIC
 

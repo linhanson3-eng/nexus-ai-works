@@ -39,11 +39,11 @@ class TestEstimateTokens:
 
 class TestTreeCRUD:
     def test_create_and_get(self, store):
-        store.create_tree("src-agent-1", TreeKind.SOURCE, "agent:主力")
+        store.create_tree("src-agent-1", TreeKind.SOURCE, "agent:test")
         tree = store.get_tree("src-agent-1")
         assert tree["id"] == "src-agent-1"
         assert tree["kind"] == "source"
-        assert tree["scope"] == "agent:主力"
+        assert tree["scope"] == "agent:test"
         assert tree["status"] == "active"
 
     def test_get_nonexistent(self, store):
@@ -52,11 +52,11 @@ class TestTreeCRUD:
 
 class TestChunkCRUD:
     def test_insert_and_get(self, store):
-        store.create_tree("src-agent-1", TreeKind.SOURCE, "agent:主力")
+        store.create_tree("src-agent-1", TreeKind.SOURCE, "agent:test")
         chunk = Chunk.create(
             content="修复了登录页面的 XSS 漏洞",
             source_kind=SourceKind.CHAT,
-            source_id="agent:主力",
+            source_id="agent:test",
             tree_id="src-agent-1",
             tags=("security", "bug-fix"),
         )
@@ -67,9 +67,9 @@ class TestChunkCRUD:
         assert fetched["source_kind"] == "chat"
 
     def test_get_chunks_ordered(self, store):
-        store.create_tree("src-agent-1", TreeKind.SOURCE, "agent:主力")
-        chunk1 = Chunk.create("first", SourceKind.CHAT, "agent:主力", "src-agent-1")
-        chunk2 = Chunk.create("second", SourceKind.TOOL_OUTPUT, "agent:主力", "src-agent-1")
+        store.create_tree("src-agent-1", TreeKind.SOURCE, "agent:test")
+        chunk1 = Chunk.create("first", SourceKind.CHAT, "agent:test", "src-agent-1")
+        chunk2 = Chunk.create("second", SourceKind.TOOL_OUTPUT, "agent:test", "src-agent-1")
         store.insert_chunk(chunk1)
         store.insert_chunk(chunk2)
         chunks = store.get_chunks("src-agent-1")
@@ -78,23 +78,23 @@ class TestChunkCRUD:
 
 class TestFTSSearch:
     def test_search_finds_content(self, store):
-        store.create_tree("src-agent-1", TreeKind.SOURCE, "agent:主力")
-        store.insert_chunk(Chunk.create("XSS vulnerability fixed", SourceKind.CHAT, "agent:主力", "src-agent-1"))
-        store.insert_chunk(Chunk.create("added new feature", SourceKind.CHAT, "agent:主力", "src-agent-1"))
+        store.create_tree("src-agent-1", TreeKind.SOURCE, "agent:test")
+        store.insert_chunk(Chunk.create("XSS vulnerability fixed", SourceKind.CHAT, "agent:test", "src-agent-1"))
+        store.insert_chunk(Chunk.create("added new feature", SourceKind.CHAT, "agent:test", "src-agent-1"))
         results = store.search("XSS")
         assert len(results) >= 1
         assert "XSS" in results[0]["content"]
 
     def test_search_no_match(self, store):
-        store.create_tree("src-agent-1", TreeKind.SOURCE, "agent:主力")
-        store.insert_chunk(Chunk.create("hello world", SourceKind.CHAT, "agent:主力", "src-agent-1"))
+        store.create_tree("src-agent-1", TreeKind.SOURCE, "agent:test")
+        store.insert_chunk(Chunk.create("hello world", SourceKind.CHAT, "agent:test", "src-agent-1"))
         results = store.search("nonexistent_xyz")
         assert len(results) == 0
 
 
 class TestSummaryCRUD:
     def test_insert_and_get_summary(self, store):
-        store.create_tree("src-agent-1", TreeKind.SOURCE, "agent:主力")
+        store.create_tree("src-agent-1", TreeKind.SOURCE, "agent:test")
         node = SummaryNode(
             id="sum-1",
             tree_id="src-agent-1",
@@ -108,7 +108,7 @@ class TestSummaryCRUD:
         assert fetched["content"] == node.content
 
     def test_get_summaries_by_level(self, store):
-        store.create_tree("src-agent-1", TreeKind.SOURCE, "agent:主力")
+        store.create_tree("src-agent-1", TreeKind.SOURCE, "agent:test")
         store.insert_summary(SummaryNode(id="s1", tree_id="src-agent-1", level=1, content="L1 summary"))
         store.insert_summary(SummaryNode(id="s2", tree_id="src-agent-1", level=2, content="L2 summary"))
         l1 = store.get_summaries("src-agent-1", level=1)
@@ -118,14 +118,14 @@ class TestSummaryCRUD:
 
 class TestBuffer:
     def test_buffer_auto_created_on_insert(self, store):
-        store.create_tree("src-agent-1", TreeKind.SOURCE, "agent:主力")
-        store.insert_chunk(Chunk.create("test", SourceKind.CHAT, "agent:主力", "src-agent-1"))
+        store.create_tree("src-agent-1", TreeKind.SOURCE, "agent:test")
+        store.insert_chunk(Chunk.create("test", SourceKind.CHAT, "agent:test", "src-agent-1"))
         buf = store.get_buffer("src-agent-1", level=0)
         assert len(buf.item_ids) == 1
 
     def test_clear_buffer(self, store):
-        store.create_tree("src-agent-1", TreeKind.SOURCE, "agent:主力")
-        store.insert_chunk(Chunk.create("test", SourceKind.CHAT, "agent:主力", "src-agent-1"))
+        store.create_tree("src-agent-1", TreeKind.SOURCE, "agent:test")
+        store.insert_chunk(Chunk.create("test", SourceKind.CHAT, "agent:test", "src-agent-1"))
         store.clear_buffer("src-agent-1", 0)
         buf = store.get_buffer("src-agent-1", 0)
         assert len(buf.item_ids) == 0

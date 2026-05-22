@@ -1,10 +1,10 @@
-# Contributing to AI Factory
+# Contributing to Nexus AI Works
 
 ## Getting Started
 
 ```bash
 git clone <repo-url>
-cd ai-factory
+cd nexus
 pip install -e ".[dev]"
 python3 -m pytest factory/ gateway/ -v
 ```

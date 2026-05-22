@@ -75,6 +75,10 @@ class MCPRegistry:
             if q in e.name.lower() or q in e.description.lower()
         ]
 
+    def list_marketplace(self) -> list[MarketplaceEntry]:
+        """Return built-in marketplace entries."""
+        return self._builtin_entries()
+
     @staticmethod
     def _builtin_entries() -> list[MarketplaceEntry]:
         """Built-in marketplace entries for sync access (no network needed)."""

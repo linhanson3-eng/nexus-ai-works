@@ -1,20 +1,20 @@
-"""Workflow execution engine tests.
-
-Tests are written against the WorkflowRunner API. All execution paths
-are exercised via mock_outputs (no real LLM calls).
-"""
+"""Workflow engine tests."""
 
 from __future__ import annotations
 
 import pytest
 
-from factory.workflow import WorkflowTemplate, WorkflowLibrary
-from factory.workflow.engine import WorkflowRunner, StageResult, WorkflowResult
+from factory.workflow import (
+    WorkflowNode,
+    WorkflowTemplate,
+    WorkflowRunner,
+    WorkflowStore,
+    NodeResult,
+    NodeStatus,
+)
 
 
 class DummyWorkshop:
-    """Minimal workshop stub for testing workflow execution."""
-
     def __init__(self):
         self.agents = {}
         self.workspace = None
@@ -30,198 +30,199 @@ def runner(workshop):
     return WorkflowRunner(workshop)
 
 
-@pytest.fixture
-def lib():
-    return WorkflowLibrary()
+# ── Models ────────────────────────────────────────────────────
 
 
-class TestDAGResolution:
-    def test_simple_linear(self, runner):
-        stages: list[dict] = [
-            {"id": "a", "agent": "super", "action": "a"},
-            {"id": "b", "agent": "super", "action": "b"},
-            {"id": "c", "agent": "super", "action": "c"},
-        ]
-        order = runner._resolve_order(stages)
-        assert len(order) == 3
+class TestWorkflowNode:
+    def test_minimal(self):
+        n = WorkflowNode(id="a", label="Node A", agent_name="test")
+        assert n.id == "a"
+        assert n.depends_on == []
+
+    def test_serialize_roundtrip(self):
+        n = WorkflowNode(id="b", label="B", agent_name="dev", prompt="do it", depends_on=["a"], expected_output="code")
+        d = n.to_dict()
+        n2 = WorkflowNode.from_dict(d)
+        assert n2.id == "b"
+        assert n2.agent_name == "dev"
+        assert n2.depends_on == ["a"]
+
+    def test_gate_serialize(self):
+        n = WorkflowNode(id="r", label="Review", agent_name="qa", gate={"type": "review"})
+        d = n.to_dict()
+        assert d["gate"] == {"type": "review"}
+        n2 = WorkflowNode.from_dict(d)
+        assert n2.gate == {"type": "review"}
+
+
+class TestWorkflowTemplate:
+    def test_roundtrip(self):
+        nodes = [WorkflowNode(id="a"), WorkflowNode(id="b", depends_on=["a"])]
+        t = WorkflowTemplate(name="test", description="desc", workspace="ws-1", nodes=nodes)
+        d = t.to_dict()
+        t2 = WorkflowTemplate.from_dict(d)
+        assert t2.name == "test"
+        assert len(t2.nodes) == 2
+
+
+# ── DAG ───────────────────────────────────────────────────────
+
+
+class TestDAG:
+    def test_linear(self, runner):
+        nodes = [WorkflowNode(id="a"), WorkflowNode(id="b"), WorkflowNode(id="c")]
+        order = runner._resolve_order(nodes)
         assert set(order) == {"a", "b", "c"}
-
-    def test_with_dependencies(self, runner):
-        stages: list[dict] = [
-            {"id": "a", "agent": "super", "action": "a"},
-            {"id": "b", "agent": "super", "action": "b", "depends_on": ["a"]},
-            {"id": "c", "agent": "super", "action": "c", "depends_on": ["b"]},
-        ]
-        order = runner._resolve_order(stages)
-        assert order.index("a") < order.index("b") < order.index("c")
-
-    def test_diamond_dag(self, runner):
-        stages: list[dict] = [
-            {"id": "x", "agent": "super", "action": "x"},
-            {"id": "y", "agent": "super", "action": "y", "depends_on": ["x"]},
-            {"id": "z", "agent": "super", "action": "z", "depends_on": ["x"]},
-            {"id": "w", "agent": "super", "action": "w", "depends_on": ["y", "z"]},
-        ]
-        order = runner._resolve_order(stages)
-        assert order.index("x") == 0
-        assert order.index("w") == 3
-
-    def test_single_stage(self, runner):
-        order = runner._resolve_order([{"id": "only", "agent": "super", "action": "x"}])
-        assert order == ["only"]
-
-    def test_cycle_handled_gracefully(self, runner):
-        stages: list[dict] = [
-            {"id": "a", "agent": "super", "action": "a", "depends_on": ["c"]},
-            {"id": "b", "agent": "super", "action": "b", "depends_on": ["a"]},
-            {"id": "c", "agent": "super", "action": "c", "depends_on": ["b"]},
-        ]
-        order = runner._resolve_order(stages)
         assert len(order) == 3
-        assert set(order) == {"a", "b", "c"}
+
+    def test_diamond(self, runner):
+        nodes = [
+            WorkflowNode(id="x"),
+            WorkflowNode(id="y", depends_on=["x"]),
+            WorkflowNode(id="z", depends_on=["x"]),
+            WorkflowNode(id="w", depends_on=["y", "z"]),
+        ]
+        order = runner._resolve_order(nodes)
+        assert order[0] == "x"
+        assert order[3] == "w"
+
+    def test_parallel_ready(self, runner):
+        nodes = [
+            WorkflowNode(id="a"),
+            WorkflowNode(id="b"),
+            WorkflowNode(id="c", depends_on=["a", "b"]),
+        ]
+        order = runner._resolve_order(nodes)
+        assert order[0] in ("a", "b")
+        assert order[1] in ("a", "b")
+        assert order[2] == "c"
 
 
-class TestStageExecution:
+# ── Execution ─────────────────────────────────────────────────
+
+
+class TestExecution:
     @pytest.mark.asyncio
-    async def test_stage_passes(self, runner):
-        stage = {"id": "test", "agent": "super", "action": "run test"}
-        sr = await runner._execute_stage(stage, "task: test")
-        assert isinstance(sr, StageResult)
-        assert sr.status == "passed"
-        assert sr.stage_id == "test"
+    async def test_single_node(self, workshop):
+        tmpl = WorkflowTemplate(name="simple", nodes=[WorkflowNode(id="exec", label="Exec")])
+        events: list = []
+        async def cb(nid, status, detail):
+            events.append((nid, status))
+
+        runner = WorkflowRunner(workshop, on_status=cb)
+        result = await runner.run(tmpl, "do it")
+        assert result.status == NodeStatus.PASSED
+        assert len(events) >= 2
+        assert ("exec", "running") in events
 
     @pytest.mark.asyncio
-    async def test_stage_with_mock_output(self, workshop):
+    async def test_parallel_execution_order(self, workshop):
+        """A and B have no dependencies, should execute. C depends on A and B."""
+        completed_order: list[str] = []
+
+        async def cb(nid, status, detail):
+            if status == "passed":
+                completed_order.append(nid)
+
+        nodes = [
+            WorkflowNode(id="a", label="A"),
+            WorkflowNode(id="b", label="B"),
+            WorkflowNode(id="c", label="C", depends_on=["a", "b"]),
+        ]
+        tmpl = WorkflowTemplate(name="parallel", nodes=nodes)
+        runner = WorkflowRunner(workshop, on_status=cb)
+        result = await runner.run(tmpl, "test")
+        assert result.status == NodeStatus.PASSED
+        # A and B finish before C starts
+        assert completed_order.index("a") < completed_order.index("c")
+        assert completed_order.index("b") < completed_order.index("c")
+
+    @pytest.mark.asyncio
+    async def test_mock_outputs(self, workshop):
+        nodes = [
+            WorkflowNode(id="a", label="A"),
+            WorkflowNode(id="b", label="B", depends_on=["a"]),
+        ]
+        tmpl = WorkflowTemplate(name="mock", nodes=nodes)
         runner = WorkflowRunner(workshop, mock_outputs={
-            "s1": {"status": "passed", "output": "mock result"},
-        })
-        stage = {"id": "s1", "agent": "super", "action": "x"}
-        sr = await runner._execute_stage(stage, "task")
-        assert sr.status == "passed"
-        assert sr.output == "mock result"
-
-    @pytest.mark.asyncio
-    async def test_stage_with_mock_failure(self, workshop):
-        runner = WorkflowRunner(workshop, mock_outputs={
-            "bad": {"status": "failed", "error": "something broke"},
-        })
-        stage = {"id": "bad", "agent": "super", "action": "x"}
-        sr = await runner._execute_stage(stage, "task")
-        assert sr.status == "failed"
-        assert sr.error == "something broke"
-
-    @pytest.mark.asyncio
-    async def test_context_passed_between_stages(self, runner):
-        runner._context["up"] = "upstream output"
-        prompt = runner._build_prompt(
-            {"id": "down", "agent": "super", "action": "x", "depends_on": ["up"]},
-            "test task",
-        )
-        assert "upstream output" in prompt
-
-    @pytest.mark.asyncio
-    async def test_prompt_includes_task(self, runner):
-        prompt = runner._build_prompt(
-            {"id": "analyze", "agent": "analyst", "action": "analyze"},
-            "Review the code",
-        )
-        assert "Review the code" in prompt
-
-
-class TestGateLogic:
-    def test_review_pass_returns_current(self, runner):
-        stage = {"id": "review", "agent": "reviewer", "gate": {"type": "review"}}
-        sr = StageResult(stage_id="review", agent_name="reviewer", status="passed",
-                         output="审查通过，没有问题")
-        order = ["impl", "review", "done"]
-        next_idx = runner._handle_gate(stage, sr, order, 1)
-        assert next_idx == 1
-
-    def test_review_fail_jumps_back(self, runner):
-        stage = {"id": "review", "agent": "reviewer",
-                 "depends_on": ["impl"],
-                 "gate": {"type": "review"}}
-        sr = StageResult(stage_id="review", agent_name="reviewer", status="passed",
-                         output="审查不通过，需要修改")
-        order = ["impl", "review", "done"]
-        next_idx = runner._handle_gate(stage, sr, order, 1)
-        assert next_idx == 0
-
-    def test_non_review_gate_noop(self, runner):
-        stage = {"id": "check", "agent": "super", "gate": {"type": "lint"}}
-        sr = StageResult(stage_id="check", agent_name="super", status="passed",
-                         output="fail")
-        order = ["a", "check", "b"]
-        next_idx = runner._handle_gate(stage, sr, order, 1)
-        assert next_idx == 1
-
-
-class TestFullWorkflow:
-    @pytest.mark.asyncio
-    async def test_code_review_with_mocks(self, workshop, lib):
-        tmpl = lib.get("code-review")
-        assert tmpl is not None
-        runner = WorkflowRunner(workshop, mock_outputs={
-            "analyze": {"output": "技术方案完成"},
-            "implement": {"output": "代码实现完成"},
-            "review": {"output": "通过，无问题"},
-        })
-        result = await runner.run(tmpl, "Review PR #42")
-        assert result.status == "passed"
-        assert len(result.stage_results) == 3
-
-    @pytest.mark.asyncio
-    async def test_simple_workflow(self, workshop, lib):
-        tmpl = lib.get("simple")
-        runner = WorkflowRunner(workshop, mock_outputs={
-            "execute": {"output": "done"},
-        })
-        result = await runner.run(tmpl, "Do something")
-        assert result.status == "passed"
-
-    @pytest.mark.asyncio
-    async def test_workflow_result_structure(self, workshop, lib):
-        tmpl = lib.get("simple")
-        runner = WorkflowRunner(workshop, mock_outputs={
-            "execute": {"output": "result text"},
+            "a": {"output": "result from a"},
+            "b": {"output": "result from b"},
         })
         result = await runner.run(tmpl, "test")
-        assert result.template_name == "simple"
-        assert result.task == "test"
-        assert result.status == "passed"
+        assert result.status == NodeStatus.PASSED
+        assert result.node_results["a"].output == "result from a"
 
     @pytest.mark.asyncio
-    async def test_all_builtin_workflows(self, workshop, lib):
-        for wf_info in lib.list_all():
-            tmpl = lib.get(wf_info["name"])
-            assert tmpl is not None
-            mock = {s["id"]: {"output": f"mock {s['id']}"} for s in tmpl.stages}
-            for s in tmpl.stages:
-                if s.get("gate", {}).get("type") == "review":
-                    mock[s["id"]]["output"] = "通过"
-            runner = WorkflowRunner(workshop, mock_outputs=mock)
-            result = await runner.run(tmpl, f"test {wf_info['name']}")
-            assert result.status == "passed", f"Workflow {wf_info['name']} failed"
-
-    @pytest.mark.asyncio
-    async def test_workflow_failure_propagates(self, workshop, lib):
-        tmpl = lib.get("code-review")
+    async def test_mock_failure(self, workshop):
+        nodes = [WorkflowNode(id="bad", label="Bad")]
+        tmpl = WorkflowTemplate(name="fail", nodes=nodes)
         runner = WorkflowRunner(workshop, mock_outputs={
-            "analyze": {"status": "failed", "error": "analysis failed"},
+            "bad": {"status": "failed", "error": "boom"},
         })
         result = await runner.run(tmpl, "test")
-        assert result.status == "failed"
+        assert result.status == NodeStatus.FAILED
+        assert result.node_results["bad"].error == "boom"
 
     @pytest.mark.asyncio
-    async def test_gate_pass_with_positive_signal(self, workshop):
-        tmpl = WorkflowTemplate(name="pass-test", description="", stages=[
-            {"id": "impl", "agent": "super", "action": "implement"},
-            {"id": "review", "agent": "reviewer", "action": "review",
-             "depends_on": ["impl"], "gate": {"type": "review"}},
-        ])
+    async def test_context_passing(self, workshop):
+        nodes = [
+            WorkflowNode(id="up", label="Up"),
+            WorkflowNode(id="down", label="Down", depends_on=["up"], prompt="use upstream"),
+        ]
+        tmpl = WorkflowTemplate(name="ctx", nodes=nodes)
         runner = WorkflowRunner(workshop, mock_outputs={
-            "impl": {"output": "code done"},
-            "review": {"output": "审查通过，lgtm"},
+            "up": {"output": "upstream data"},
+            "down": {"output": "processed"},
         })
         result = await runner.run(tmpl, "test")
-        assert result.status == "passed"
+        assert "upstream data" in runner._context.get("up", "")
+
+    @pytest.mark.asyncio
+    async def test_gate_fail_retries(self, workshop):
+        nodes = [
+            WorkflowNode(id="impl", label="Impl"),
+            WorkflowNode(id="review", label="Review", depends_on=["impl"], gate={"type": "review"}),
+        ]
+        tmpl = WorkflowTemplate(name="gate", nodes=nodes)
+        runner = WorkflowRunner(workshop, mock_outputs={
+            "impl": {"output": "code"},
+            "review": {"output": "审查不通过，需要修改"},
+        })
+        result = await runner.run(tmpl, "test")
+        # Should have retried impl at least once
+        assert result.node_results["impl"].retries >= 1
+
+
+# ── Store ─────────────────────────────────────────────────────
+
+
+class TestStore:
+    def test_save_and_load(self, tmp_path):
+        store = WorkflowStore(tmp_path / "workflows")
+        t = WorkflowTemplate(name="test-wf", description="Test", nodes=[WorkflowNode(id="a")])
+        store.save(t)
+        loaded = store.load("test-wf")
+        assert loaded is not None
+        assert loaded.name == "test-wf"
+        assert len(loaded.nodes) == 1
+
+    def test_list_all(self, tmp_path):
+        store = WorkflowStore(tmp_path / "workflows")
+        store.save(WorkflowTemplate(name="wf1"))
+        store.save(WorkflowTemplate(name="wf2"))
+        items = store.list_all()
+        assert len(items) == 2
+
+    def test_delete(self, tmp_path):
+        store = WorkflowStore(tmp_path / "workflows")
+        store.save(WorkflowTemplate(name="del-me"))
+        assert store.delete("del-me") is True
+        assert store.load("del-me") is None
+
+    def test_delete_missing(self, tmp_path):
+        store = WorkflowStore(tmp_path / "workflows")
+        assert store.delete("nope") is False
+
+    def test_load_missing(self, tmp_path):
+        store = WorkflowStore(tmp_path / "workflows")
+        assert store.load("nope") is None

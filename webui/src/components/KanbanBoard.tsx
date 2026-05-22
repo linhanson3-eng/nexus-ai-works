@@ -14,7 +14,6 @@ export function KanbanBoard() {
   const [listsLoading, setListsLoading] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [newBoardName, setNewBoardName] = useState("");
-  const [newBoardWorkshop, setNewBoardWorkshop] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<{ type: "board" | "card"; id: string; label: string } | null>(null);
   const wsCleanupRef = useRef<(() => void) | null>(null);
   const toast = useToast();
@@ -111,9 +110,8 @@ export function KanbanBoard() {
     const name = newBoardName.trim();
     if (!name) return;
     try {
-      await api.createBoard(name, newBoardWorkshop.trim() || name);
+      await api.createBoard(name, name);
       setNewBoardName("");
-      setNewBoardWorkshop("");
       toast.success(`看板 "${name}" 已创建`);
       loadBoards();
     } catch (err) {
@@ -185,20 +183,14 @@ export function KanbanBoard() {
             onChange={e => setNewBoardName(e.target.value)}
             onKeyDown={e => e.key === "Enter" && newBoardName.trim() && createBoard()}
             placeholder="看板名称"
-            className="bg-surface border border-border rounded-xl px-3 py-2 text-sm text-white placeholder:text-muted focus:outline-none focus:border-accent/30 w-32"
-          />
-          <input
-            value={newBoardWorkshop}
-            onChange={e => setNewBoardWorkshop(e.target.value)}
-            placeholder="车间"
-            className="bg-surface border border-border rounded-xl px-3 py-2 text-sm text-white placeholder:text-muted focus:outline-none focus:border-accent/30 w-24"
+            className="bg-surface border border-border rounded-xl px-3 py-2 text-sm text-white placeholder:text-muted focus:outline-none focus:border-accent/30 w-36"
           />
           <button
             onClick={createBoard}
             disabled={!newBoardName.trim()}
-            className="flex items-center gap-2 px-4 py-2 bg-accent/10 text-accent border border-accent/20 rounded-xl text-sm font-medium hover:bg-accent/20 transition-colors disabled:opacity-30"
+            className="flex items-center gap-1.5 px-4 py-2 bg-accent/10 text-accent border border-accent/20 rounded-xl text-sm font-medium hover:bg-accent/20 transition-colors disabled:opacity-30 shrink-0"
           >
-            <Plus className="w-4 h-4" /> 新建
+            <Plus className="w-4 h-4" /> 新建看板
           </button>
         </div>
       </div>
@@ -211,7 +203,7 @@ export function KanbanBoard() {
           </div>
           <div className="text-center">
             <p className="text-white font-semibold">暂无看板</p>
-            <p className="text-sm text-muted mt-1">创建车间时会自动生成看板，也可以手动创建</p>
+            <p className="text-sm text-muted mt-1">创建工作区时会自动生成看板，也可以手动创建</p>
           </div>
         </div>
       )}
@@ -231,11 +223,11 @@ export function KanbanBoard() {
               {b.name}
             </button>
             <button
-              onClick={() => setDeleteTarget({ type: "board", id: b.id, label: b.name })}
-              className="px-2 py-2 bg-card border border-l-0 border-border rounded-r-xl text-muted hover:text-warning transition-colors"
+              onClick={(e) => { e.stopPropagation(); setDeleteTarget({ type: "board", id: b.id, label: b.name }); }}
+              className="px-2 py-2 bg-card border border-l-0 border-border rounded-r-xl text-muted/30 hover:text-warning transition-colors"
               title="删除看板"
             >
-              <Trash2 className="w-3.5 h-3.5" />
+              <Trash2 className="w-3 h-3" />
             </button>
           </div>
         ))}
@@ -244,16 +236,6 @@ export function KanbanBoard() {
       {/* Lists + Cards */}
       {selectedBoard && (
         <>
-          <div className="flex gap-3">
-            <input
-              value={newTitle}
-              onChange={e => setNewTitle(e.target.value)}
-              onKeyDown={e => e.key === "Enter" && newTitle.trim() && addCard(lists[0]?.id)}
-              placeholder="新建卡片..."
-              className="flex-1 bg-card border border-border rounded-xl px-4 py-2 text-sm text-white placeholder:text-muted focus:outline-none focus:border-accent/30"
-            />
-          </div>
-
           {listsLoading ? (
             <div className="grid grid-cols-4 gap-4 max-lg:grid-cols-2">
               {[1,2,3,4].map(i => <div key={i} className="h-48 bg-card rounded-[20px] border border-border animate-pulse" />)}

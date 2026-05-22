@@ -1,184 +1,105 @@
 import { useEffect, useState, useCallback } from "react";
-import { GitBranch, ArrowRight, Shield, AlertTriangle, Loader2, RefreshCw } from "lucide-react";
+import { GitBranch, Plus, Trash2, Loader2, AlertTriangle, RefreshCw, Zap } from "lucide-react";
 import { api } from "../lib/api";
-import type { WorkflowTemplate } from "../lib/types";
+import { useToast } from "./Toast";
+import { ConfirmDialog } from "./ConfirmDialog";
+import { WorkflowEditor } from "./WorkflowEditor";
+import type { WorkflowInfo } from "../lib/types";
 
 export function WorkflowList() {
-  const [workflows, setWorkflows] = useState<WorkflowTemplate[]>([]);
+  const [workflows, setWorkflows] = useState<WorkflowInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selected, setSelected] = useState<WorkflowTemplate | null>(null);
-  const [detailLoading, setDetailLoading] = useState(false);
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [editTarget, setEditTarget] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const toast = useToast();
 
   const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await api.listWorkflows();
-      setWorkflows(data);
-      if (data.length > 0) {
-        setDetailLoading(true);
-        try {
-          const first = await api.getWorkflow(data[0].name);
-          setSelected(first);
-        } catch { /* selected stays null */ }
-        finally { setDetailLoading(false); }
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "加载失败");
-    } finally {
-      setLoading(false);
-    }
+    setLoading(true); setError(null);
+    try { setWorkflows(await api.listWorkflows()); }
+    catch (err) { setError(err instanceof Error ? err.message : "加载失败"); }
+    finally { setLoading(false); }
   }, []);
 
   useEffect(() => { load(); }, [load]);
 
-  const selectWorkflow = async (name: string) => {
-    setDetailLoading(true);
-    try {
-      const wf = await api.getWorkflow(name);
-      setSelected(wf);
-    } catch (err) {
-      setSelected(null);
-    } finally {
-      setDetailLoading(false);
-    }
+  const remove = async (name: string) => {
+    try { await api.deleteWorkflow(name); toast.success(`"${name}" 已删除`); load(); setDeleteTarget(null); }
+    catch (err) { toast.error(err instanceof Error ? err.message : "删除失败"); }
   };
 
-  // ── Loading ──
-  if (loading) {
-    return (
-      <div className="space-y-6">
-        <div><div className="h-8 w-24 bg-card rounded animate-pulse" /></div>
-        <div className="grid grid-cols-5 gap-4">
-          <div className="col-span-2 space-y-2">{[1,2,3,4].map(i => <div key={i} className="h-20 bg-card rounded-[16px] border border-border animate-pulse" />)}</div>
-          <div className="col-span-3 bg-card rounded-[20px] border border-border animate-pulse min-h-[300px]" />
-        </div>
-      </div>
-    );
+  if (editorOpen) {
+    return <WorkflowEditor templateName={editTarget} onBack={() => { setEditorOpen(false); setEditTarget(null); load(); }} />;
   }
 
-  // ── Error ──
-  if (error) {
-    return (
-      <div className="space-y-6">
-        <div><h1 className="text-2xl font-black tracking-tight text-white">工作流</h1></div>
-        <div className="flex flex-col items-center justify-center min-h-[300px] gap-4">
-          <AlertTriangle className="w-10 h-10 text-warning" />
-          <p className="text-white font-semibold">加载失败</p>
-          <p className="text-sm text-muted">{error}</p>
-          <button onClick={load} className="inline-flex items-center gap-2 px-4 py-2 bg-accent/10 text-accent border border-accent/20 rounded-xl text-sm hover:bg-accent/20 transition-colors">
-            <RefreshCw className="w-3.5 h-3.5" /> 重试
-          </button>
-        </div>
-      </div>
-    );
-  }
+  if (loading) return (
+    <div className="flex items-center justify-center py-20 gap-2">
+      <Loader2 className="w-5 h-5 text-accent animate-spin" /><span className="text-sm text-muted">加载工作流...</span>
+    </div>
+  );
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-black tracking-tight text-white">工作流</h1>
-        <p className="text-muted text-sm mt-1">DAG 工作流模板与执行</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-black tracking-tight text-white">工作流</h1>
+          <p className="text-muted text-sm mt-1">可视化编排多 Agent 协作流程</p>
+        </div>
+        <button onClick={() => { setEditTarget(null); setEditorOpen(true); }}
+          className="flex items-center gap-2 px-4 py-2 bg-accent/10 text-accent border border-accent/20 rounded-xl text-sm font-medium hover:bg-accent/20 transition-colors">
+          <Plus className="w-4 h-4" /> 新建工作流
+        </button>
       </div>
 
-      {workflows.length === 0 ? (
-        <div className="flex flex-col items-center justify-center min-h-[300px] gap-4">
-          <div className="w-14 h-14 rounded-2xl bg-card border border-border flex items-center justify-center">
-            <GitBranch className="w-7 h-7 text-muted" />
-          </div>
+      {error && (
+        <div className="flex flex-col items-center gap-3 py-12">
+          <AlertTriangle className="w-8 h-8 text-warning" />
+          <p className="text-sm text-muted">{error}</p>
+          <button onClick={load} className="inline-flex items-center gap-2 px-4 py-2 bg-accent/10 text-accent border border-accent/20 rounded-xl text-sm"><RefreshCw className="w-3.5 h-3.5" />重试</button>
+        </div>
+      )}
+
+      {!error && workflows.length === 0 && (
+        <div className="flex flex-col items-center gap-3 py-20">
+          <GitBranch className="w-12 h-12 text-muted" />
           <p className="text-white font-semibold">暂无工作流模板</p>
-          <p className="text-sm text-muted">内置工作流模板尚未加载</p>
+          <p className="text-sm text-muted mt-1">创建第一个可视化工作流，编排多 Agent 协作</p>
+          <button onClick={() => { setEditTarget(null); setEditorOpen(true); }}
+            className="mt-4 inline-flex items-center gap-2 px-5 py-2.5 bg-accent text-black rounded-xl text-sm font-semibold hover:bg-amber-400 transition-colors">
+            <Plus className="w-4 h-4" /> 创建工作流
+          </button>
         </div>
-      ) : (
-        <div className="grid grid-cols-5 gap-4 max-lg:grid-cols-1">
-          {/* Workflow list */}
-          <div className="col-span-2 space-y-2">
-            {workflows.map(wf => (
-              <button
-                key={wf.name}
-                onClick={() => selectWorkflow(wf.name)}
-                className={`w-full text-left p-4 rounded-[16px] border transition-all ${
-                  selected?.name === wf.name
-                    ? "bg-accent/10 border-accent/30"
-                    : "bg-card border-border hover:bg-card-hover"
-                }`}
-              >
-                <div className="flex items-center gap-2.5">
-                  <GitBranch className={`w-4 h-4 ${selected?.name === wf.name ? "text-accent" : "text-muted"}`} />
-                  <span className="text-sm font-semibold text-white">{wf.name}</span>
-                  <span className="text-[10px] text-muted bg-surface px-1.5 py-0.5 rounded">{wf.source}</span>
+      )}
+
+      {!error && workflows.length > 0 && (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {workflows.map(w => (
+            <div key={w.name} onClick={() => { setEditTarget(w.name); setEditorOpen(true); }}
+              className="bg-card border border-border rounded-[20px] p-5 hover:border-accent/20 cursor-pointer transition-all group">
+              <div className="flex items-start justify-between mb-3">
+                <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center">
+                  <GitBranch className="w-5 h-5 text-accent" />
                 </div>
-                <p className="text-xs text-muted mt-1.5 ml-7">{wf.description}</p>
-              </button>
-            ))}
-          </div>
-
-          {/* Workflow detail */}
-          <div className="col-span-3 bg-card border border-border rounded-[20px] p-6 min-h-[300px]">
-            {detailLoading ? (
-              <div className="h-full flex items-center justify-center gap-2">
-                <Loader2 className="w-5 h-5 text-accent animate-spin" />
-                <span className="text-sm text-muted">加载中...</span>
+                <button onClick={e => { e.stopPropagation(); setDeleteTarget(w.name); }}
+                  className="text-muted hover:text-warning opacity-0 group-hover:opacity-100 transition-all">
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
               </div>
-            ) : selected ? (
-              <div className="space-y-6">
-                <div>
-                  <h2 className="text-lg font-bold text-white">{selected.name}</h2>
-                  <p className="text-sm text-muted mt-1">{selected.description}</p>
-                </div>
-
-                {selected.stages && (
-                  <div className="space-y-3">
-                    <span className="text-[10px] uppercase tracking-widest text-muted font-medium">执行阶段</span>
-                    {selected.stages.map((stage, i) => (
-                      <div key={stage.id} className="flex items-center gap-3">
-                        <div className="flex items-center gap-3 bg-surface border border-border rounded-xl px-4 py-3 flex-1">
-                          <div className="w-8 h-8 rounded-lg bg-accent/10 flex items-center justify-center text-xs font-bold text-accent">{i + 1}</div>
-                          <div>
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="text-sm font-medium text-white">{stage.id}</span>
-                              <span className="text-[10px] text-muted bg-surface px-1.5 py-0.5 rounded">{stage.agent}</span>
-                              {stage.gate && (
-                                <span className="flex items-center gap-1 text-[10px] text-warning">
-                                  <Shield className="w-3 h-3" /> gate
-                                </span>
-                              )}
-                            </div>
-                            <p className="text-xs text-muted mt-0.5">{stage.action}</p>
-                          </div>
-                          <span className="text-[10px] text-info bg-info/10 px-2 py-0.5 rounded ml-auto">{stage.output}</span>
-                        </div>
-                        {i < (selected.stages?.length || 0) - 1 && (
-                          <ArrowRight className="w-4 h-4 text-muted shrink-0" />
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {selected.stages?.some(s => s.depends_on?.length) && (
-                  <div>
-                    <span className="text-[10px] uppercase tracking-widest text-muted font-medium">依赖关系</span>
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {selected.stages.filter(s => s.depends_on?.length).map(s =>
-                        s.depends_on?.map(dep => (
-                          <span key={`${s.id}-${dep}`} className="text-[10px] px-2 py-1 bg-surface border border-border rounded-lg text-muted">
-                            {s.id} ← {dep}
-                          </span>
-                        ))
-                      )}
-                    </div>
-                  </div>
-                )}
+              <h3 className="text-white font-semibold text-sm">{w.name}</h3>
+              <p className="text-xs text-muted mt-1 line-clamp-2">{w.description || "无描述"}</p>
+              <div className="flex items-center gap-3 mt-3 pt-3 border-t border-border">
+                <span className="text-[10px] text-muted flex items-center gap-1"><Zap className="w-3 h-3" />{w.node_count} 节点</span>
+                {w.workspace && <span className="text-[10px] text-muted">{w.workspace}</span>}
               </div>
-            ) : (
-              <div className="h-full flex items-center justify-center text-muted text-sm">
-                选择一个工作流查看详情
-              </div>
-            )}
-          </div>
+            </div>
+          ))}
         </div>
+      )}
+
+      {deleteTarget && (
+        <ConfirmDialog title="删除工作流" message={`确定要删除 "${deleteTarget}" 吗？`}
+          confirmLabel="删除" onConfirm={() => remove(deleteTarget)} onCancel={() => setDeleteTarget(null)} />
       )}
     </div>
   );

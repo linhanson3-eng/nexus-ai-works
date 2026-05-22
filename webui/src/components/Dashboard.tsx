@@ -28,7 +28,6 @@ export function Dashboard() {
   useEffect(() => { load(); }, [load]);
 
   const totalAgents = org?.total_agents ?? 0;
-  const superAgents = org?.super_agents ?? 0;
   const totalCards = workshops.reduce((sum, w) => {
     const stats: number[] = Object.values(w.kanban_stats || {}) as number[];
     return sum + stats.reduce((a: number, b: number) => a + b, 0);
@@ -42,7 +41,7 @@ export function Dashboard() {
           <div className="h-8 w-24 bg-card rounded animate-pulse" />
           <div className="h-4 w-48 bg-card rounded animate-pulse mt-2" />
         </div>
-        <div className="grid grid-cols-4 gap-4 auto-rows-[140px]">
+        <div className="grid grid-cols-4 gap-4">
           <div className="col-span-2 row-span-2 bg-card rounded-[20px] border border-border animate-pulse" />
           <div className="bg-card rounded-[20px] border border-border animate-pulse" />
           <div className="bg-card rounded-[20px] border border-border animate-pulse" />
@@ -88,7 +87,7 @@ export function Dashboard() {
         <p className="text-muted text-sm mt-1">工厂实时状态监控</p>
       </div>
 
-      <div className="grid grid-cols-4 gap-4 auto-rows-[140px] max-lg:grid-cols-2 max-md:grid-cols-1">
+      <div className="grid grid-cols-4 gap-4 max-lg:grid-cols-2 max-md:grid-cols-1">
         {/* Hero stat */}
         <div className="col-span-2 row-span-2 bg-card rounded-[20px] border border-border p-6 flex flex-col justify-between relative overflow-hidden group hover:bg-card-hover transition-colors max-lg:col-span-2">
           <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-accent/40 via-accent/20 to-transparent" />
@@ -100,7 +99,7 @@ export function Dashboard() {
           </div>
           <div>
             <div className="text-5xl font-black text-white tracking-tight tabular-nums">{totalAgents}</div>
-            <p className="text-sm text-muted mt-1">{superAgents} 个超级 Agent · {workshops.length} 个车间</p>
+            <p className="text-sm text-muted mt-1">{totalAgents} 个 Agent · {workshops.length} 个工作区</p>
           </div>
         </div>
 
@@ -118,7 +117,7 @@ export function Dashboard() {
         <div className="bg-card rounded-[20px] border border-border p-5 flex flex-col justify-between hover:bg-card-hover transition-colors">
           <div className="flex items-center gap-2.5">
             <Blocks className="w-4 h-4 text-info" />
-            <span className="text-[11px] uppercase tracking-widest text-muted font-medium">车间</span>
+            <span className="text-[11px] uppercase tracking-widest text-muted font-medium">工作区</span>
           </div>
           <div className="text-2xl font-bold text-white tracking-tight">{workshops.length}</div>
           <p className="text-xs text-muted">{workshops.filter(w => w.has_kanban).length} 个已绑定看板</p>
@@ -136,16 +135,16 @@ export function Dashboard() {
 
         {/* Workshop list */}
         <div className="col-span-2 bg-card rounded-[20px] border border-border p-5 flex flex-col hover:bg-card-hover transition-colors overflow-hidden max-lg:col-span-2">
-          <span className="text-[11px] uppercase tracking-widest text-muted font-medium mb-3">车间列表</span>
+          <span className="text-[11px] uppercase tracking-widest text-muted font-medium mb-3">工作区列表</span>
           {workshops.length === 0 ? (
             <div className="flex-1 flex flex-col items-center justify-center gap-3">
               <Activity className="w-8 h-8 text-muted" />
-              <p className="text-sm text-muted">暂无车间</p>
+              <p className="text-sm text-muted">暂无工作区</p>
               <button
                 onClick={() => navigate("/workshops")}
                 className="px-4 py-2 bg-accent/10 text-accent border border-accent/20 rounded-xl text-sm hover:bg-accent/20 transition-colors"
               >
-                创建第一个车间
+                创建第一个工作区
               </button>
             </div>
           ) : (

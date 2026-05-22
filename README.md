@@ -1,4 +1,4 @@
-# AI 工厂 (AI Factory)
+# Nexus AI Works
 
 开源、自进化、多 Agent 协作的模板化 AI 开发平台。
 

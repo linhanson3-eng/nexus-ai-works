@@ -58,13 +58,13 @@ class TestWorkshopInfo:
             name="test",
             workspace="/tmp/ws/test",
             agent_count=1,
-            super_agents=["super"],
+            agent_names=["test"],
             workflow_name="simple",
         )
         assert info.name == "test"
         assert info.workspace == "/tmp/ws/test"
         assert info.agent_count == 1
-        assert info.super_agents == ["super"]
+        assert info.agent_names == ["test"]
         assert info.workflow_name == "simple"
         assert info.has_kanban is False
 
@@ -73,7 +73,7 @@ class TestWorkshopInfo:
             name="test",
             workspace="/tmp/ws/test",
             agent_count=2,
-            super_agents=["super"],
+            agent_names=["test"],
             workflow_name="simple",
             has_kanban=True,
         )
@@ -89,7 +89,7 @@ class TestWorkshopCreate:
         ws = manager.create("lab-alpha")
         assert ws.name == "lab-alpha"
         assert ws.agent_count() == 1
-        assert "super" in ws.super_agents()
+        assert "lab-alpha" in list(ws.agents.keys())
         assert str(ws.workspace).endswith("lab-alpha")
 
     def test_create_workshop_custom_workspace(self, manager):
@@ -99,11 +99,11 @@ class TestWorkshopCreate:
         assert str(ws.workspace.resolve()) == str(Path("/tmp/custom-ws").resolve())
 
     def test_create_workshop_multiple_agents(self, manager):
-        ws = manager.create("lab-multi", agent_names=["super", "reviewer"])
+        ws = manager.create("lab-multi", agent_names=["test", "beta"])
         assert ws.agent_count() == 2
-        super_names = ws.super_agents()
-        # "reviewer" is not super type, so only "super" should appear
-        assert "super" in super_names
+        agent_names = list(ws.agents.keys())
+        assert "test" in agent_names
+        assert "beta" in agent_names
 
     def test_create_workshop_custom_workflow(self, manager):
         ws = manager.create("lab-wf", workflow_name="research")
@@ -161,7 +161,7 @@ class TestWorkshopListAll:
 
     def test_list_all_with_workshops(self, manager):
         manager.create("lab-1")
-        manager.create("lab-2", agent_names=["super", "analyst"])
+        manager.create("lab-2", agent_names=["test", "gamma"])
         results = manager.list_all()
         assert len(results) == 2
         names = {r.name for r in results}
@@ -174,11 +174,11 @@ class TestWorkshopListAll:
         assert counts["lab-1"] == 1
         assert counts["lab-2"] == 2
 
-    def test_list_all_shows_super_agents(self, manager):
-        manager.create("lab-super", agent_names=["super"])
+    def test_list_all_shows_agent_names(self, manager):
+        manager.create("lab-super", agent_names=["test"])
         results = manager.list_all()
         assert len(results) == 1
-        assert results[0].super_agents == ["super"]
+        assert results[0].agent_names == ["test"]
 
     def test_list_all_shows_kanban_flag(self, manager):
         manager.create("lab-flag")

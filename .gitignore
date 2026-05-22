@@ -4,9 +4,15 @@ __pycache__/
 .venv/
 venv/
 .DS_Store
-workspaces/*/src/
+node_modules/
+webui/dist/
+.pytest_cache/
+*.egg-info/
 *.db
 *.db-journal
 *.db-wal
 *.db-shm
+:memory*
+.port_sessions/
+~/.nexus/
 ~/.factory/

@@ -1,15 +1,8 @@
 """工厂配置 Pydantic 模型。"""
 
-from enum import Enum
-from pathlib import Path
-from typing import Any, Union
+from typing import Any
 
 from pydantic import BaseModel, Field, field_validator
-
-
-class AgentType(str, Enum):
-    SUPER = "super"
-    NORMAL = "normal"
 
 
 class FilesystemPermission(BaseModel):
@@ -49,14 +42,87 @@ class AgentPermissions(BaseModel):
     self: SelfPermission = Field(default_factory=SelfPermission)
 
 
+class BudgetSpec(BaseModel):
+    """Token / cost / call budget per agent execution."""
+
+    max_total_tokens: int = 1_500_000
+    max_total_cost_usd: float = 15.0
+    max_tool_calls: int = 150
+    max_model_calls: int = 60
+    max_session_turns: int = 60
+
+
+class RoleModelSpec(BaseModel):
+    """Per-role model preferences."""
+
+    default: str = "anthropic/claude-sonnet-4-6"
+    budget_work: str = "anthropic/claude-haiku-4-5"
+
+
+class RolePermissionsSpec(BaseModel):
+    """Role-level permission flags (simplified view)."""
+
+    shell_exec: bool = False
+    file_write: bool = False
+    subagent_spawn: bool = False
+
+
+class RoleSpec(BaseModel):
+    """角色身份配置 — 定义 Agent 的角色提示词、默认预算和权限。
+
+    角色配置文件放在 config/roles/*.yaml，模板通过 ``role:`` 字段引用。
+    模板字段覆盖角色默认值。
+    """
+
+    name: str
+    description: str = ""
+    append_prompt: str = ""
+    model: RoleModelSpec = Field(default_factory=RoleModelSpec)
+    budget: BudgetSpec = Field(default_factory=BudgetSpec)
+    permissions: RolePermissionsSpec = Field(default_factory=RolePermissionsSpec)
+
+    def to_permissions(self) -> AgentPermissions:
+        """Convert simplified role permissions to full AgentPermissions."""
+        from config.schema import (
+            FilesystemPermission,
+            SelfPermission,
+            ShellPermission,
+            SubagentPermission,
+            WarehousePermission,
+        )
+        return AgentPermissions(
+            filesystem=FilesystemPermission(
+                read=["workspace"],
+                write=["workspace"] if self.permissions.file_write else [],
+            ),
+            shell=ShellPermission(exec=self.permissions.shell_exec),
+            subagent=SubagentPermission(
+                spawn=self.permissions.subagent_spawn,
+                max=5 if self.permissions.subagent_spawn else 0,
+            ),
+            warehouse=WarehousePermission(),
+            self=SelfPermission(),
+        )
+
+
 class AgentSpec(BaseModel):
     name: str
-    template: str = "super"  # 模板名：super/reviewer/analyst/writer
-    type: AgentType = AgentType.SUPER  # 类型由模板决定
+    mode: str = "super"  # "super" | "normal" — drives tools + subagent defaults
+    template: str = ""
+    role: str = ""  # references config/roles/<role>.yaml
+    type: str = ""
     model: str = "anthropic/claude-sonnet-4-6"
     tools: list[str] = Field(default_factory=list)
     system_prompt: str = ""
+    guide_file: str = ""  # path to agent guide/prompt file
+    skills: list[str] = Field(default_factory=list)  # skill names to load
     permissions: AgentPermissions = Field(default_factory=AgentPermissions)
+    budget: BudgetSpec = Field(default_factory=BudgetSpec)
+
+    def model_post_init(self, __context: object) -> None:
+        """Apply mode-driven defaults for tools only when not explicitly set."""
+        if self.mode == "normal" and not self.tools:
+            self.tools = ["think", "search", "read_file"]
 
     @field_validator("tools", mode="before")
     @classmethod
@@ -73,6 +139,10 @@ class AgentSpec(BaseModel):
     @property
     def tools_all(self) -> bool:
         return len(self.tools) == 0
+
+    @property
+    def is_super(self) -> bool:
+        return self.mode == "super"
 
 
 class WorkflowSpec(BaseModel):

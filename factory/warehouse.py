@@ -9,14 +9,12 @@ from typing import Any
 
 
 class Warehouse:
-    """OB 知识库制品仓库。
+    """制品仓库 — 工作区级 Artifact 读写。
 
     结构：
-    OB/
-    ├── 开发部/
-    ├── 市场分析部/
-    ├── 自媒体运营部/
-    ├── 车间记忆/       ← 车间级记忆（Consolidator 写入）
+    warehouse/
+    ├── {工作区名}/        ← 各工作区产出物
+    ├── 工作区记忆/       ← 工作区级记忆（Consolidator 写入）
     ├── 工厂记忆/       ← 工厂级记忆（Dream 写入）
     └── INDEX.md       ← 自动维护的产品目录
     """
@@ -27,7 +25,7 @@ class Warehouse:
         self._index_path = self.root / "INDEX.md"
 
     def write(self, department: str, filename: str, content: str) -> Path:
-        """写入制品。自动创建车间目录。"""
+        """写入制品。自动创建工作区目录。"""
         dept_dir = self.root / department
         dept_dir.mkdir(parents=True, exist_ok=True)
 
@@ -37,14 +35,14 @@ class Warehouse:
         return path
 
     def read(self, department: str, filename: str) -> str:
-        """只读消费其他车间的制品。"""
+        """只读消费其他工作区的制品。"""
         path = self.root / department / filename
         if not path.exists():
             raise FileNotFoundError(f"制品不存在: {department}/{filename}")
         return path.read_text(encoding="utf-8")
 
     def read_dept(self, department: str) -> list[Path]:
-        """列出某个车间的所有制品。"""
+        """列出某个工作区的所有制品。"""
         dept_dir = self.root / department
         if not dept_dir.exists():
             return []
@@ -69,7 +67,7 @@ class Warehouse:
         """
         memory_dirs = {
             "agent": self.root / "Agent记忆",
-            "workshop": self.root / "车间记忆",
+            "workshop": self.root / "工作区记忆",
             "factory": self.root / "工厂记忆",
         }
         target = memory_dirs.get(level, self.root / "Agent记忆")
@@ -82,7 +80,7 @@ class Warehouse:
         """读取记忆文件。"""
         memory_dirs = {
             "agent": self.root / "Agent记忆",
-            "workshop": self.root / "车间记忆",
+            "workshop": self.root / "工作区记忆",
             "factory": self.root / "工厂记忆",
         }
         path = memory_dirs[level] / f"{name}.md"
@@ -91,7 +89,7 @@ class Warehouse:
         return path.read_text(encoding="utf-8")
 
     def index(self) -> dict[str, list[str]]:
-        """扫描所有制品，按车间分组返回文件名列表。"""
+        """扫描所有制品，按工作区分组返回文件名列表。"""
         result: dict[str, list[str]] = {}
         for dept_dir in self.root.iterdir():
             if dept_dir.is_dir() and not dept_dir.name.startswith("."):

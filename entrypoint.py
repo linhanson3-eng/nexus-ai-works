@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""AI 工厂启动入口。"""
+"""Nexus AI Works 启动入口。"""
 
 import argparse
 import asyncio
@@ -7,17 +7,17 @@ import sys
 from pathlib import Path
 
 from factory.org import OrgEngine
-from factory.workflow import WorkflowLibrary
+from factory.workflow import WorkflowStore
 from factory.memory import MemoryStore, SourceTree, VaultWriter
 from factory.memory.tree import BucketSeal, dummy_summariser
-from factory.runner import FactoryAgentRunner
+from factory.runner import NexusAgentRunner
 from factory.kanban import KanbanStore, KanbanSync, TaskEvent
 from factory.mcp import MCPClient, MCPServerConfig, MCPRegistry
 from factory.skills import SkillRepo
 
 
 async def main():
-    parser = argparse.ArgumentParser(description="AI 工厂模板化开发平台")
+    parser = argparse.ArgumentParser(description="Nexus AI Works — 模板化 AI 开发平台")
     sub = parser.add_subparsers(dest="command")
 
     # 全局可选参数
@@ -39,7 +39,7 @@ async def main():
     show_board.add_argument("name", help="看板名称或 workshop 名称")
     create_board = kanban_sub.add_parser("create", help="创建新看板")
     create_board.add_argument("name", help="看板名称")
-    create_board.add_argument("--workshop", default="", help="关联的车间名称")
+    create_board.add_argument("--workshop", default="", help="关联的工作区名称")
 
     # Phase 3: MCP 工具市场
     mcp_p = sub.add_parser("mcp", help="MCP 工具市场")
@@ -53,28 +53,28 @@ async def main():
     skill_sub = skill_p.add_subparsers(dest="skill_cmd")
     skill_list = skill_sub.add_parser("list", help="列出可用技能")
     skill_list.add_argument("--query", default="", help="按名称/触发词过滤")
-    skill_list.add_argument("--workshop", default="__global__", help="按车间过滤已安装")
+    skill_list.add_argument("--workshop", default="__global__", help="按工作区过滤已安装")
     skill_show = skill_sub.add_parser("show", help="查看技能详情")
     skill_show.add_argument("name")
-    skill_install = skill_sub.add_parser("install", help="安装技能到车间")
+    skill_install = skill_sub.add_parser("install", help="安装技能到工作区")
     skill_install.add_argument("name")
     skill_install.add_argument("--workshop", default="__global__")
 
-    # Phase 4: 车间管理
-    workshop_p = sub.add_parser("workshop", help="车间管理")
+    # Phase 4: 工作区管理
+    workshop_p = sub.add_parser("workshop", help="工作区管理")
     workshop_sub = workshop_p.add_subparsers(dest="workshop_cmd")
-    ws_create = workshop_sub.add_parser("create", help="创建车间")
-    ws_create.add_argument("name", help="车间名称")
+    ws_create = workshop_sub.add_parser("create", help="创建工作区")
+    ws_create.add_argument("name", help="工作区名称")
     ws_create.add_argument("--workflow", default="simple", help="工作流模板")
-    ws_create.add_argument("--agents", default="super", help="Agent 模板列表，逗号分隔")
-    ws_list = workshop_sub.add_parser("list", help="列出所有车间")
+    ws_create.add_argument("--agents", default="", help="Agent 模板列表，逗号分隔")
+    ws_list = workshop_sub.add_parser("list", help="列出所有工作区")
     ws_run = workshop_sub.add_parser("run", help="执行工作流")
-    ws_run.add_argument("name", help="车间名称")
+    ws_run.add_argument("name", help="工作区名称")
     ws_run.add_argument("workflow", help="工作流模板名")
     ws_run.add_argument("task", help="任务描述")
-    ws_show = workshop_sub.add_parser("show", help="查看车间详情")
+    ws_show = workshop_sub.add_parser("show", help="查看工作区详情")
     ws_show.add_argument("name")
-    ws_delete = workshop_sub.add_parser("delete", help="删除车间")
+    ws_delete = workshop_sub.add_parser("delete", help="删除工作区")
     ws_delete.add_argument("name")
 
     # Phase 4: 工作流管理
@@ -87,7 +87,7 @@ async def main():
     args = parser.parse_args()
 
     print("=" * 60)
-    print("  AI 工厂 v0.5.0")
+    print("  Nexus AI Works v1.0.0")
     print("=" * 60)
 
     if args.command == "serve":
@@ -116,9 +116,9 @@ async def run_default(args):
     store = MemoryStore(args.db_path)
     org = OrgEngine("config/org.yaml")
 
-    print(f"\n  组织架构: {len(org.spec.departments)} 个车间")
+    print(f"\n  组织架构: {len(org.spec.departments)} 个工作区")
     print(f"  制品仓库: {org.warehouse.root}")
-    print(f"  工作流模板: {len(org.workflows.list_all())} 个")
+    print(f"  工作流模板: {len(org.workflow_store.list_all())} 个")
     print(f"  Agent 模板: {len(org.templates.list_all())} 个")
 
     org.create_all()
@@ -131,7 +131,7 @@ async def run_default(args):
         await run_task(org, store, args.run, args.vault_path)
         return
 
-    print(f"\n  车间状态:")
+    print(f"\n  工作区状态:")
     print(org.status())
     print(f"\n  制品仓库索引:")
     for dept, products in org.warehouse.index().items():
@@ -147,14 +147,17 @@ async def run_default(args):
 
 
 async def run_task(org: OrgEngine, store: MemoryStore, task: str, vault_path: str):
-    """执行任务：选择第一个车间的 super Agent。"""
+    """执行任务：选择第一个工作区的 super Agent。"""
     departments = org.spec.departments
     if not departments:
-        print("  没有配置车间，请检查 config/org.yaml")
+        print("  没有配置工作区，请检查 config/org.yaml")
         return
 
     dept = departments[0]
-    agent_spec = next((a for a in dept.agents if a.type == "super"), dept.agents[0])
+    if not dept.agents:
+        print("  该部门没有 Agent，请在 config/org.yaml 中配置")
+        return
+    agent_spec = dept.agents[0]
     workshop = next((w for w in org.workshops if w.name == dept.name), None)
 
     # 初始化看板同步
@@ -162,12 +165,12 @@ async def run_task(org: OrgEngine, store: MemoryStore, task: str, vault_path: st
     kanban_sync = KanbanSync(kanban_store, dept.name)
 
     print(f"\n  执行任务: {task}")
-    print(f"  车间: {dept.name}")
+    print(f"  工作区: {dept.name}")
     print(f"  Agent: {agent_spec.name} ({agent_spec.type})")
     print(f"  模型: {agent_spec.model}")
     print()
 
-    runner = FactoryAgentRunner(
+    runner = NexusAgentRunner(
         agent_spec, workshop, store,
         vault_path=vault_path,
         kanban_sync=kanban_sync,
@@ -332,19 +335,19 @@ def cmd_skill(args):
 
 
 def cmd_workshop(args):
-    """车间管理命令。"""
+    """工作区管理命令。"""
     org = OrgEngine("config/org.yaml")
-    org.create_all()  # 加载配置中已定义的车间
+    org.create_all()  # 加载配置中已定义的工作区
     kanban_store = KanbanStore()
     from factory.workshop.manager import WorkshopManager
     mgr = WorkshopManager(org, kanban_store)
 
     if args.workshop_cmd == "create":
-        agent_names = [a.strip() for a in (args.agents or "super").split(",")]
+        agent_names = [a.strip() for a in (args.agents or "").split(",") if a.strip()]
         ws = mgr.create(name=args.name, workflow_name=args.workflow, agent_names=agent_names)
         # 持久化到 org.yaml
         _save_workshop_to_config(org, args.name, args.workflow, agent_names)
-        print(f"  已创建车间: {ws.name}")
+        print(f"  已创建工作区: {ws.name}")
         print(f"  workspace: {ws.workspace}")
         print(f"  agents: {list(ws.agents.keys())}")
         print(f"  workflow: {ws.workflow_name}")
@@ -352,9 +355,9 @@ def cmd_workshop(args):
     elif args.workshop_cmd == "list":
         workshops = mgr.list_all()
         if not workshops:
-            print("  (暂无车间)")
+            print("  (暂无工作区)")
         else:
-            print(f"\n  车间列表 ({len(workshops)}):")
+            print(f"\n  工作区列表 ({len(workshops)}):")
             for w in workshops:
                 board_icon = "[B]" if w.has_kanban else "[ ]"
                 print(f"  {board_icon} {w.name} — {w.agent_count} agents, workflow={w.workflow_name}")
@@ -362,9 +365,9 @@ def cmd_workshop(args):
     elif args.workshop_cmd == "show":
         status = mgr.status(args.name)
         if status is None:
-            print(f"  车间 '{args.name}' 不存在")
+            print(f"  工作区 '{args.name}' 不存在")
             return
-        print(f"\n  车间: {status['name']}")
+        print(f"\n  工作区: {status['name']}")
         print(f"  workspace: {status['workspace']}")
         print(f"  agents: {status['agents']}")
         if "kanban_stats" in status:
@@ -377,9 +380,9 @@ def cmd_workshop(args):
     elif args.workshop_cmd == "delete":
         deleted = mgr.delete(args.name)
         if deleted:
-            print(f"  已删除车间: {args.name}")
+            print(f"  已删除工作区: {args.name}")
         else:
-            print(f"  车间 '{args.name}' 不存在")
+            print(f"  工作区 '{args.name}' 不存在")
 
     kanban_store.close()
 
@@ -390,22 +393,22 @@ def cmd_workflow(args):
     org.create_all()
 
     if args.workflow_cmd == "list":
-        workflows = org.workflows.list_all()
+        workflows = org.workflow_store.list_all()
         print(f"\n  工作流模板 ({len(workflows)}):")
         for w in workflows:
-            print(f"  [{w['source']}] {w['name']}: {w['description']}")
+            print(f"  {w['name']}: {w['description']} ({w.get('node_count', 0)} nodes)")
 
     elif args.workflow_cmd == "show":
-        tmpl = org.workflows.get(args.name)
+        tmpl = org.workflow_store.load(args.name)
         if tmpl is None:
             print(f"  工作流 '{args.name}' 不存在")
             return
         print(f"\n  {tmpl.name} — {tmpl.description}")
-        print(f"  阶段 ({len(tmpl.stages)}):")
-        for s in tmpl.stages:
-            deps = f" (depends: {', '.join(s.get('depends_on', []))})" if s.get("depends_on") else ""
-            gate = f" [gate: {s['gate']['type']}]" if s.get("gate") else ""
-            print(f"  {s['id']}: {s['agent']} → {s['output']}{deps}{gate}")
+        print(f"  节点 ({len(tmpl.nodes)}):")
+        for n in tmpl.nodes:
+            deps = f" (depends: {', '.join(n.depends_on)})" if n.depends_on else ""
+            gate = f" [gate: {n.gate['type']}]" if n.gate else ""
+            print(f"  {n.id}: {n.label} → agent={n.agent_name}{deps}{gate}")
 
 
 async def cmd_workshop_run(args):
@@ -416,24 +419,24 @@ async def cmd_workshop_run(args):
     mgr = WorkshopManager(org, KanbanStore())
     ws = mgr.get(args.name)
     if ws is None:
-        print(f"  车间 '{args.name}' 不存在")
+        print(f"  工作区 '{args.name}' 不存在")
         return
-    tmpl = org.workflows.get(args.workflow)
+    tmpl = org.workflow_store.load(args.workflow)
     if tmpl is None:
         print(f"  工作流 '{args.workflow}' 不存在")
-        print(f"  可用: {[w['name'] for w in org.workflows.list_all()]}")
+        print(f"  可用: {[w['name'] for w in org.workflow_store.list_all()]}")
         return
     from factory.workflow.engine import WorkflowRunner
     runner = WorkflowRunner(ws)
     result = await runner.run(tmpl, args.task)
-    print(f"\n  工作流结果: {result.status}")
-    for sid, sr in result.stage_results.items():
-        icon = "✓" if sr.status == "passed" else "✗" if sr.status == "failed" else " "
-        print(f"  [{icon}] {sr.stage_id} ({sr.agent_name}): {sr.output[:120]}")
+    print(f"\n  工作流结果: {result.status.value}")
+    for nid, nr in result.node_results.items():
+        icon = "✓" if nr.status.value == "passed" else "✗" if nr.status.value == "failed" else " "
+        print(f"  [{icon}] {nr.node_id} ({nr.agent_name}): {nr.output[:120]}")
 
 
 def _save_workshop_to_config(org, name: str, workflow_name: str, agent_names: list[str]) -> None:
-    """将新车间追加到 org.yaml。"""
+    """将新工作区追加到 org.yaml。"""
     import yaml
     config_path = Path("config/org.yaml")
     with open(config_path) as f:

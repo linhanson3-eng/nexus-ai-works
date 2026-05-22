@@ -1,6 +1,6 @@
 """Settings persistence layer.
 
-Providers, tool profiles, and plugin registrations are stored
+Providers, web search, tool profiles, and plugin registrations are stored
 in a JSON file at ~/.factory/settings.json so they survive
 project restarts without requiring a database migration.
 """
@@ -17,22 +17,62 @@ from typing import Any
 
 SETTINGS_PATH = Path.home() / ".factory" / "settings.json"
 
+_ENV_API_KEYS: dict[str, str] = {
+    "anthropic": "ANTHROPIC_API_KEY",
+    "deepseek": "DEEPSEEK_API_KEY",
+    "openai": "OPENAI_API_KEY",
+    "moonshot": "MOONSHOT_API_KEY",
+    "siliconflow": "SILICONFLOW_API_KEY",
+}
+
+
+def _apply_env_api_keys(providers: dict) -> None:
+    """Fill api_key from environment variables when available."""
+    for name, env_var in _ENV_API_KEYS.items():
+        key = os.environ.get(env_var, "")
+        if key and name in providers:
+            providers[name]["api_key"] = key
+
+
 DEFAULT_PROVIDERS = {
     "anthropic": {
         "provider_type": "anthropic",
         "base_url": "https://api.anthropic.com/v1",
         "api_key": "",
+        "models": ["claude-sonnet-4-6", "claude-opus-4-7", "claude-haiku-4-5"],
     },
     "deepseek": {
         "provider_type": "deepseek",
         "base_url": "https://api.deepseek.com",
         "api_key": "",
+        "models": ["deepseek-chat", "deepseek-reasoner"],
+    },
+    "siliconflow": {
+        "provider_type": "siliconflow",
+        "base_url": "https://api.siliconflow.cn/v1",
+        "api_key": "",
+        "models": [
+            "deepseek-ai/DeepSeek-V3",
+            "deepseek-ai/DeepSeek-R1",
+            "Qwen/Qwen3-235B-A22B",
+            "Pro/zai-org/GLM-4.5",
+        ],
     },
     "moonshot": {
         "provider_type": "moonshot",
         "base_url": "https://api.moonshot.cn/v1",
         "api_key": "",
+        "models": ["moonshot-v1-8k", "moonshot-v1-32k", "moonshot-v1-128k"],
     },
+}
+
+DEFAULT_SEARCH = {
+    "tavily_api_key": "",
+    "brave_api_key": "",
+    "searxng_base_url": "",
+    "active_provider": "tavily",
+    "deep_search_enabled": False,
+    "max_results": 5,
 }
 
 
@@ -44,6 +84,7 @@ class SettingsStore:
         store = SettingsStore()
         providers = store.list_providers()
         store.save_provider("deepseek", api_key="sk-xxx")
+        store.save_search(tavily_api_key="tvly-xxx")
     """
 
     _data: dict[str, Any] = field(default_factory=dict)
@@ -60,7 +101,14 @@ class SettingsStore:
             except (json.JSONDecodeError, OSError):
                 self._data = {}
         if not self._data:
-            self._data = {"providers": deepcopy(DEFAULT_PROVIDERS), "plugins": {}, "tools": {}}
+            providers = deepcopy(DEFAULT_PROVIDERS)
+            _apply_env_api_keys(providers)
+            self._data = {
+                "providers": providers,
+                "plugins": {},
+                "tools": {},
+                "search": deepcopy(DEFAULT_SEARCH),
+            }
 
     def _save(self) -> None:
         SETTINGS_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -93,6 +141,57 @@ class SettingsStore:
         del providers[name]
         self._save()
         return True
+
+    # ── search ────────────────────────────────────────────
+
+    def get_search(self) -> dict:
+        if "search" not in self._data:
+            self._data["search"] = deepcopy(DEFAULT_SEARCH)
+            self._save()
+        return deepcopy(self._data["search"])
+
+    def save_search(self, /, **fields: str | bool | int) -> dict:
+        search = self._data.setdefault("search", {})
+        search.update(fields)
+        self._save()
+        return deepcopy(search)
+
+    def write_search_manifest(self, workspace: str | Path) -> Path:
+        """Generate a .claw-search.json manifest from search settings.
+
+        The claw-code-agent SearchRuntime auto-discovers this file.
+        """
+        search = self.get_search()
+        providers: list[dict] = []
+
+        if search.get("tavily_api_key"):
+            providers.append({
+                "name": "tavily",
+                "provider": "tavily",
+                "base_url": "https://api.tavily.com/search",
+                "apiKeyEnv": "TAVILY_API_KEY",
+            })
+        if search.get("brave_api_key"):
+            providers.append({
+                "name": "brave",
+                "provider": "brave",
+                "base_url": "https://api.search.brave.com/res/v1/web/search",
+                "apiKeyEnv": "BRAVE_SEARCH_API_KEY",
+            })
+        if search.get("searxng_base_url"):
+            providers.append({
+                "name": "searxng",
+                "provider": "searxng",
+                "base_url": search["searxng_base_url"],
+            })
+
+        manifest_path = Path(workspace) / ".claw-search.json"
+        manifest_path.parent.mkdir(parents=True, exist_ok=True)
+        manifest_path.write_text(json.dumps({
+            "providers": providers,
+            "activeProvider": search.get("active_provider", "tavily"),
+        }, indent=2), encoding="utf-8")
+        return manifest_path
 
     # ── plugins ───────────────────────────────────────────
 
