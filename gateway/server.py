@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from pathlib import Path
 from typing import Any
 
 from fastapi import Body, FastAPI, Request, WebSocket, WebSocketDisconnect
@@ -414,6 +415,79 @@ def create_app(org, kanban_store):
         if not deleted:
             return JSONResponse(content={"detail": "Not found"}, status_code=404)
         return JSONResponse(content={"deleted": name})
+
+    # --- Workshop Export/Import ---
+
+    @app.post("/api/workshops/{name}/export")
+    async def export_workshop_api(name: str):
+        """Export a workspace as a downloadable .nexus package (zip)."""
+        from factory.workshop.manager import WorkshopManager
+        import tempfile, zipfile, io
+
+        mgr = WorkshopManager(org, kanban_store)
+        ws = mgr.get(name)
+        if ws is None:
+            return JSONResponse(content={"detail": "Workshop not found"}, status_code=404)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            pkg_dir = mgr.export_workspace(name, output_dir=tmpdir)
+            if pkg_dir is None:
+                return JSONResponse(content={"detail": "Export failed"}, status_code=500)
+
+            buf = io.BytesIO()
+            with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+                pkg_path = Path(pkg_dir)
+                for f in pkg_path.rglob("*"):
+                    if f.is_file():
+                        zf.write(f, f.relative_to(pkg_path))
+            buf.seek(0)
+
+            return StreamingResponse(
+                buf,
+                media_type="application/zip",
+                headers={"Content-Disposition": f'attachment; filename="{name}.nexus.zip"'},
+            )
+
+    @app.post("/api/workshops/import")
+    async def import_workspace_api(request: Request):
+        """Import a .nexus package (upload zip or directory)."""
+        from factory.workshop.manager import WorkshopManager
+        import tempfile, zipfile, shutil
+
+        content_type = request.headers.get("content-type", "")
+        if "multipart/form-data" in content_type:
+            form = await request.form()
+            file = form.get("file")
+            if file is None:
+                return JSONResponse(content={"detail": "No file uploaded"}, status_code=400)
+
+            with tempfile.TemporaryDirectory() as tmpdir:
+                if hasattr(file, "filename") and file.filename:
+                    fname = getattr(file, "filename", "upload")
+                else:
+                    fname = "upload.nexus"
+                filepath = Path(tmpdir) / fname
+                content = await file.read()
+                filepath.write_bytes(content)
+
+                # If it's a zip, extract it
+                pkg_dir = Path(tmpdir) / "package"
+                if fname.endswith(".zip") or zipfile.is_zipfile(filepath):
+                    with zipfile.ZipFile(filepath, "r") as zf:
+                        zf.extractall(pkg_dir)
+                else:
+                    pkg_dir = filepath
+
+                mgr = WorkshopManager(org, kanban_store)
+                result = mgr.import_package(str(pkg_dir))
+                if result is None:
+                    return JSONResponse(
+                        content={"detail": "Import failed (workspace may already exist)"},
+                        status_code=409,
+                    )
+                return JSONResponse(content=result, status_code=201)
+
+        return JSONResponse(content={"detail": "Expected multipart/form-data"}, status_code=400)
 
     # --- Workshop Agent CRUD ---
 

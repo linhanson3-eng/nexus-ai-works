@@ -1,5 +1,5 @@
-import { useEffect, useState, useCallback } from "react";
-import { AlertTriangle, Plus, Trash2, Play, Loader2, Blocks, RefreshCw, Bot, Settings, X, Shield, FileText, Wrench, Zap } from "lucide-react";
+import { useEffect, useState, useCallback, useRef } from "react";
+import { AlertTriangle, Plus, Trash2, Play, Loader2, Blocks, RefreshCw, Bot, Settings, X, Shield, FileText, Wrench, Zap, Download, Upload, Package } from "lucide-react";
 import { api } from "../lib/api";
 import { useToast } from "./Toast";
 import { ConfirmDialog } from "./ConfirmDialog";
@@ -40,6 +40,12 @@ export function WorkshopList() {
   const [agentSaving, setAgentSaving] = useState(false);
   const [availableSkills, setAvailableSkills] = useState<{ name: string; description: string }[]>([]);
   const [skillsDropdownOpen, setSkillsDropdownOpen] = useState(false);
+
+  // Import/Export
+  const [exporting, setExporting] = useState<string | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [removeTarget, setRemoveTarget] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const toast = useToast();
 
   const load = useCallback(async () => {
@@ -112,6 +118,59 @@ export function WorkshopList() {
       toast.error(err instanceof Error ? err.message : "删除失败");
     } finally {
       setDeleteTarget(null);
+    }
+  };
+
+  // ── Export / Import / Remove ──────────────────────────────────
+
+  const exportWorkspace = async (wsName: string) => {
+    setExporting(wsName);
+    try {
+      const res = await fetch(`/api/workshops/${wsName}/export`, { method: "POST" });
+      if (!res.ok) throw new Error("导出失败");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = `${wsName}.nexus.zip`;
+      a.click(); URL.revokeObjectURL(url);
+      toast.success(`工作区 "${wsName}" 已导出`);
+    } catch {
+      toast.error("导出失败，请确认 Gateway 已启动");
+    } finally {
+      setExporting(null);
+    }
+  };
+
+  const importPackage = async (file: File) => {
+    setImporting(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch("/api/workshops/import", { method: "POST", body: formData });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: "导入失败" }));
+        throw new Error(err.detail || "导入失败");
+      }
+      const data = await res.json();
+      toast.success(`模块 "${data.workspace}" 已导入`);
+      load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "导入失败");
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const removeWorkspace = async (wsName: string) => {
+    try {
+      await api.deleteWorkshop(wsName);
+      toast.success(`工作区 "${wsName}" 已卸载`);
+      if (selected?.name === wsName) setSelected(null);
+      load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "卸载失败");
+    } finally {
+      setRemoveTarget(null);
     }
   };
 
@@ -281,12 +340,22 @@ export function WorkshopList() {
           <h1 className="text-2xl font-black tracking-tight text-white">工作区</h1>
           <p className="text-muted text-sm mt-1">管理所有 AI 工作区</p>
         </div>
-        <button
-          onClick={() => setShowCreate(!showCreate)}
-          className="flex items-center gap-2 px-4 py-2 bg-accent/10 text-accent border border-accent/20 rounded-xl text-sm font-medium hover:bg-accent/20 transition-colors"
-        >
-          <Plus className="w-4 h-4" /> 新建工作区
-        </button>
+        <div className="flex items-center gap-2">
+          <input type="file" ref={fileInputRef} accept=".zip,.nexus"
+            onChange={e => { const f = e.target.files?.[0]; if (f) importPackage(f); }}
+            className="hidden" />
+          <button onClick={() => fileInputRef.current?.click()} disabled={importing}
+            className="flex items-center gap-2 px-4 py-2 bg-info/10 text-info border border-info/20 rounded-xl text-sm font-medium hover:bg-info/20 transition-colors disabled:opacity-30">
+            {importing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+            导入模块
+          </button>
+          <button
+            onClick={() => setShowCreate(!showCreate)}
+            className="flex items-center gap-2 px-4 py-2 bg-accent/10 text-accent border border-accent/20 rounded-xl text-sm font-medium hover:bg-accent/20 transition-colors"
+          >
+            <Plus className="w-4 h-4" /> 新建工作区
+          </button>
+        </div>
       </div>
 
       {showCreate && (
@@ -362,14 +431,15 @@ export function WorkshopList() {
                 <span className="font-semibold text-white">{w.name}</span>
                 <span className="text-[11px] text-muted bg-surface px-2 py-0.5 rounded-md">{w.workflow_name}</span>
               </div>
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-3">
                 <span className="text-sm text-muted">{w.agent_count} agents</span>
-                <button
-                  onClick={e => { e.stopPropagation(); setDeleteTarget(w.name); }}
-                  className="text-muted hover:text-warning transition-colors"
-                  title="删除工作区"
-                >
-                  <Trash2 className="w-4 h-4" />
+                <button onClick={e => { e.stopPropagation(); exportWorkspace(w.name); }} disabled={exporting === w.name}
+                  className="text-muted hover:text-info transition-colors" title="导出为 .nexus 包">
+                  {exporting === w.name ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+                </button>
+                <button onClick={e => { e.stopPropagation(); setRemoveTarget(w.name); }}
+                  className="text-muted/30 hover:text-warning transition-colors" title="卸载工作区">
+                  <Trash2 className="w-3.5 h-3.5" />
                 </button>
               </div>
             </div>
@@ -708,6 +778,17 @@ export function WorkshopList() {
           confirmLabel="删除"
           onConfirm={() => remove(deleteTarget)}
           onCancel={() => setDeleteTarget(null)}
+        />
+      )}
+
+      {/* Remove (uninstall) confirmation */}
+      {removeTarget && (
+        <ConfirmDialog
+          title="卸载工作区"
+          message={`确定要完全卸载 "${removeTarget}" 吗？将删除工作区目录、Agent、Workflow 和关联看板。此操作不可恢复。`}
+          confirmLabel="卸载"
+          onConfirm={() => removeWorkspace(removeTarget)}
+          onCancel={() => setRemoveTarget(null)}
         />
       )}
     </div>
