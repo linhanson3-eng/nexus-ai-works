@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, Awaitable
 
 from .models import WorkflowNode, WorkflowTemplate, NodeStatus, GateType
+from .snapshot import RunSnapshot
 
 
 @dataclass
@@ -31,6 +32,7 @@ class WorkflowResult:
     status: NodeStatus = NodeStatus.PENDING
     node_results: dict[str, NodeResult] = field(default_factory=dict)
     final_output: str = ""
+    run_id: str = ""
 
 
 # Callback for SSE streaming: (node_id, status, detail)
@@ -55,6 +57,7 @@ class WorkflowRunner:
         *,
         on_status: StatusCallback | None = None,
         mock_outputs: dict[str, dict[str, str]] | None = None,
+        run_id: str = "",
     ):
         self.workshop = workshop
         self.store = store
@@ -62,11 +65,14 @@ class WorkflowRunner:
         self._mock_outputs = mock_outputs or {}
         self._context: dict[str, str] = {}
         self._node_map: dict[str, WorkflowNode] = {}
+        self._run_id = run_id or RunSnapshot.new_run_id()
+        self._snapshot = RunSnapshot()
 
     async def run(self, template: WorkflowTemplate, task: str) -> WorkflowResult:
         """Execute all nodes in dependency order, parallel where possible."""
         self._node_map = {n.id: n for n in template.nodes}
         result = WorkflowResult(template_name=template.name, task=task, status=NodeStatus.RUNNING)
+        result.run_id = self._run_id
 
         for node in template.nodes:
             result.node_results[node.id] = NodeResult(node_id=node.id, agent_name=node.agent_name)
@@ -84,6 +90,7 @@ class WorkflowRunner:
         except asyncio.TimeoutError:
             result.status = NodeStatus.FAILED
             result.final_output = f"Workflow timeout after {total_timeout}s"
+            self._save_checkpoint(template, task, result)
             return result
 
     async def _run_impl(self, template: WorkflowTemplate, task: str, result: WorkflowResult, order: list[str]) -> WorkflowResult:
@@ -118,6 +125,7 @@ class WorkflowRunner:
                 if nr.status == NodeStatus.FAILED:
                     result.status = NodeStatus.FAILED
                     result.final_output = nr.error or f"Node '{nr.node_id}' failed"
+                    self._save_checkpoint(template, task, result)
                     return result
 
             # After batch completes, check gates on all completed nodes
@@ -134,6 +142,7 @@ class WorkflowRunner:
                         if target_result.retries > self.MAX_RETRIES:
                             result.status = NodeStatus.FAILED
                             result.final_output = f"Gate retry limit exceeded for '{target_id}'"
+                            self._save_checkpoint(template, task, result)
                             return result
                         completed.discard(target_id)
                         idx = retry_idx
@@ -147,12 +156,17 @@ class WorkflowRunner:
                 nr = result.node_results[nid]
                 self._context[nid] = nr.output
 
+            # Save checkpoint after batch
+            self._save_checkpoint(template, task, result)
+
         # Collect final output
         if order:
             final_id = order[-1]
             result.final_output = result.node_results[final_id].output
 
         result.status = NodeStatus.PASSED
+        # Clean up snapshot on success
+        self._snapshot.delete(self._run_id)
         return result
 
     async def _execute_node(self, node_id: str, task: str) -> NodeResult:
@@ -280,6 +294,19 @@ class WorkflowRunner:
 
     # ── Helpers ──────────────────────────────────────────────────
 
+    def _save_checkpoint(self, template: WorkflowTemplate, task: str, result: WorkflowResult) -> None:
+        """Save current execution state to snapshot for potential resume."""
+        self._snapshot.save(
+            run_id=self._run_id,
+            template=template,
+            task=task,
+            node_states={nid: nr.status.value for nid, nr in result.node_results.items()},
+            node_outputs={nid: nr.output for nid, nr in result.node_results.items()},
+            node_errors={nid: nr.error for nid, nr in result.node_results.items()},
+            retries={nid: nr.retries for nid, nr in result.node_results.items()},
+            final_output=result.final_output,
+        )
+
     def _build_prompt(self, node: WorkflowNode, task: str) -> str:
         parts: list[str] = [f"任务：{task}"]
         if node.depends_on:
@@ -296,3 +323,52 @@ class WorkflowRunner:
                 await self._on_status(node_id, status, detail)
             except Exception:
                 pass
+
+    # ── Resume ────────────────────────────────────────────────────
+
+    @staticmethod
+    async def resume_from(run_id: str, org, workshop=None) -> WorkflowResult | None:
+        """Resume a previously interrupted workflow run.
+
+        Args:
+            run_id: The run ID to resume.
+            org: OrgEngine instance (for workflow_store access).
+            workshop: Optional workshop override.
+
+        Returns:
+            WorkflowResult if resumed successfully, None if snapshot not found.
+        """
+        snap = RunSnapshot()
+        data = snap.load(run_id)
+        if data is None:
+            return None
+
+        tmpl = org.workflow_store.load(data["template_name"])
+        if tmpl is None:
+            return None
+
+        # Build mock_outputs for completed nodes so they return instantly
+        mock_outputs: dict[str, dict[str, str]] = {}
+        for nid, status_str in data["node_states"].items():
+            if status_str == NodeStatus.PASSED.value:
+                mock_outputs[nid] = {
+                    "status": "passed",
+                    "output": data["node_outputs"].get(nid, ""),
+                    "error": "",
+                }
+
+        runner = WorkflowRunner(
+            workshop or (org.workshops[0] if org.workshops else None),
+            mock_outputs=mock_outputs,
+            run_id=run_id,
+        )
+
+        # Execute — completed nodes will be mocked (instant return)
+        # PENDING nodes will execute normally
+        result = await runner.run(tmpl, data["task"])
+
+        # If complete, clean up
+        if result.status == NodeStatus.PASSED:
+            snap.delete(run_id)
+
+        return result
