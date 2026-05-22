@@ -1,0 +1,87 @@
+name: 模块生产线
+description: 对话需求对齐 → 审批 → 生成 → 验证 → QA → 封装
+workspace: 模块工厂
+
+nodes:
+  - id: requirement-analysis
+    label: 需求分析
+    agent_name: 需求分析师
+    prompt: |
+      分析用户的需求描述，通过反问确认细节，最终输出结构化的模块规格。
+
+      如果用户已提供了清晰的需求，直接输出模块规格。
+      如果需求不明确，提出具体的反问问题。
+    expected_output: 结构化的模块规格 YAML
+    depends_on: []
+
+  - id: approval-gate
+    label: 方案审批
+    agent_name: 需求分析师
+    prompt: |
+      将已生成的模块规格方案整理为清晰的审批文档，供用户审查和批准。
+    expected_output: 审批文档，包含模块名称、Agent列表、工作流步骤、引导文件概要
+    gate:
+      type: review
+    depends_on:
+      - requirement-analysis
+
+  - id: generate-module
+    label: 生成模块
+    agent_name: 模块生成器
+    prompt: |
+      根据已审批通过的模块规格，生成完整的 .nexus 包配置：
+
+      1. 创建 nexus.yaml 包清单
+      2. 为每个 agent 创建 agents/{name}.yaml
+      3. 创建工作流模板 workflows/{name}.yaml
+      4. 创建 GUIDE.md 引导文件
+      5. 如果有跨工作区需求，创建 chain.yaml
+
+      输出每个文件的完整内容。
+    expected_output: 完整的 .nexus 包配置文件内容
+    depends_on:
+      - approval-gate
+
+  - id: validate
+    label: 测试验证
+    agent_name: 测试验证器
+    prompt: |
+      验证生成的模块配置：
+      1. 检查所有 yaml 文件的字段完整性
+      2. 检查工作流节点依赖关系是否合法
+      3. 检查工具名称是否在可用列表中
+      4. 列出所有发现的问题
+
+      如果没有问题，输出 "VALIDATION PASSED"
+    expected_output: 验证报告
+    depends_on:
+      - generate-module
+
+  - id: qa-review
+    label: QA审查
+    agent_name: QA审查器
+    prompt: |
+      对生成的模块进行最终质量审查：
+      1. 需求覆盖检查
+      2. 可用性检查
+      3. 安全性检查
+      4. 完整性检查
+
+      审查结论：PASS 或 FAIL
+    expected_output: QA审查结论
+    gate:
+      type: review
+    depends_on:
+      - validate
+
+  - id: package-export
+    label: 封装导出
+    agent_name: 模块生成器
+    prompt: |
+      所有审查已通过，执行最终打包：
+      1. 将生成的配置文件写入工作区目录
+      2. 调用 nexus module export 命令打包
+      3. 输出包路径和内容清单
+    expected_output: 包导出确认，包含路径和内容清单
+    depends_on:
+      - qa-review

@@ -8,6 +8,8 @@ from pathlib import Path
 
 from factory.org import OrgEngine
 from factory.workflow import WorkflowStore
+from factory.workflow.package import validate_package
+import yaml
 from factory.memory import MemoryStore, SourceTree, VaultWriter
 from factory.memory.tree import BucketSeal, dummy_summariser
 from factory.runner import NexusAgentRunner
@@ -84,6 +86,21 @@ async def main():
     wf_show = wf_sub.add_parser("show", help="查看工作流详情")
     wf_show.add_argument("name")
 
+    # Phase 5: 模块管理 (export/import/remove)
+    module_p = sub.add_parser("module", help="模块管理 (导出/导入/卸载)")
+    module_sub = module_p.add_subparsers(dest="module_cmd")
+    mod_export = module_sub.add_parser("export", help="导出工作区为 .nexus 包")
+    mod_export.add_argument("workspace", help="要导出的工作区名称")
+    mod_export.add_argument("--output", "-o", default=".", help="输出目录")
+    mod_export.add_argument("--version", default="1.0.0", help="包版本")
+    mod_import = module_sub.add_parser("import", help="导入 .nexus 包")
+    mod_import.add_argument("package", help="包的路径")
+    mod_import.add_argument("--force", action="store_true", help="覆盖已有工作区")
+    mod_remove = module_sub.add_parser("remove", help="完全卸载工作区")
+    mod_remove.add_argument("workspace", help="要卸载的工作区名称")
+    mod_remove.add_argument("--force", action="store_true", help="跳过确认")
+    mod_list = module_sub.add_parser("list", help="列出已安装模块")
+
     args = parser.parse_args()
 
     print("=" * 60)
@@ -105,6 +122,8 @@ async def main():
             cmd_workshop(args)
     elif args.command == "workflow":
         cmd_workflow(args)
+    elif args.command == "module":
+        cmd_module(args)
     elif args.run or args.memory_stats:
         await run_default(args)
     else:
@@ -407,8 +426,71 @@ def cmd_workflow(args):
         print(f"  节点 ({len(tmpl.nodes)}):")
         for n in tmpl.nodes:
             deps = f" (depends: {', '.join(n.depends_on)})" if n.depends_on else ""
-            gate = f" [gate: {n.gate['type']}]" if n.gate else ""
-            print(f"  {n.id}: {n.label} → agent={n.agent_name}{deps}{gate}")
+
+    # ── Module export/import/remove ──────────────────────────────
+
+
+def cmd_module(args):
+    """Handle module subcommands."""
+    org = OrgEngine("config/org.yaml")
+    org.create_all()
+    from factory.workshop.manager import WorkshopManager
+    mgr = WorkshopManager(org, KanbanStore())
+
+    if args.module_cmd == "export":
+        pkg_dir = mgr.export_workspace(args.workspace, output_dir=args.output, version=args.version)
+        if pkg_dir is None:
+            print(f"  工作区 '{args.workspace}' 不存在")
+            return
+        print(f"\n  已导出: {pkg_dir}")
+        manifest_path = Path(pkg_dir) / "nexus.yaml"
+        if manifest_path.exists():
+            manifest = yaml.safe_load(manifest_path.read_text("utf-8"))
+            print(f"  名称: {manifest.get('name')}")
+            print(f"  版本: {manifest.get('version')}")
+            print(f"  Agents: {len(manifest.get('agents', []))}")
+            print(f"  Workflows: {len(manifest.get('workflows', []))}")
+
+    elif args.module_cmd == "import":
+        if not Path(args.package).is_dir():
+            print(f"  包不存在: {args.package}")
+            return
+        issues = validate_package(args.package)
+        if issues:
+            print("  包验证失败:")
+            for issue in issues:
+                print(f"    - {issue}")
+            return
+        result = mgr.import_package(args.package)
+        if result is None:
+            print(f"  导入失败（工作区可能已存在，使用 --force 覆盖）")
+            return
+        print(f"\n  已导入:")
+        for k, v in result.items():
+            print(f"    {k}: {v}")
+
+    elif args.module_cmd == "remove":
+        if not args.force:
+            confirm = input(f"  确定要完全删除工作区 '{args.workspace}'？(y/N) ")
+            if confirm.lower() != "y":
+                print("  已取消")
+                return
+        result = mgr.remove_workspace(args.workspace)
+        if result is None:
+            print(f"  工作区 '{args.workspace}' 不存在")
+            return
+        print(f"\n  已卸载:")
+        for k, v in result.items():
+            print(f"    {k}: {v}")
+
+    elif args.module_cmd == "list":
+        workshops = mgr.list_all()
+        if not workshops:
+            print("  暂无已安装的模块")
+            return
+        print(f"\n  已安装模块 ({len(workshops)}):")
+        for w in workshops:
+            print(f"    [{w.workflow_name}] {w.name} — {w.agent_count} agents")
 
 
 async def cmd_workshop_run(args):

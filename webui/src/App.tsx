@@ -9,6 +9,7 @@ import { WorkshopList } from "./components/WorkshopList";
 import { KanbanBoard } from "./components/KanbanBoard";
 import { WorkflowList } from "./components/WorkflowList";
 import { ChainList } from "./components/ChainList";
+import { ModuleFactory } from "./components/ModuleFactory";
 
 function App() {
   return (
@@ -23,6 +24,7 @@ function App() {
             <Route path="/kanban" element={<ErrorBoundary><KanbanBoard /></ErrorBoundary>} />
             <Route path="/workflows" element={<ErrorBoundary><WorkflowList /></ErrorBoundary>} />
             <Route path="/chains" element={<ErrorBoundary><ChainList /></ErrorBoundary>} />
+            <Route path="/factory" element={<ErrorBoundary><ModuleFactory /></ErrorBoundary>} />
             <Route path="/settings" element={<ErrorBoundary><Settings /></ErrorBoundary>} />
             <Route path="*" element={<Navigate to="/chat" replace />} />
           </Route>

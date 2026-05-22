@@ -1,5 +1,5 @@
 import { NavLink, Outlet } from "react-router-dom";
-import { MessageSquare, Activity, Blocks, Kanban, GitBranch, GitMerge, Zap, Settings } from "lucide-react";
+import { MessageSquare, Activity, Blocks, Kanban, GitBranch, GitMerge, Package, Zap, Settings } from "lucide-react";
 
 const navItems = [
   { to: "/chat", label: "对话", icon: MessageSquare },
@@ -8,6 +8,7 @@ const navItems = [
   { to: "/kanban", label: "看板", icon: Kanban },
   { to: "/workflows", label: "工作流", icon: GitBranch },
   { to: "/chains", label: "协作链", icon: GitMerge },
+  { to: "/factory", label: "模块工厂", icon: Package },
 ];
 
 const navLinkClass = ({ isActive }: { isActive: boolean }) =>

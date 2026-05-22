@@ -72,6 +72,9 @@ class WorkshopManager:
         )
         workshop = self.org.create_one(dept_spec)
 
+        # Persist to org.yaml
+        self._persist_org()
+
         # Auto-create kanban board
         if self.kanban_store:
             board = self.kanban_store.create_board(
@@ -154,6 +157,7 @@ class WorkshopManager:
         ws.agents[spec.name] = spec
         if spec.name not in [a.name for a in ws.spec.agents]:
             ws.spec.agents.append(spec)
+        self._persist_org()
         return spec
 
     def update_agent(self, workshop_name: str, agent_name: str, updates: dict) -> AgentSpec | None:
@@ -197,6 +201,7 @@ class WorkshopManager:
                 ws.spec.agents[i] = existing
                 break
 
+        self._persist_org()
         return existing
 
     def remove_agent(self, workshop_name: str, agent_name: str) -> bool:
@@ -209,6 +214,7 @@ class WorkshopManager:
 
         del ws.agents[agent_name]
         ws.spec.agents = [a for a in ws.spec.agents if a.name != agent_name]
+        self._persist_org()
         return True
 
     def list_agents(self, workshop_name: str) -> list[dict] | None:
@@ -235,3 +241,258 @@ class WorkshopManager:
             }
             for a in ws.agents.values()
         ]
+
+    # ── Export / Import / Remove ──────────────────────────────────
+
+    def export_workspace(
+        self,
+        name: str,
+        output_dir: str = ".",
+        version: str = "1.0.0",
+    ) -> str | None:
+        """Export a workspace to a .nexus package directory.
+
+        Returns the package directory path, or None if workspace not found.
+        """
+        from factory.workflow.package import pack_workspace
+
+        ws = self.get(name)
+        if ws is None:
+            return None
+
+        agents = self.list_agents(name) or []
+        wf_store = self.org.workflow_store if self.org.workflow_store else None
+        workflows: list[dict[str, Any]] = []
+        if wf_store:
+            for wf_info in wf_store.list_all():
+                tmpl = wf_store.load(wf_info["name"])
+                if tmpl and (not tmpl.workspace or tmpl.workspace == name):
+                    workflows.append(tmpl.to_dict())
+
+        guide_file = ""
+        guide_content = ""
+        for a in ws.agents.values():
+            gf = getattr(a, "guide_file", "")
+            if gf:
+                guide_file = str(ws.workspace / gf)
+                if Path(guide_file).exists():
+                    guide_content = Path(guide_file).read_text("utf-8")
+                break
+
+        chain_data = None
+        try:
+            from factory.workflow.chain import ChainStore
+            cs = ChainStore()
+            for ci in cs.list_all():
+                if name in ci.get("steps", []):
+                    c = cs.load(ci["name"])
+                    if c:
+                        chain_data = c.to_dict()
+                    break
+        except Exception:
+            pass
+
+        pkg_dir = pack_workspace(
+            workspace_name=name,
+            workspace_path=str(ws.workspace),
+            agents=agents,
+            workflows=workflows,
+            guide_file=guide_file,
+            guide_content=guide_content,
+            chain=chain_data,
+            tools_dir=str(ws.workspace / "tools"),
+            output_dir=output_dir,
+            version=version,
+        )
+        return str(pkg_dir)
+
+    def import_package(self, pkg_dir: str) -> dict[str, Any] | None:
+        """Import a .nexus package, creating a new workspace.
+
+        Returns status dict with created resources.
+        """
+        from factory.workflow.package import unpack_package
+
+        data = unpack_package(pkg_dir)
+        manifest = data["manifest"]
+        name = manifest["name"]
+
+        # Check if already exists
+        if self.get(name) is not None:
+            return None  # caller should handle conflict
+
+        # Create agents
+        agent_names: list[str] = []
+        for agent_data in data["agents"]:
+            aname = agent_data.get("name", "")
+            if not aname:
+                continue
+            agent_names.append(aname)
+
+        # Create workshop
+        ws = self.create(
+            name=name,
+            workspace=f"workspaces/{name}",
+            agent_names=agent_names,
+            workflow_name=data["workflows"][0]["name"] if data["workflows"] else "simple",
+        )
+
+        # Apply full agent configs
+        for agent_data in data["agents"]:
+            aname = agent_data.get("name", "")
+            if aname and aname in ws.agents:
+                spec = ws.agents[aname]
+                if "mode" in agent_data:
+                    spec.mode = agent_data["mode"]
+                if "model" in agent_data:
+                    spec.model = agent_data["model"]
+                if "system_prompt" in agent_data:
+                    spec.system_prompt = agent_data["system_prompt"]
+                if "tools" in agent_data:
+                    spec.tools = agent_data["tools"]
+                if "skills" in agent_data:
+                    spec.skills = agent_data.get("skills", [])
+                if "permissions" in agent_data:
+                    perm = agent_data["permissions"]
+                    from config.schema import FilesystemPermission, ShellPermission, SubagentPermission
+                    spec.permissions.filesystem.write = (
+                        ["workspace"] if perm.get("file_write") else []
+                    )
+                    spec.permissions.shell.exec = perm.get("shell_exec", False)
+                    spec.permissions.subagent.spawn = perm.get("subagent_spawn", False)
+
+        # Write guide file
+        guide_content = data.get("guide_content", "")
+        if guide_content:
+            guide_path = ws.workspace / "GUIDE.md"
+            guide_path.parent.mkdir(parents=True, exist_ok=True)
+            guide_path.write_text(guide_content, "utf-8")
+            for a in ws.agents.values():
+                a.guide_file = "GUIDE.md"
+
+        # Register workflows
+        from factory.workflow.models import WorkflowTemplate, WorkflowNode
+        for wf_data in data["workflows"]:
+            nodes = [WorkflowNode.from_dict(n) for n in wf_data.get("nodes", [])]
+            tmpl = WorkflowTemplate(
+                name=wf_data["name"],
+                description=wf_data.get("description", ""),
+                workspace=name,
+                nodes=nodes,
+            )
+            if self.org.workflow_store:
+                self.org.workflow_store.save(tmpl)
+
+        # Import chain if present
+        if data.get("chain"):
+            try:
+                from factory.workflow.chain import Chain, ChainStep, ChainStore
+                cs = ChainStore()
+                chain = Chain.from_dict(data["chain"])
+                cs.save(chain)
+            except Exception:
+                pass
+
+        # Copy tools
+        for tool_file in data.get("tools", []):
+            tools_dir = ws.workspace / "tools"
+            tools_dir.mkdir(parents=True, exist_ok=True)
+            src = Path(pkg_dir) / "tools" / tool_file
+            if src.exists():
+                shutil = __import__("shutil")
+                shutil.copy(src, tools_dir / tool_file)
+
+        # Persist to org.yaml
+        self._persist_org()
+
+        return {
+            "workspace": name,
+            "agents": len(data["agents"]),
+            "workflows": len(data["workflows"]),
+            "has_guide": bool(guide_content),
+            "has_chain": data.get("chain") is not None,
+        }
+
+    def remove_workspace(self, name: str) -> dict[str, Any] | None:
+        """Remove a workspace completely.
+
+        Deletes: workspace, agents, workflows, kanban board, workspace directory.
+        """
+        ws = self.get(name)
+        if ws is None:
+            return None
+
+        result: dict[str, Any] = {
+            "workspace": name,
+            "agents_removed": len(ws.agents),
+            "workflows_removed": 0,
+            "kanban_removed": False,
+            "directory_removed": False,
+        }
+
+        # Remove workflows
+        if self.org.workflow_store:
+            for wf_info in list(self.org.workflow_store.list_all()):
+                if wf_info.get("workspace") == name:
+                    self.org.workflow_store.delete(wf_info["name"])
+                    result["workflows_removed"] += 1
+
+        # Remove kanban board
+        if self.kanban_store:
+            board = self.kanban_store.get_board_by_name(name, name)
+            if board:
+                self.kanban_store.delete_board(board["id"])
+                result["kanban_removed"] = True
+
+        # Remove workspace directory
+        import shutil
+        ws_dir = ws.workspace
+        if ws_dir.exists():
+            shutil.rmtree(ws_dir)
+            result["directory_removed"] = True
+
+        # Remove from org
+        self.org.workshops = [w for w in self.org.workshops if w.name != name]
+
+        # Persist to org.yaml
+        self._persist_org()
+
+        return result
+
+    def _persist_org(self) -> None:
+        """Write current org state back to org.yaml."""
+        import yaml as _yaml
+        config_path = Path("config/org.yaml")
+        if not config_path.exists():
+            return
+        data = _yaml.safe_load(config_path.read_text("utf-8")) or {}
+        depts: list[dict[str, Any]] = []
+        for ws in self.org.workshops:
+            depts.append({
+                "name": ws.name,
+                "type": "custom",
+                "workspace": str(ws.workspace),
+                "agents": [
+                    {
+                        "name": a.name,
+                        "mode": getattr(a, "mode", "super"),
+                        "model": a.model,
+                        "tools": a.tools if a.tools else [],
+                        "system_prompt": getattr(a, "system_prompt", ""),
+                        "guide_file": getattr(a, "guide_file", ""),
+                        "skills": getattr(a, "skills", []),
+                        "permissions": {
+                            "file_write": len(a.permissions.filesystem.write) > 0,
+                            "shell_exec": a.permissions.shell.exec,
+                            "subagent_spawn": a.permissions.subagent.spawn,
+                        },
+                    }
+                    for a in ws.agents.values()
+                ],
+                "workflow": {"name": ws.workflow_name},
+            })
+        data["departments"] = depts
+        config_path.write_text(
+            _yaml.dump(data, allow_unicode=True, default_flow_style=False, sort_keys=False),
+            "utf-8",
+        )

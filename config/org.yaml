@@ -1,8 +1,25 @@
 channels:
-  - enabled: true
-    name: webui
-  - enabled: false
-    name: wechat
-departments: []
+- enabled: true
+  name: webui
+- enabled: false
+  name: wechat
+departments:
+- name: lab-status-nokb
+  type: custom
+  workspace: /Users/linhan/ai-factory/workspaces/lab-status-nokb
+  agents:
+  - name: lab-status-nokb
+    mode: super
+    model: anthropic/claude-sonnet-4-6
+    tools: []
+    system_prompt: ''
+    guide_file: ''
+    skills: []
+    permissions:
+      file_write: true
+      shell_exec: false
+      subagent_spawn: false
+  workflow:
+    name: simple
 warehouse:
-  path: ""
+  path: ''

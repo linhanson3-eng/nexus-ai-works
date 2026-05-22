@@ -159,7 +159,18 @@ class NexusAgentRunner:
 
         # 2. Build system prompt
         system_prompt = getattr(self.spec, "system_prompt", "") or ""
+
+        # Load guide file if configured
+        guide_content = ""
+        guide_file = getattr(self.spec, "guide_file", "")
+        if guide_file:
+            guide_path = self.workshop.workspace / guide_file
+            if guide_path.exists():
+                guide_content = guide_path.read_text("utf-8")
+
         prompt = f"{context}\n\n---\n\n任务：{task}"
+        if guide_content:
+            prompt = f"## 引导指令\n\n{guide_content}\n\n---\n\n{prompt}"
         if system_prompt:
             prompt = f"{system_prompt}\n\n{prompt}"
 
