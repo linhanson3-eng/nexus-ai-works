@@ -72,6 +72,21 @@ class WorkflowRunner:
             result.node_results[node.id] = NodeResult(node_id=node.id, agent_name=node.agent_name)
 
         order = self._resolve_order(template.nodes)
+        total_timeout = getattr(template, 'max_total_seconds', 0) or 0
+
+        try:
+            if total_timeout > 0:
+                return await asyncio.wait_for(
+                    self._run_impl(template, task, result, order),
+                    timeout=total_timeout,
+                )
+            return await self._run_impl(template, task, result, order)
+        except asyncio.TimeoutError:
+            result.status = NodeStatus.FAILED
+            result.final_output = f"Workflow timeout after {total_timeout}s"
+            return result
+
+    async def _run_impl(self, template: WorkflowTemplate, task: str, result: WorkflowResult, order: list[str]) -> WorkflowResult:
         completed: set[str] = set()
         idx = 0
 
@@ -142,7 +157,23 @@ class WorkflowRunner:
 
     async def _execute_node(self, node_id: str, task: str) -> NodeResult:
         node = self._node_map[node_id]
+        timeout = getattr(node, 'timeout_seconds', 300) or 300
         await self._notify(node_id, "running", "")
+
+        try:
+            return await asyncio.wait_for(
+                self._execute_node_impl(node_id, task),
+                timeout=timeout,
+            )
+        except asyncio.TimeoutError:
+            await self._notify(node_id, "failed", f"Timeout after {timeout}s")
+            return NodeResult(
+                node_id=node_id, agent_name=node.agent_name,
+                status=NodeStatus.FAILED, error=f"Timeout after {timeout}s",
+            )
+
+    async def _execute_node_impl(self, node_id: str, task: str) -> NodeResult:
+        node = self._node_map[node_id]
 
         # Mock for testing
         if node_id in self._mock_outputs:

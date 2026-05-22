@@ -30,12 +30,13 @@ class WorkflowNode:
     depends_on: list[str] = field(default_factory=list)
     expected_output: str = ""  # description of expected deliverable
     gate: dict[str, str] | None = None  # e.g. {"type": "review"}
+    timeout_seconds: int = 300  # per-node timeout, 0 = no limit
 
     def to_dict(self) -> dict[str, Any]:
         d: dict[str, Any] = {
             "id": self.id, "label": self.label, "agent_name": self.agent_name,
             "prompt": self.prompt, "depends_on": self.depends_on,
-            "expected_output": self.expected_output,
+            "expected_output": self.expected_output, "timeout_seconds": self.timeout_seconds,
         }
         if self.gate:
             d["gate"] = self.gate
@@ -51,6 +52,7 @@ class WorkflowNode:
             depends_on=data.get("depends_on", []),
             expected_output=data.get("expected_output", ""),
             gate=data.get("gate"),
+            timeout_seconds=data.get("timeout_seconds", 300),
         )
 
 
@@ -62,6 +64,7 @@ class WorkflowTemplate:
     description: str = ""
     workspace: str = ""        # which workspace this template belongs to
     nodes: list[WorkflowNode] = field(default_factory=list)
+    max_total_seconds: int = 0  # workflow-level timeout, 0 = no limit
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -69,6 +72,7 @@ class WorkflowTemplate:
             "description": self.description,
             "workspace": self.workspace,
             "nodes": [n.to_dict() for n in self.nodes],
+            "max_total_seconds": self.max_total_seconds,
         }
 
     @classmethod
@@ -78,4 +82,5 @@ class WorkflowTemplate:
             description=data.get("description", ""),
             workspace=data.get("workspace", ""),
             nodes=[WorkflowNode.from_dict(n) for n in data.get("nodes", [])],
+            max_total_seconds=data.get("max_total_seconds", 0),
         )
