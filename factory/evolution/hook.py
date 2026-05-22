@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import Any
 
 from factory.evolution.types import ExecutionTrajectory
@@ -44,9 +45,6 @@ class EvolutionHook:
         self.trajectory = ExecutionTrajectory(
             agent_name=agent_name,
             task=task,
-            tools_used=[],
-            tool_count=0,
-            errors_overcome=0,
             timestamp=self._utc_now(),
         )
 
@@ -61,13 +59,15 @@ class EvolutionHook:
                          total_tokens: int = 0) -> None:
         if self.trajectory is None:
             return
-        # Use object.__setattr__ to update frozen dataclass fields
-        object.__setattr__(self.trajectory, "tools_used", list(self._tools_used))
-        object.__setattr__(self.trajectory, "tool_count", self._tool_count)
-        object.__setattr__(self.trajectory, "errors_overcome", self._error_count if success else 0)
-        object.__setattr__(self.trajectory, "success", success)
-        object.__setattr__(self.trajectory, "summary", summary)
-        object.__setattr__(self.trajectory, "total_tokens", total_tokens)
+        self.trajectory = replace(
+            self.trajectory,
+            tools_used=list(self._tools_used),
+            tool_count=self._tool_count,
+            errors_overcome=self._error_count if success else 0,
+            success=success,
+            summary=summary,
+            total_tokens=total_tokens,
+        )
 
     async def evolve(self) -> list[str]:
         """Run the evolution cycle if the trajectory qualifies."""

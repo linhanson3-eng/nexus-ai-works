@@ -117,6 +117,10 @@ export const api = {
     post(`/settings/providers`, { name, ...data }),
   deleteProvider: (name: string) => del(`/settings/providers/${name}`),
 
+  // Preferences
+  getPreferences: () => get<Record<string, unknown>>("/settings/preferences"),
+  savePreferences: (data: Record<string, unknown>) => post<Record<string, unknown>>("/settings/preferences", data),
+
   // Search
   getSearchConfig: () => get<SearchConfig>("/settings/search"),
   saveSearchConfig: (data: Partial<SearchConfig>) => post("/settings/search", data),

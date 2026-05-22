@@ -15,7 +15,7 @@ import { ModuleFactory } from "./components/ModuleFactory";
 import { TemplateLibrary } from "./components/TemplateLibrary";
 import { Marketplace } from "./components/Marketplace";
 import { AuthProvider, useAuth } from "./lib/AuthContext";
-import { fetchCsrfToken } from "./lib/api";
+import { fetchCsrfToken, api } from "./lib/api";
 import { Onboarding } from "./components/Onboarding";
 import { useState } from "react";
 
@@ -67,6 +67,7 @@ function AppRoutes() {
   const finishOnboarding = () => {
     localStorage.setItem("nexus_onboarding_done", "1");
     setShowOnboarding(false);
+    api.savePreferences({ onboarding_done: true }).catch(() => {});
   };
 
   return (

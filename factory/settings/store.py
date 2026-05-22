@@ -14,6 +14,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from factory.security.crypto import encrypt as _encrypt, decrypt as _decrypt
+
 
 SETTINGS_PATH = Path.home() / ".factory" / "settings.json"
 
@@ -109,13 +111,40 @@ class SettingsStore:
                 "tools": {},
                 "search": deepcopy(DEFAULT_SEARCH),
             }
+        else:
+            self._decrypt_provider_keys()
 
     def _save(self) -> None:
         SETTINGS_PATH.parent.mkdir(parents=True, exist_ok=True)
-        tmp = str(SETTINGS_PATH) + ".tmp"
-        with open(tmp, "w") as f:
-            json.dump(self._data, f, indent=2, ensure_ascii=False)
-        os.replace(tmp, str(SETTINGS_PATH))
+        # Encrypt keys before persisting, decrypt back after for runtime use
+        self._encrypt_provider_keys()
+        try:
+            tmp = str(SETTINGS_PATH) + ".tmp"
+            with open(tmp, "w") as f:
+                json.dump(self._data, f, indent=2, ensure_ascii=False)
+            os.replace(tmp, str(SETTINGS_PATH))
+        finally:
+            self._decrypt_provider_keys()
+
+    def _encrypt_provider_keys(self) -> None:
+        """Encrypt api_key fields before persisting to disk."""
+        for provider in self._data.get("providers", {}).values():
+            key = provider.get("api_key", "")
+            if key and not key.startswith("$e$"):
+                try:
+                    provider["api_key"] = "$e$" + _encrypt(key)
+                except Exception:
+                    pass
+
+    def _decrypt_provider_keys(self) -> None:
+        """Decrypt api_key fields after loading from disk."""
+        for provider in self._data.get("providers", {}).values():
+            key = provider.get("api_key", "")
+            if key.startswith("$e$"):
+                try:
+                    provider["api_key"] = _decrypt(key[3:])
+                except Exception:
+                    provider["api_key"] = ""
 
     # ── providers ─────────────────────────────────────────
 

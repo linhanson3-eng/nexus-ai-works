@@ -10,12 +10,14 @@ from typing import Optional
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from slowapi import Limiter
 from slowapi.middleware import SlowAPIMiddleware
 from slowapi.util import get_remote_address
 
+from factory.security.audit import record as audit_record, AuditEvent
 from marketplace.auth import create_token, decode_token, hash_password, verify_password
 from marketplace.models import (
     LoginRequest,
@@ -46,6 +48,24 @@ app.add_middleware(
 limiter = Limiter(key_func=get_remote_address, default_limits=["30/minute"])
 app.state.limiter = limiter
 app.add_middleware(SlowAPIMiddleware)
+
+# Security response headers
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains; preload"
+        response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
+            "img-src 'self' data:; font-src 'self'; connect-src 'self'; "
+            "frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+        )
+        return response
+
+app.add_middleware(SecurityHeadersMiddleware)
 
 store = MarketplaceStore()
 security = HTTPBearer(auto_error=False)
@@ -155,18 +175,33 @@ async def register(req: RegisterRequest):
     if user is None:
         raise HTTPException(status_code=409, detail="Username already taken")
 
+    audit_record(
+        AuditEvent.AUTH_REGISTER, "user.registered",
+        actor=user.user_id, resource=f"user:{req.username}",
+        detail="new registration",
+    )
     token = create_token(user.user_id, user.username)
     return TokenResponse(token=token, user=user)
 
 
 @app.post("/api/auth/login")
-async def login(req: LoginRequest):
+async def login(req: LoginRequest, request: Request):
     """Login with username and password."""
     user_row = store.get_user(req.username)
     if user_row is None:
+        audit_record(
+            AuditEvent.AUTH_FAILED, "login.failed",
+            actor=req.username, detail="user not found",
+            ip_address=request.client.host if request.client else "",
+        )
         raise HTTPException(status_code=401, detail="Invalid username or password")
 
     if not verify_password(req.password, user_row["password_hash"]):
+        audit_record(
+            AuditEvent.AUTH_FAILED, "login.failed",
+            actor=req.username, detail="wrong password",
+            ip_address=request.client.host if request.client else "",
+        )
         raise HTTPException(status_code=401, detail="Invalid username or password")
 
     user = UserInfo(user_id=user_row["id"], username=user_row["username"])
@@ -183,6 +218,11 @@ async def login(req: LoginRequest):
     finally:
         conn.close()
 
+    audit_record(
+        AuditEvent.AUTH_LOGIN, "user.logged_in",
+        actor=user.user_id, resource=f"user:{user.username}",
+        ip_address=request.client.host if request.client else "",
+    )
     token = create_token(user.user_id, user.username)
     return TokenResponse(token=token, user=user)
 

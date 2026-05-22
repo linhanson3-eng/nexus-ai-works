@@ -321,12 +321,13 @@ class WorkshopManager:
         )
         return str(pkg_dir)
 
-    def import_package(self, pkg_dir: str, custom_name: str = "") -> dict[str, Any] | None:
+    def import_package(self, pkg_dir: str, custom_name: str = "", *, force: bool = False) -> dict[str, Any] | None:
         """Import a .nexus package, creating a new workspace.
 
         Args:
             pkg_dir: Path to the .nexus package directory.
             custom_name: Optional custom workspace name (defaults to manifest name).
+            force: If True, remove existing workspace before re-importing.
 
         Returns status dict with created resources.
         """
@@ -338,7 +339,9 @@ class WorkshopManager:
 
         # Check if already exists
         if self.get(name) is not None:
-            return None  # caller should handle conflict
+            if not force:
+                return None
+            self.remove_workspace(name)
 
         # Create agents
         agent_names: list[str] = []

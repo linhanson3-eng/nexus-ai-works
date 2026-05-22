@@ -227,6 +227,35 @@ def create_app(org: "OrgEngine", kanban_store: "KanbanStore") -> FastAPI:
     # --- Rate limiting ---
     app.add_middleware(SlowAPIMiddleware)
 
+    # --- Security response headers ---
+    class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+        async def dispatch(self, request, call_next):
+            from fastapi.responses import Response
+            response = await call_next(request)
+            response.headers["X-Content-Type-Options"] = "nosniff"
+            response.headers["X-Frame-Options"] = "DENY"
+            response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+            response.headers["Strict-Transport-Security"] = (
+                "max-age=31536000; includeSubDomains; preload"
+            )
+            response.headers["Permissions-Policy"] = (
+                "camera=(), microphone=(), geolocation=()"
+            )
+            response.headers["Content-Security-Policy"] = (
+                "default-src 'self'; "
+                "script-src 'self' https://cdn.jsdelivr.net; "
+                "style-src 'self' 'unsafe-inline'; "
+                "img-src 'self' data: https:; "
+                "font-src 'self'; "
+                "connect-src 'self' ws: wss:; "
+                "frame-ancestors 'none'; "
+                "base-uri 'self'; "
+                "form-action 'self'"
+            )
+            return response
+
+    app.add_middleware(SecurityHeadersMiddleware)
+
     # --- Route registration ---
     app.include_router(health_router)
     app.include_router(boards_router)

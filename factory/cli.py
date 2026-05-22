@@ -275,7 +275,7 @@ def cmd_module(args):
             for issue in issues:
                 print(f"    - {issue}")
             return
-        result = mgr.import_package(args.package)
+        result = mgr.import_package(args.package, force=getattr(args, "force", False))
         if result is None:
             print(f"  导入失败（工作区可能已存在，使用 --force 覆盖）")
             return

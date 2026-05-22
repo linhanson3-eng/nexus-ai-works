@@ -184,6 +184,26 @@ async def delete_plugin(name: str, request: Request):
     return JSONResponse(content={"deleted": name})
 
 
+# ── Preferences ──
+
+
+@router.get("/settings/preferences")
+async def get_preferences(request: Request):
+    store = _settings_store(request)
+    prefs = store._data.setdefault("preferences", {})
+    return JSONResponse(content=dict(prefs))
+
+
+@router.post("/settings/preferences")
+async def save_preferences(request: Request):
+    body = await request.json()
+    store = _settings_store(request)
+    prefs = store._data.setdefault("preferences", {})
+    prefs.update(body)
+    store._save()
+    return JSONResponse(content=dict(prefs))
+
+
 # ── Search ──
 
 
