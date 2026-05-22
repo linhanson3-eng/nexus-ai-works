@@ -73,6 +73,24 @@ export function ProvidersTab({ toast }: { toast: ToastFn }) {
     }
   };
 
+  const syncModels = async (name: string) => {
+    try {
+      const result = await api.syncProviderModels(name);
+      if (result.error) {
+        toast.error(`${name}: ${result.error}`);
+      } else {
+        toast.success(`${name}: 已同步 ${result.updated} 个模型`);
+        load();
+        // Also update form models if currently editing this provider
+        if (editing === name) {
+          setForm(f => ({ ...f, models: result.models }));
+        }
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "同步失败");
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12 gap-2">
@@ -154,7 +172,16 @@ export function ProvidersTab({ toast }: { toast: ToastFn }) {
                   </div>
                 </div>
                 <div>
-                  <label className="text-[10px] uppercase tracking-widest text-muted">模型列表</label>
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] uppercase tracking-widest text-muted">模型列表</label>
+                    <button
+                      type="button"
+                      onClick={() => syncModels(editing || "")}
+                      className="flex items-center gap-1 text-[10px] text-accent hover:text-amber-300 transition-colors"
+                    >
+                      <RefreshCw className="w-3 h-3" /> 从 API 同步
+                    </button>
+                  </div>
                   <div className="flex flex-wrap gap-1.5 mt-1 mb-2">
                     {form.models.map((m, i) => (
                       <span key={i} className="flex items-center gap-1 px-2 py-0.5 bg-accent/10 text-accent border border-accent/20 rounded-lg text-xs">
@@ -218,13 +245,24 @@ export function ProvidersTab({ toast }: { toast: ToastFn }) {
                     <span className="text-sm text-white">{name}</span>
                     <span className="text-[10px] text-muted">{p?.base_url || "未配置"}</span>
                   </div>
-                  {p?.models && p.models.length > 0 && (
-                    <div className="flex flex-wrap gap-1 mt-1">
-                      {p.models.map(m => (
-                        <span key={m} className="text-[10px] px-1.5 py-0.5 bg-accent/5 text-muted border border-border rounded">{m}</span>
-                      ))}
-                    </div>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {p?.models && p.models.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {p.models.map(m => (
+                          <span key={m} className="text-[10px] px-1.5 py-0.5 bg-accent/5 text-muted border border-border rounded">{m}</span>
+                        ))}
+                      </div>
+                    )}
+                    {isExisting && (
+                      <button
+                        onClick={e => { e.stopPropagation(); syncModels(name); }}
+                        className="shrink-0 p-1 text-muted hover:text-accent transition-colors"
+                        title="从 API 同步模型列表"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
               <div className="flex items-center gap-3" onClick={e => e.stopPropagation()}>

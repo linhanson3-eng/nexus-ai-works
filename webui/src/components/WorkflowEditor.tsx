@@ -6,7 +6,7 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { Save, Play, Plus, Trash2, Loader2, ArrowLeft, X, CheckCircle2, XCircle, Circle, Loader } from "lucide-react";
-import { api } from "../lib/api";
+import { api, getAuthHeaders } from "../lib/api";
 import { useToast } from "./Toast";
 import type { WorkflowTemplate } from "../lib/types";
 
@@ -227,7 +227,8 @@ export function WorkflowEditor({ templateName, onBack }: Props) {
     try {
       const res = await fetch(`/api/workflows/${encodeURIComponent(name)}/execute`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+        credentials: "include",
         body: JSON.stringify({ task: task.trim(), workshop: runWorkspace || workspace }),
         signal: controller.signal,
       });

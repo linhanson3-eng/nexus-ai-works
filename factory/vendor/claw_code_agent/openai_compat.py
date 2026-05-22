@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import ssl
 from typing import Any, Iterator
 from urllib import error, request
 
@@ -201,7 +202,13 @@ class OpenAICompatClient:
             method='POST',
         )
         try:
-            with request.urlopen(req, timeout=self.config.timeout_seconds) as response:
+            ctx = ssl.create_default_context()
+            try:
+                import certifi
+                ctx.load_verify_locations(certifi.where())
+            except Exception:
+                pass
+            with request.urlopen(req, timeout=self.config.timeout_seconds, context=ctx) as response:
                 yield StreamEvent(type='message_start')
                 for event_payload in self._iter_sse_payloads(response):
                     yield from self._parse_stream_payload(event_payload)
@@ -227,7 +234,13 @@ class OpenAICompatClient:
             method='POST',
         )
         try:
-            with request.urlopen(req, timeout=self.config.timeout_seconds) as response:
+            ctx = ssl.create_default_context()
+            try:
+                import certifi
+                ctx.load_verify_locations(certifi.where())
+            except Exception:
+                pass
+            with request.urlopen(req, timeout=self.config.timeout_seconds, context=ctx) as response:
                 raw = response.read()
         except error.HTTPError as exc:
             detail = exc.read().decode('utf-8', errors='replace')

@@ -87,13 +87,13 @@ class CreateWorkshopRequest(BaseModel):
     workspace: str = ""
     agent_names: list[str] = Field(default_factory=list)
     workflow_name: str = "simple"
-    model: str = "anthropic/claude-sonnet-4-6"
+    model: str = ""
 
 
 class CreateAgentRequest(BaseModel):
     name: str
     mode: str = "super"
-    model: str = "anthropic/claude-sonnet-4-6"
+    model: str = ""
     tools: list[str] = Field(default_factory=list)
     system_prompt: str = ""
     guide_file: str = ""

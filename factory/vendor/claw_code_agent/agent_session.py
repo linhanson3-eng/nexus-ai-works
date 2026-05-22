@@ -22,6 +22,7 @@ class AgentMessage:
     stop_reason: str | None = None
     usage: UsageStats = field(default_factory=UsageStats)
     metadata: JSONDict = field(default_factory=dict)
+    raw_extra: JSONDict = field(default_factory=dict)
 
     def to_openai_message(self) -> JSONDict:
         payload: JSONDict = {
@@ -34,6 +35,8 @@ class AgentMessage:
             payload['tool_call_id'] = self.tool_call_id
         if self.tool_calls:
             payload['tool_calls'] = list(self.tool_calls)
+        if self.raw_extra:
+            payload.update(self.raw_extra)
         return payload
 
     def to_transcript_entry(self) -> JSONDict:
@@ -83,6 +86,7 @@ class AgentMessage:
                 if isinstance(payload.get('metadata'), dict)
                 else {}
             ),
+            raw_extra=_extract_extra_fields(payload),
         )
 
 
@@ -108,13 +112,15 @@ class AgentSessionState:
             user_context=dict(user_context or {}),
             system_context=dict(system_context or {}),
         )
+        # Skip system_context append when using a brief override prompt
+        ctx_to_append = state.system_context if not _is_minimal_override(system_prompt_parts) else {}
         state.messages.append(
             AgentMessage(
                 role='system',
                 content='\n\n'.join(
-                    _append_system_context(system_prompt_parts, state.system_context)
+                    _append_system_context(system_prompt_parts, ctx_to_append)
                 ),
-                blocks=_text_blocks('\n\n'.join(_append_system_context(system_prompt_parts, state.system_context))),
+                blocks=_text_blocks('\n\n'.join(_append_system_context(system_prompt_parts, ctx_to_append))),
                 metadata=_initialize_message_metadata(
                     role='system',
                     message_id='system_0',
@@ -155,6 +161,7 @@ class AgentSessionState:
         message_id: str | None = None,
         stop_reason: str | None = None,
         usage: UsageStats | None = None,
+        raw_extra: JSONDict | None = None,
     ) -> None:
         self.messages.append(
             AgentMessage(
@@ -165,6 +172,7 @@ class AgentSessionState:
                 message_id=message_id,
                 stop_reason=stop_reason,
                 usage=usage or UsageStats(),
+                raw_extra=dict(raw_extra) if raw_extra else {},
                 metadata=_initialize_message_metadata(
                     role='assistant',
                     message_id=message_id or f'assistant_{len(self.messages)}',
@@ -687,6 +695,19 @@ def _derive_blocks(message: AgentMessage) -> tuple[JSONDict, ...]:
     if message.role == 'tool':
         return _tool_blocks(message.name, message.tool_call_id, message.content)
     return _text_blocks(message.content)
+
+
+# Fields that must be preserved in round-trip for DeepSeek and other APIs
+_EXTRA_FIELDS = frozenset({"reasoning_content", "thinking", "think"})
+
+
+def _extract_extra_fields(payload: JSONDict) -> JSONDict:
+    return {k: payload[k] for k in _EXTRA_FIELDS if k in payload}
+
+
+def _is_minimal_override(parts: list[str]) -> bool:
+    """Detect if the system prompt is a minimal override (1 short line)."""
+    return len(parts) == 1 and len(parts[0]) < 200
 
 
 def _append_system_context(

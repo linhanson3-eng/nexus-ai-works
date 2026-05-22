@@ -6,6 +6,7 @@ only this file needs to change.
 
 from __future__ import annotations
 
+import asyncio as _asyncio
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -45,6 +46,10 @@ class EngineConfig:
     # Budget
     budget: BudgetConfig | None = None
 
+    # Prompt
+    system_prompt: str = ""
+    disable_claude_md: bool = True
+
     # Session
     session_directory: str = ""
     scratchpad_root: str = ""
@@ -66,6 +71,7 @@ class EngineConfig:
             auto_snip_threshold_tokens=self.auto_snip_tokens,
             compact_preserve_messages=self.compact_preserve_messages,
             budget_config=budget,
+            disable_claude_md_discovery=self.disable_claude_md,
             session_directory=(
                 Path(self.session_directory) if self.session_directory else self.cwd / ".sessions"
             ),
@@ -123,14 +129,15 @@ def create_agent(
 ) -> LocalCodingAgent:
     """Create a LocalCodingAgent instance from Nexus configs.
 
-    This is the single factory function for agent creation.
-    All Nexus code must use this instead of directly instantiating
-    LocalCodingAgent.
+    If engine_config.system_prompt is set, it completely overrides the
+    vendor system prompt (Claude Code minimal style). Otherwise the
+    vendor default is used.
     """
     runtime_config = engine_config.to_claw_runtime_config()
     return LocalCodingAgent(
         model_config=model_config,
         runtime_config=runtime_config,
+        override_system_prompt=engine_config.system_prompt or None,
         append_system_prompt=append_system_prompt,
     )
 
@@ -171,10 +178,10 @@ class AgentLoopEngine:
         self._agent.tool_registry.update(tools)
 
     async def run(self, prompt: str | list[dict]) -> AgentRunResult:
-        """Execute a fresh agent run."""
+        """Execute a fresh agent run (synchronous agent, run in thread)."""
         if self._agent is None:
             raise RuntimeError("Engine has been invalidated. Create a new engine.")
-        result = await self._agent.run(prompt)
+        result = await _asyncio.to_thread(self._agent.run, prompt)
         if result.session_id:
             self._last_session_id = result.session_id
         return result
@@ -200,7 +207,7 @@ class AgentLoopEngine:
         if stored is None:
             return await self.run(prompt)
 
-        result = await self._agent.resume(prompt, stored)
+        result = await _asyncio.to_thread(self._agent.resume, prompt, stored)
         if result.session_id:
             self._last_session_id = result.session_id
         return result

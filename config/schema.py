@@ -55,8 +55,8 @@ class BudgetSpec(BaseModel):
 class RoleModelSpec(BaseModel):
     """Per-role model preferences."""
 
-    default: str = "anthropic/claude-sonnet-4-6"
-    budget_work: str = "anthropic/claude-haiku-4-5"
+    default: str = ""
+    budget_work: str = ""
 
 
 class RolePermissionsSpec(BaseModel):

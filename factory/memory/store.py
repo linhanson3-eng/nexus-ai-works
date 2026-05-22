@@ -234,7 +234,7 @@ class MemoryStore:
 
     def insert_chunk(self, chunk: Chunk) -> None:
         self.conn.execute(
-            """INSERT INTO chunks (id, tree_id, content, content_hash, source_kind,
+            """INSERT OR REPLACE INTO chunks (id, tree_id, content, content_hash, source_kind,
                source_id, owner, timestamp, tags, metadata_json, token_count)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (

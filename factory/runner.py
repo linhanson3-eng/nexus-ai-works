@@ -97,11 +97,42 @@ class NexusAgentRunner:
 
     # ── Engine lifecycle ────────────────────────────────────────
 
+    def _resolve_model(self) -> str:
+        """Return the model string for this agent, falling back to the first available provider model."""
+        # 1. Spec model
+        spec_model = getattr(self.spec, "model", "") or ""
+        if hasattr(spec_model, "value"):
+            spec_model = spec_model.value
+        if spec_model:
+            return spec_model
+
+        # 2. First model from provider with an API key, then any provider
+        try:
+            from factory.settings.store import SettingsStore
+            store = SettingsStore()
+            providers = store.list_providers()
+            # Prefer providers with API keys configured
+            keyed: list[tuple[str, dict]] = []
+            unkeyed: list[tuple[str, dict]] = []
+            for name, cfg in providers.items():
+                models = cfg.get("models", [])
+                if not models:
+                    continue
+                if cfg.get("api_key", ""):
+                    keyed.append((name, cfg))
+                else:
+                    unkeyed.append((name, cfg))
+            for name, cfg in keyed + unkeyed:
+                provider_type = cfg.get("provider_type", name)
+                return f"{provider_type}/{cfg['models'][0]}"
+        except Exception:
+            pass
+
+        return ""
+
     def _get_engine(self) -> AgentLoopEngine:
         """Create a fresh engine for each request to avoid shared state."""
-        model = getattr(self.spec, "model", "anthropic/claude-sonnet-4-6")
-        if hasattr(self.spec, "model") and hasattr(self.spec.model, "value"):
-            model = self.spec.model.value
+        model = self._resolve_model()
 
         workspace_path = str(getattr(self.workshop, "workspace", "."))
         permissions = getattr(self.spec, "permissions", None)
@@ -127,6 +158,7 @@ class NexusAgentRunner:
             max_turns=30,
             allow_file_write=allow_write,
             allow_shell_commands=allow_shell,
+            system_prompt="你是Nexus全能助手，简短直接回答问题。",
         )
 
         # Generate search manifest from settings so SearchRuntime discovers it
@@ -281,7 +313,7 @@ class NexusAgentRunner:
 
         # Extract tool calls for tracking
         tool_events = _extract_tool_events(result.transcript) if hasattr(result, 'transcript') else []
-        tool_names = list(set(e["tool"] for e in tool_events)) if tool_events else result.tools_used or []
+        tool_names = list(set(e["tool"] for e in tool_events)) if tool_events else getattr(result, "tool_calls", []) or []
 
         # Record to memory
         for evt in tool_events:
@@ -289,7 +321,7 @@ class NexusAgentRunner:
 
         error_kind = ErrorKind.NONE
         error_context_info: dict[str, str] = {}
-        if result.stop_reason and result.stop_reason != "end_turn":
+        if result.stop_reason and result.stop_reason not in ("end_turn", "stop", "max_tokens"):
             error_kind = _classify_error(result.stop_reason, result.final_output or "")
             error_context_info = {
                 "stop_reason": result.stop_reason,
@@ -300,7 +332,7 @@ class NexusAgentRunner:
         return TaskResult(
             content=result.final_output or "",
             tools_used=tool_names,
-            error=result.stop_reason if result.stop_reason and result.stop_reason != "end_turn" else None,
+            error=result.stop_reason if result.stop_reason and result.stop_reason not in ("end_turn", "stop", "max_tokens") else None,
             error_kind=error_kind,
             error_context=error_context_info,
             session_id=result.session_id or "",

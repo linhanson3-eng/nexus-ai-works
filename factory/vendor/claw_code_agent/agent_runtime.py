@@ -1176,6 +1176,7 @@ class LocalCodingAgent:
                 message_id=f'assistant_{len(session.messages)}',
                 stop_reason=turn.finish_reason,
                 usage=turn.usage,
+                raw_extra=_extra_fields_from_raw(turn.raw_message),
             )
             return turn, ()
 
@@ -4402,6 +4403,16 @@ class LocalCodingAgent:
                 }
             )
         return replace(updated, events=tuple(appended))
+
+
+# Fields that must survive API message round-trip (e.g. DeepSeek reasoning_content)
+_ROUNDTRIP_EXTRA_FIELDS = frozenset({"reasoning_content", "thinking", "think"})
+
+
+def _extra_fields_from_raw(raw_message: dict | None) -> dict:
+    if not raw_message:
+        return {}
+    return {k: raw_message[k] for k in _ROUNDTRIP_EXTRA_FIELDS if k in raw_message}
 
 
 def _optional_policy_int(value: object) -> int | None:

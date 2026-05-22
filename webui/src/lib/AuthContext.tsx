@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from "react";
-import { api } from "./api";
+import { api, setAuthToken } from "./api";
 import type { UserInfo } from "./types";
 
 interface AuthState {
@@ -49,6 +49,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (persisted.token && persisted.user) {
       setToken(persisted.token);
       setUser(persisted.user);
+      setAuthToken(persisted.token);
     }
     setIsLoading(false);
   }, []);
@@ -57,6 +58,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const result = await api.marketLogin(username, password);
     setToken(result.token);
     setUser(result.user);
+    setAuthToken(result.token);
     persistAuth(result.token, result.user);
   }, []);
 
@@ -64,12 +66,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const result = await api.marketRegister(username, password);
     setToken(result.token);
     setUser(result.user);
+    setAuthToken(result.token);
     persistAuth(result.token, result.user);
   }, []);
 
   const logout = useCallback(() => {
     setToken(null);
     setUser(null);
+    setAuthToken(null);
     clearAuth();
   }, []);
 

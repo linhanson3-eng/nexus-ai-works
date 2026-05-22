@@ -3,6 +3,18 @@ import type { KanbanBoard, KanbanCard, KanbanList, LibraryEntry, MarketPackage, 
 const BASE = "/api";
 
 let _csrfToken: string | null = null;
+let _authToken: string | null = null;
+
+export function setAuthToken(token: string | null): void {
+  _authToken = token;
+}
+
+export function getAuthHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {};
+  if (_csrfToken) headers["X-CSRF-Token"] = _csrfToken;
+  if (_authToken) headers["Authorization"] = `Bearer ${_authToken}`;
+  return headers;
+}
 
 function csrfHeaders(): Record<string, string> {
   const headers: Record<string, string> = {};
@@ -10,6 +22,14 @@ function csrfHeaders(): Record<string, string> {
     headers["X-CSRF-Token"] = _csrfToken;
   }
   return headers;
+}
+
+function authHeaders(authToken?: string): Record<string, string> {
+  const token = authToken || _authToken;
+  if (token) {
+    return { Authorization: `Bearer ${token}` };
+  }
+  return {};
 }
 
 export async function fetchCsrfToken(): Promise<void> {
@@ -21,20 +41,14 @@ export async function fetchCsrfToken(): Promise<void> {
 }
 
 async function get<T>(url: string, authToken?: string): Promise<T> {
-  const headers: Record<string, string> = {};
-  if (authToken) {
-    headers["Authorization"] = `Bearer ${authToken}`;
-  }
+  const headers: Record<string, string> = { ...authHeaders(authToken) };
   const res = await fetch(`${BASE}${url}`, { headers, credentials: "include" });
   if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
   return res.json();
 }
 
 async function post<T>(url: string, body: unknown, authToken?: string): Promise<T> {
-  const headers: Record<string, string> = { "Content-Type": "application/json", ...csrfHeaders() };
-  if (authToken) {
-    headers["Authorization"] = `Bearer ${authToken}`;
-  }
+  const headers: Record<string, string> = { "Content-Type": "application/json", ...csrfHeaders(), ...authHeaders(authToken) };
   const res = await fetch(`${BASE}${url}`, {
     method: "POST",
     headers,
@@ -48,7 +62,7 @@ async function post<T>(url: string, body: unknown, authToken?: string): Promise<
 async function del(url: string): Promise<void> {
   const res = await fetch(`${BASE}${url}`, {
     method: "DELETE",
-    headers: csrfHeaders(),
+    headers: { ...csrfHeaders(), ...authHeaders() },
     credentials: "include",
   });
   if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
@@ -57,7 +71,7 @@ async function del(url: string): Promise<void> {
 async function put<T>(url: string, body: unknown): Promise<T> {
   const res = await fetch(`${BASE}${url}`, {
     method: "PUT",
-    headers: { "Content-Type": "application/json", ...csrfHeaders() },
+    headers: { "Content-Type": "application/json", ...csrfHeaders(), ...authHeaders() },
     credentials: "include",
     body: JSON.stringify(body),
   });
@@ -78,7 +92,7 @@ export const api = {
   listWorkshops: () => get<Workshop[]>("/workshops"),
   getWorkshop: (name: string) => get<Workshop>(`/workshops/${name}`),
   createWorkshop: (name: string, workflow?: string, model?: string) =>
-    post<Workshop>("/workshops", { name, workflow_name: workflow || "simple", model: model || "anthropic/claude-sonnet-4-6" }),
+    post<Workshop>("/workshops", { name, workflow_name: workflow || "simple", model: model || "" }),
   deleteWorkshop: (name: string) => del(`/workshops/${name}`),
   runWorkflow: (name: string, workflow: string, task: string) =>
     post<WorkflowResult>(`/workshops/${name}/run`, { workflow, task }),
@@ -116,6 +130,7 @@ export const api = {
   saveProvider: (name: string, data: { provider_type?: string; base_url?: string; api_key?: string; models?: string[] }) =>
     post(`/settings/providers`, { name, ...data }),
   deleteProvider: (name: string) => del(`/settings/providers/${name}`),
+  syncProviderModels: (name: string) => post<{ name: string; models: string[]; updated: number; error: string | null }>(`/settings/providers/${name}/sync-models`, {}),
 
   // Preferences
   getPreferences: () => get<Record<string, unknown>>("/settings/preferences"),

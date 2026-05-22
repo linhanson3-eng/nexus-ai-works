@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { Send, User, Loader2, AlertTriangle, RefreshCw, Wrench, ChevronDown, ChevronRight, Bot, MessageSquare } from "lucide-react";
-import { api } from "../lib/api";
+import { api, getAuthHeaders } from "../lib/api";
 
 interface Message {
   role: "user" | "agent";
@@ -103,6 +103,19 @@ function QuestionDialog({ question, onSubmit, onSkip }: { question: string; onSu
 
 // ── Main Component ───────────────────────────────────────────
 
+function chatStorageKey(ws: string): string { return `nexus_chat_${ws}`; }
+
+function loadMessages(ws: string): Message[] {
+  try {
+    const raw = localStorage.getItem(chatStorageKey(ws));
+    return raw ? JSON.parse(raw) : [WELCOME];
+  } catch { return [WELCOME]; }
+}
+
+function saveMessages(ws: string, msgs: Message[]) {
+  try { localStorage.setItem(chatStorageKey(ws), JSON.stringify(msgs)); } catch {}
+}
+
 export function ChatPanel() {
   const [messages, setMessages] = useState<Message[]>([WELCOME]);
   const [input, setInput] = useState("");
@@ -119,10 +132,23 @@ export function ChatPanel() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  // Persist messages to localStorage whenever they change
+  useEffect(() => {
+    if (workspace && messages.length > 1) saveMessages(workspace, messages);
+  }, [messages, workspace]);
+
   useEffect(() => {
     api.listWorkshops().then(data => {
       setWorkshops(data.map((w: { name: string }) => ({ name: w.name })));
-      if (data.length > 0 && !workspace) setWorkspace(data[0].name);
+      if (data.length > 0 && !workspace) {
+        const ws = data[0].name;
+        setWorkspace(ws);
+        // Restore saved messages for this workspace
+        const saved = loadMessages(ws);
+        if (saved.length > 1 || saved[0]?.role !== WELCOME.role) {
+          setMessages(saved);
+        }
+      }
     }).catch(() => {});
   }, []);
 
@@ -132,7 +158,8 @@ export function ChatPanel() {
     try {
       const res = await fetch("/api/agent/chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+        credentials: "include",
         body: JSON.stringify({ message: text }),
       });
       if (!res.ok) return null;
@@ -155,7 +182,8 @@ export function ChatPanel() {
 
     const res = await fetch("/api/agent/run/stream", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+      credentials: "include",
       body: JSON.stringify({ task: text, workshop: workspace }),
       signal: controller.signal,
     });

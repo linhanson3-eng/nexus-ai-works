@@ -171,6 +171,60 @@ class SettingsStore:
         self._save()
         return True
 
+    def sync_models(self, name: str) -> dict:
+        """Fetch model list from the provider's /v1/models endpoint.
+
+        Returns:
+            {"name": str, "models": [...], "updated": int, "error": str|None}
+        """
+        import ssl
+        import urllib.request
+
+        providers = self._data.get("providers", {})
+        provider = providers.get(name)
+        if not provider:
+            return {"name": name, "models": [], "updated": 0, "error": "Provider not found"}
+
+        base_url: str = provider.get("base_url", "").rstrip("/")
+        api_key: str = provider.get("api_key", "")
+
+        if not base_url:
+            return {"name": name, "models": [], "updated": 0, "error": "No base_url configured"}
+
+        # Try OpenAI-compatible /v1/models endpoint
+        models_url = f"{base_url}/models"
+        headers = {"Accept": "application/json"}
+        if api_key:
+            headers["Authorization"] = f"Bearer {api_key}"
+
+        # Allow unverified SSL for self-hosted proxies
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+
+        try:
+            req = urllib.request.Request(models_url, headers=headers)
+            with urllib.request.urlopen(req, timeout=15, context=ctx) as resp:
+                body = json.loads(resp.read())
+
+            # Parse OpenAI-compatible response: {"data": [{"id": "model-name"}, ...]}
+            data = body.get("data", [])
+            if isinstance(data, list):
+                models = [m["id"] for m in data if isinstance(m, dict) and "id" in m]
+            else:
+                models = []
+        except Exception as exc:
+            return {"name": name, "models": provider.get("models", []), "updated": 0, "error": str(exc)}
+
+        # Filter out embedding, moderation models
+        exclude_keywords = ["embedding", "moderation", "whisper", "tts", "dall-e"]
+        models = [m for m in models if not any(k in m.lower() for k in exclude_keywords)]
+
+        # Update stored models
+        provider["models"] = models
+        self._save()
+        return {"name": name, "models": models, "updated": len(models), "error": None}
+
     # ── search ────────────────────────────────────────────
 
     def get_search(self) -> dict:

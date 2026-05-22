@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { Play, Plus, Trash2, Loader2, X, GitMerge, CheckCircle2, XCircle, Loader, ArrowRight } from "lucide-react";
-import { api } from "../lib/api";
+import { api, getAuthHeaders } from "../lib/api";
 import { useToast } from "./Toast";
 import { ConfirmDialog } from "./ConfirmDialog";
 import type { ChainInfo, ChainStep } from "../lib/types";
@@ -119,7 +119,8 @@ export function ChainList() {
     try {
       const res = await fetch(`/api/chains/${encodeURIComponent(execChain)}/execute`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+        credentials: "include",
         body: JSON.stringify({ task: execTask.trim() }),
         signal: controller.signal,
       });

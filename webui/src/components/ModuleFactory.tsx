@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Play, Loader2, CheckCircle2, XCircle, Loader, Package, Bot, User, Download, AlertTriangle, Zap, Upload, Store, Factory, Tag } from "lucide-react";
-import { api } from "../lib/api";
+import { api, getAuthHeaders } from "../lib/api";
 import { useToast } from "./Toast";
 import type { Workshop } from "../lib/types";
 
@@ -115,7 +115,7 @@ export function ModuleFactory() {
 
   const exportWorkspace = async (wsName: string) => {
     try {
-      const res = await fetch(`/api/workshops/${wsName}/export`, { method: "POST" });
+      const res = await fetch(`/api/workshops/${wsName}/export`, { method: "POST", headers: { ...getAuthHeaders() }, credentials: "include" });
       if (!res.ok) throw new Error("导出失败");
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
@@ -140,7 +140,7 @@ export function ModuleFactory() {
       const formData = new FormData();
       formData.append("file", importFile);
       formData.append("name", importName.trim());
-      const res = await fetch("/api/workshops/import", { method: "POST", body: formData });
+      const res = await fetch("/api/workshops/import", { method: "POST", headers: { ...getAuthHeaders() }, credentials: "include", body: formData });
       if (!res.ok) { const e = await res.json().catch(() => ({ detail: "导入失败" })); throw new Error(e.detail); }
       toast.success(`"${importName.trim()}" 已导入`);
       setImportFile(null);
@@ -166,7 +166,8 @@ export function ModuleFactory() {
     setInput(""); setChatLoading(true);
     try {
       const res = await fetch("/api/agent/run/stream", {
-        method: "POST", headers: { "Content-Type": "application/json" },
+        method: "POST", headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+        credentials: "include",
         body: JSON.stringify({ task: text, workshop: FACTORY_NAME }),
       });
       if (!res.ok) throw new Error("请求失败");
@@ -202,7 +203,8 @@ export function ModuleFactory() {
     const ctrl = new AbortController(); abortRef.current = ctrl;
     try {
       const res = await fetch(`/api/workflows/${encodeURIComponent(PRODUCTION_WF)}/execute`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
+        method: "POST", headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+        credentials: "include",
         body: JSON.stringify({ task: "生成模块", workshop: FACTORY_NAME }), signal: ctrl.signal,
       });
       if (!res.ok) throw new Error("启动失败");

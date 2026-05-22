@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { X, Zap, Bot, FileText, Wrench, Shield, Loader2 } from "lucide-react";
-import { api } from "../lib/api";
+import { api, getAuthHeaders } from "../lib/api";
 import type { ToastFn } from "./Toast";
 import type { AgentInfo } from "../lib/types";
 
@@ -20,7 +20,7 @@ interface AgentEditorProps {
 export function AgentEditor({ workshopName, existingAgent, onClose, onSaved, toast }: AgentEditorProps) {
   const [form, setForm] = useState({
     name: "", mode: "super" as "super" | "normal",
-    model: "anthropic/claude-sonnet-4-6",
+    model: "",
     system_prompt: "", guide_file: "", guide_content: "", skills: "",
     tools: "" as string | string[],
     file_write: true, shell_exec: true, subagent_spawn: true,
@@ -65,7 +65,7 @@ export function AgentEditor({ workshopName, existingAgent, onClose, onSaved, toa
     if (existingAgent) {
       let guideContent = "";
       if (existingAgent.guide_file) {
-        fetch(`/api/workshops/${workshopName}/files/${existingAgent.guide_file}`)
+        fetch(`/api/workshops/${workshopName}/files/${existingAgent.guide_file}`, { headers: { ...getAuthHeaders() }, credentials: "include" })
           .then(res => res.ok ? res.json() : null)
           .then(data => { if (data) guideContent = data.content || ""; })
           .catch(() => { /* file may not exist yet */ });
@@ -85,7 +85,7 @@ export function AgentEditor({ workshopName, existingAgent, onClose, onSaved, toa
       });
     } else {
       setForm({
-        name: "", mode: "super", model: "anthropic/claude-sonnet-4-6",
+        name: "", mode: "super", model: "",
         system_prompt: "", guide_file: "GUIDE.md", guide_content: "", skills: "",
         tools: "", file_write: true, shell_exec: true, subagent_spawn: true,
       });

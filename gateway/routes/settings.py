@@ -40,6 +40,13 @@ async def delete_provider(name: str, request: Request):
     return JSONResponse(content={"deleted": name})
 
 
+@router.post("/settings/providers/{name}/sync-models", dependencies=[Depends(require_auth)])
+async def sync_provider_models(name: str, request: Request):
+    """Fetch latest model list from provider's /v1/models endpoint."""
+    result = _settings_store(request).sync_models(name)
+    return JSONResponse(content=result)
+
+
 # ── Skills ──
 
 

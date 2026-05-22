@@ -319,7 +319,7 @@ def _save_workshop_to_config(org, name: str, workflow_name: str, agent_names: li
         "type": "custom",
         "workspace": f"workspaces/{name}",
         "agents": [
-            {"name": aname, "template": aname, "model": "anthropic/claude-sonnet-4-6"}
+            {"name": aname, "template": aname, "model": ""}
             for aname in agent_names
         ],
         "workflow": {"name": workflow_name},

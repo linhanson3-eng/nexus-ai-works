@@ -67,7 +67,7 @@ async def create_workshop(request: Request):
         workspace=body.get("workspace", ""),
         agent_names=body.get("agent_names", []),
         workflow_name=body.get("workflow_name", "simple"),
-        model=body.get("model", "anthropic/claude-sonnet-4-6"),
+        model=body.get("model", ""),
     )
     info = mgr.status(name)
     return JSONResponse(content=info or {}, status_code=201)
@@ -233,7 +233,7 @@ async def create_workshop_agent(name: str, body: dict = Body(...), request: Requ
     spec = AgentSpec(
         name=agent_name,
         mode=mode,
-        model=body.get("model", "anthropic/claude-sonnet-4-6"),
+        model=body.get("model", ""),
         tools=body.get("tools", []),
         system_prompt=body.get("system_prompt", ""),
         guide_file=body.get("guide_file", ""),

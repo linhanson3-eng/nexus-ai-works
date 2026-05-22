@@ -43,7 +43,7 @@ class WorkshopManager:
         workspace: str = "",
         agent_names: list[str] | None = None,
         workflow_name: str = "simple",
-        model: str = "anthropic/claude-sonnet-4-6",
+        model: str = "",
     ) -> Workshop:
         """Create a new workshop at runtime.
 

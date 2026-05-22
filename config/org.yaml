@@ -10,7 +10,7 @@ departments:
   agents:
   - name: lab-status-nokb
     mode: super
-    model: anthropic/claude-sonnet-4-6
+    model: ''
     tools: []
     system_prompt: ''
     guide_file: ''

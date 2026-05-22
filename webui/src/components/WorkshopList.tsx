@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { AlertTriangle, Plus, Trash2, Play, Loader2, Blocks, RefreshCw, Bot, Settings, Zap, Download, Upload } from "lucide-react";
-import { api } from "../lib/api";
+import { api, getAuthHeaders } from "../lib/api";
 import { useToast } from "./Toast";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { AgentEditor } from "./AgentEditor";
@@ -12,7 +12,7 @@ export function WorkshopList() {
   const [error, setError] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [name, setName] = useState("");
-  const [model, setModel] = useState("anthropic/claude-sonnet-4-6");
+  const [model, setModel] = useState("");
   const [providerModels, setProviderModels] = useState<string[]>([]);
   const [creating, setCreating] = useState(false);
   const [selected, setSelected] = useState<Workshop | null>(null);
@@ -95,7 +95,7 @@ export function WorkshopList() {
   const exportWorkspace = async (wsName: string) => {
     setExporting(wsName);
     try {
-      const res = await fetch(`/api/workshops/${wsName}/export`, { method: "POST" });
+      const res = await fetch(`/api/workshops/${wsName}/export`, { method: "POST", headers: { ...getAuthHeaders() }, credentials: "include" });
       if (!res.ok) throw new Error("导出失败");
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
@@ -115,7 +115,7 @@ export function WorkshopList() {
     try {
       const formData = new FormData();
       formData.append("file", file);
-      const res = await fetch("/api/workshops/import", { method: "POST", body: formData });
+      const res = await fetch("/api/workshops/import", { method: "POST", headers: { ...getAuthHeaders() }, credentials: "include", body: formData });
       if (!res.ok) {
         const err = await res.json().catch(() => ({ detail: "导入失败" }));
         throw new Error(err.detail || "导入失败");
