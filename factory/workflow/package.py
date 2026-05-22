@@ -19,6 +19,12 @@ from typing import Any
 import yaml
 
 
+PACKAGE_CATEGORIES = [
+    "市场分析", "内容创作", "代码工具", "数据处理",
+    "法务合规", "营销推广", "客服支持", "项目管理",
+    "金融分析", "教育培训", "医疗健康", "其他",
+]
+
 @dataclass
 class PackageManifest:
     """A .nexus package manifest."""
@@ -27,6 +33,8 @@ class PackageManifest:
     version: str = "1.0.0"
     description: str = ""
     author: str = ""
+    category: str = "其他"
+    tags: list[str] = field(default_factory=list)
     agents: list[str] = field(default_factory=list)
     workflows: list[str] = field(default_factory=list)
     has_chain: bool = False
@@ -38,6 +46,8 @@ class PackageManifest:
             "version": self.version,
             "description": self.description,
             "author": self.author,
+            "category": self.category,
+            "tags": self.tags,
             "agents": self.agents,
             "workflows": self.workflows,
             "has_chain": self.has_chain,
@@ -51,6 +61,8 @@ class PackageManifest:
             version=data.get("version", "1.0.0"),
             description=data.get("description", ""),
             author=data.get("author", ""),
+            category=data.get("category", "其他"),
+            tags=data.get("tags", []),
             agents=data.get("agents", []),
             workflows=data.get("workflows", []),
             has_chain=data.get("has_chain", False),
@@ -71,6 +83,8 @@ def pack_workspace(
     output_dir: str = ".",
     version: str = "1.0.0",
     description: str = "",
+    category: str = "其他",
+    tags: list[str] | None = None,
 ) -> Path:
     """Pack a workspace into a .nexus package directory.
 
@@ -86,6 +100,8 @@ def pack_workspace(
         name=workspace_name,
         version=version,
         description=description,
+        category=category,
+        tags=tags or [],
         agents=[a.get("name", "") for a in agents],
         workflows=[w.get("name", "") for w in workflows],
         has_chain=chain is not None,
