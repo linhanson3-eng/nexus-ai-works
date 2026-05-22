@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 import yaml
 
 from .models import WorkflowTemplate
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_DIR = Path.home() / ".nexus" / "workflows"
 
@@ -49,5 +52,6 @@ class WorkflowStore:
                     "node_count": len(data.get("nodes", [])),
                 })
             except Exception:
+                logger.warning("Failed to parse workflow file: %s", f, exc_info=True)
                 result.append({"name": f.stem, "description": "(parse error)", "workspace": "", "node_count": 0})
         return result

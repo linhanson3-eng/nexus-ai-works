@@ -37,19 +37,7 @@ class Workshop:
     def _spawn_agents(self) -> None:
         """根据 spec 实例化所有 Agent。"""
         for agent_cfg in self.spec.agents:
-            agent_spec = AgentSpec(
-                name=agent_cfg.name,
-                mode=agent_cfg.mode,
-                model=agent_cfg.model,
-                tools=agent_cfg.tools,
-                system_prompt=agent_cfg.system_prompt,
-                guide_file=agent_cfg.guide_file,
-                skills=agent_cfg.skills,
-                permissions=agent_cfg.permissions,
-                budget=agent_cfg.budget,
-                template=agent_cfg.template,
-                role=agent_cfg.role,
-            )
+            agent_spec = agent_cfg.model_copy(deep=True)
             agent_spec.permissions.warehouse.write = [self.name]
             self.agents[agent_spec.name] = agent_spec
 

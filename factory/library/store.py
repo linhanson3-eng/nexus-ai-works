@@ -148,7 +148,10 @@ class LibraryStore:
             conn.commit()
         finally:
             conn.close()
-        return self.get(entry_type, name)  # type: ignore[return-value]
+        result = self.get(entry_type, name)
+        if result is None:
+            raise RuntimeError(f"Failed to read back saved entry: {entry_type}/{name}")
+        return result
 
     # ── List ──
 

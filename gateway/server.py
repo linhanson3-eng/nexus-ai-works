@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+from datetime import datetime, timezone
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -61,13 +62,30 @@ class QuestionBridge:
         self._pending: dict[str, str] = {}
         self._answers: dict[str, str] = {}
         self._events: dict[str, asyncio.Event] = {}
+        self._created_at: dict[str, datetime] = {}
 
     def set_question(self, request_id: str, question: str) -> None:
+        self._cleanup()
         self._pending[request_id] = question
         self._answers.pop(request_id, None)
+        self._created_at[request_id] = datetime.now(timezone.utc)
 
     def get_question(self, request_id: str) -> str:
+        self._cleanup()
         return self._pending.get(request_id, "")
+
+    def _cleanup(self) -> None:
+        """Remove entries older than 1 hour."""
+        now = datetime.now(timezone.utc)
+        expired = [
+            rid for rid, ts in self._created_at.items()
+            if (now - ts).total_seconds() > 3600
+        ]
+        for rid in expired:
+            self._pending.pop(rid, None)
+            self._answers.pop(rid, None)
+            self._events.pop(rid, None)
+            self._created_at.pop(rid, None)
 
     def submit_answer(self, request_id: str, answer: str) -> bool:
         if request_id not in self._pending:
@@ -135,7 +153,7 @@ class KanbanWSManager:
 # ── App factory ──
 
 
-def create_app(org, kanban_store):
+def create_app(org: "OrgEngine", kanban_store: "KanbanStore") -> FastAPI:
     """Factory function: create a FastAPI app wired to the given org and kanban store.
 
     Args:

@@ -83,13 +83,6 @@ class RoleSpec(BaseModel):
 
     def to_permissions(self) -> AgentPermissions:
         """Convert simplified role permissions to full AgentPermissions."""
-        from config.schema import (
-            FilesystemPermission,
-            SelfPermission,
-            ShellPermission,
-            SubagentPermission,
-            WarehousePermission,
-        )
         return AgentPermissions(
             filesystem=FilesystemPermission(
                 read=["workspace"],
