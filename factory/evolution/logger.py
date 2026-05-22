@@ -37,7 +37,7 @@ class EvolutionLogger:
 
     def _ensure_conn(self) -> None:
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
-        conn = sqlite3.connect(str(self.db_path))
+        conn = sqlite3.connect(str(self.db_path), check_same_thread=False)
         conn.row_factory = sqlite3.Row
         conn.executescript(EVO_LOG_SQL)
         conn.commit()

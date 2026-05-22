@@ -11,6 +11,8 @@ Connects:
 from __future__ import annotations
 
 import asyncio
+import logging
+import os
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
@@ -19,11 +21,9 @@ from typing import Any
 from factory.engine.bridge import (
     AgentLoopEngine,
     EngineConfig,
-    ModelConfig,
     create_agent,
     create_model_config,
 )
-from factory.engine.pool import get_pool
 from factory.engine.providers import ProviderRegistry
 from factory.engine.tools import build_tool_registry, resolve_tools
 from factory.memory import MemoryStore, SourceTree, SourceKind, VaultWriter
@@ -95,17 +95,10 @@ class NexusAgentRunner:
         # TokenJuice rules
         self.tj_rules = load_rules()
 
-        # Engine — created lazily on first run
-        self._engine: AgentLoopEngine | None = None
-        self._engine_key = f"{workshop.name}:{agent_spec.name}"
-
     # ── Engine lifecycle ────────────────────────────────────────
 
     def _get_engine(self) -> AgentLoopEngine:
-        """Get or create the agent engine."""
-        if self._engine is not None and self._engine.agent is not None:
-            return self._engine
-
+        """Create a fresh engine for each request to avoid shared state."""
         model = getattr(self.spec, "model", "anthropic/claude-sonnet-4-6")
         if hasattr(self.spec, "model") and hasattr(self.spec.model, "value"):
             model = self.spec.model.value
@@ -120,10 +113,6 @@ class NexusAgentRunner:
         )
         allow_shell = getattr(permissions, "shell", None)
         allow_shell = getattr(allow_shell, "exec", True) if allow_shell else True
-        allow_subagent = getattr(permissions, "subagent", None)
-        allow_subagent = (
-            getattr(allow_subagent, "spawn", True) if allow_subagent else True
-        )
 
         registry = ProviderRegistry.load_defaults()
         model_config = create_model_config(
@@ -144,14 +133,9 @@ class NexusAgentRunner:
         from factory.settings.store import SettingsStore
         SettingsStore().write_search_manifest(engine_config.cwd)
 
-        # Use pool for caching
-        pool = get_pool()
-        self._engine = pool.get_or_create(
-            key=self._engine_key,
-            model_config=model_config,
-            engine_config=engine_config,
-        )
-        return self._engine
+        # Create FRESH engine every time — never reuse shared instances
+        agent = create_agent(model_config=model_config, engine_config=engine_config)
+        return AgentLoopEngine(agent, engine_config=engine_config)
 
     # ── Main execution ──────────────────────────────────────────
 
@@ -181,7 +165,9 @@ class NexusAgentRunner:
         if guide_file:
             guide_path = self.workshop.workspace / guide_file
             if guide_path.exists():
-                guide_content = guide_path.read_text("utf-8")
+                guide_content = await asyncio.to_thread(
+                    guide_path.read_text, "utf-8"
+                )
 
         prompt = f"{context}\n\n---\n\n任务：{task}"
         if guide_content:
@@ -190,22 +176,37 @@ class NexusAgentRunner:
             prompt = f"{system_prompt}\n\n{prompt}"
 
         # 3. Execute via claw-code-agent
+        AGENT_TOTAL_TIMEOUT = int(os.environ.get("AGENT_TOTAL_TIMEOUT", "600"))
         try:
             engine = self._get_engine()
-            result = await self._run_agent_loop(engine, prompt)
+            result = await asyncio.wait_for(
+                self._run_agent_loop(engine, prompt),
+                timeout=AGENT_TOTAL_TIMEOUT,
+            )
+        except asyncio.TimeoutError:
+            return TaskResult(
+                content="",
+                error=f"Agent execution timed out after {AGENT_TOTAL_TIMEOUT}s",
+                error_kind=ErrorKind.TIMEOUT,
+                error_context={"timeout_seconds": str(AGENT_TOTAL_TIMEOUT)},
+            )
         except ImportError:
             return await self._run_simulated(task, context)
 
-        # 4. Bucket-Seal cascade compression
-        bucket_seal = BucketSeal(self.store)
-        dummy = _make_dummy_summariser()
-        sealed = await bucket_seal.seal_one_level(self.source_tree.tree_id, 0, dummy)
-        if sealed:
-            self.vault.write_summary(sealed)
-            for level in range(1, 3):
-                more = await bucket_seal.seal_one_level(self.source_tree.tree_id, level, dummy)
-                if more:
-                    self.vault.write_summary(more)
+        # 4. Bucket-Seal cascade compression (non-critical — must not crash the run)
+        try:
+            bucket_seal = BucketSeal(self.store)
+            dummy = _make_dummy_summariser()
+            sealed = await bucket_seal.seal_one_level(self.source_tree.tree_id, 0, dummy)
+            if sealed:
+                self.vault.write_summary(sealed)
+                for level in range(1, 3):
+                    more = await bucket_seal.seal_one_level(self.source_tree.tree_id, level, dummy)
+                    if more:
+                        self.vault.write_summary(more)
+        except Exception:
+            logger = logging.getLogger(__name__)
+            logger.exception("Bucket-Seal cascade failed for run")
 
         # 5. Write INDEX
         self.vault.write_index(self.store)

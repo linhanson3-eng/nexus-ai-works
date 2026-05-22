@@ -171,6 +171,8 @@ class AgentLoopEngine:
 
     async def run(self, prompt: str | list[dict]) -> AgentRunResult:
         """Execute a fresh agent run."""
+        if self._agent is None:
+            raise RuntimeError("Engine has been invalidated. Create a new engine.")
         result = await self._agent.run(prompt)
         if result.session_id:
             self._last_session_id = result.session_id
@@ -185,6 +187,9 @@ class AgentLoopEngine:
         from factory.vendor.claw_code_agent.session_store import (
             load_agent_session,
         )
+
+        if self._agent is None:
+            raise RuntimeError("Engine has been invalidated. Create a new engine.")
 
         sid = session_id or self._last_session_id
         if not sid:
