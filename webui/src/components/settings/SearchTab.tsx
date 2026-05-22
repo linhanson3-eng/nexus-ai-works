@@ -14,14 +14,14 @@ export function SearchTab({ toast }: { toast: ToastFn }) {
   const [showKeys, setShowKeys] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
-    api.getSearchConfig().then(setConfig).catch((err) => { console.warn("加载搜索配置失败", err); }).finally(() => setLoading(false));
+    api.getSearchConfig().then((data: unknown) => setConfig(data as SearchConfig)).catch((err) => { console.warn("加载搜索配置失败", err); }).finally(() => setLoading(false));
   }, []);
 
   const save = async () => {
     setSaving(true);
     try {
       const result = await api.saveSearchConfig(config);
-      setConfig(result);
+      setConfig(result as SearchConfig);
       toast.success("搜索配置已保存");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "保存失败");

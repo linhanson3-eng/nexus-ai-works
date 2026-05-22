@@ -163,7 +163,8 @@ class NexusAgentRunner:
         guide_content = ""
         guide_file = getattr(self.spec, "guide_file", "")
         if guide_file:
-            guide_path = self.workshop.workspace / guide_file
+            ws_dir = Path(getattr(self.workshop, "workspace", ".") or ".")
+            guide_path = ws_dir / guide_file
             if guide_path.exists():
                 guide_content = await asyncio.to_thread(
                     guide_path.read_text, "utf-8"

@@ -140,7 +140,7 @@ async def main():
     print("=" * 60)
 
     if args.command == "serve":
-        cmd_serve(args)
+        await cmd_serve(args)
     elif args.command == "kanban":
         cmd_kanban(args)
     elif args.command == "mcp":

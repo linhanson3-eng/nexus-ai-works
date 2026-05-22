@@ -1,13 +1,7 @@
 import { useState, useRef, useEffect, useCallback, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
-import { Send, Zap, User, Loader2, AlertTriangle, RefreshCw, Wrench, ChevronDown, ChevronRight, Bot, MessageSquare } from "lucide-react";
+import { Send, User, Loader2, AlertTriangle, RefreshCw, Wrench, ChevronDown, ChevronRight, Bot, MessageSquare } from "lucide-react";
 import { api } from "../lib/api";
-
-interface ToolEvent {
-  tool_name?: string;
-  tool_call_id?: string;
-  arguments_delta?: string;
-}
 
 interface Message {
   role: "user" | "agent";
@@ -182,9 +176,6 @@ export function ChatPanel() {
     let finalReply = "";
     let finalActions: { label: string; to: string }[] = [];
     let finalError = "";
-
-    // Placeholder streaming message
-    const streamMsgIdx = -1; // will update last agent message
 
     while (true) {
       const { done, value } = await reader.read();

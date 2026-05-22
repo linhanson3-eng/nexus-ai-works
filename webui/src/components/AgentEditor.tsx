@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
 import { X, Zap, Bot, FileText, Wrench, Shield, Loader2 } from "lucide-react";
-import { api } from "../../lib/api";
-import type { ToastFn } from "../Toast";
-import type { AgentInfo } from "../../lib/types";
+import { api } from "../lib/api";
+import type { ToastFn } from "./Toast";
+import type { AgentInfo } from "../lib/types";
 
 const AVAILABLE_TOOLS = [
   "think", "search", "deep_search", "read_file", "write_file",
@@ -35,19 +35,19 @@ export function AgentEditor({ workshopName, existingAgent, onClose, onSaved, toa
 
   // Load reference data
   useEffect(() => {
-    api.listProviders().then(providers => {
+    api.listProviders().then((providers: Record<string, { models?: string[] }>) => {
       const models: string[] = [];
       for (const [pname, cfg] of Object.entries(providers)) {
-        for (const m of cfg.models || []) {
+        for (const m of (cfg.models || [])) {
           models.push(`${pname}/${m}`);
         }
       }
       setProviderModels(models);
-    }).catch((err) => { console.warn("加载模型列表失败", err); });
+    }).catch((err: unknown) => { console.warn("加载模型列表失败", err); });
 
-    api.listSkills().then(data => {
-      setAvailableSkills(data.map((s: { name: string; description: string }) => ({ name: s.name, description: s.description || "" })));
-    }).catch((err) => { console.warn("加载技能列表失败", err); });
+    api.listSkills().then((data: { name: string; description?: string }[]) => {
+      setAvailableSkills(data.map(s => ({ name: s.name, description: s.description || "" })));
+    }).catch((err: unknown) => { console.warn("加载技能列表失败", err); });
   }, []);
 
   // Close skills dropdown on outside click

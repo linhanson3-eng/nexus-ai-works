@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Play, Loader2, CheckCircle2, XCircle, Loader, Package, Bot, User, RefreshCw, Download, AlertTriangle, Zap, Upload, Store, Factory, Tag } from "lucide-react";
+import { Play, Loader2, CheckCircle2, XCircle, Loader, Package, Bot, User, Download, AlertTriangle, Zap, Upload, Store, Factory, Tag } from "lucide-react";
 import { api } from "../lib/api";
 import { useToast } from "./Toast";
 import type { Workshop } from "../lib/types";
@@ -45,11 +45,9 @@ export function ModuleFactory() {
   const [importing, setImporting] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importName, setImportName] = useState("");
-  const [importCategory, setImportCategory] = useState("其他");
-  const [importDesc, setImportDesc] = useState("");
-
   // Factory state
-  const [factoryReady, setFactoryReady] = useState(false);
+  const [, setFactoryReady] = useState(false);
+  const [, setImportDesc] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([
     { role: "agent", content: "你好！我是模块工厂助手。\n\n告诉我你想创建什么样的 AI 工作模块？比如：\n- \"我需要一个市场竞品分析模块，每周监控5家对手\"\n- \"帮我做一个内容翻译流水线，支持中英日三语\"\n\n我会通过对话帮你理清需求，然后自动生成可复用的模块。" },
   ]);
@@ -74,7 +72,7 @@ export function ModuleFactory() {
     (async () => {
       try {
         await loadWorkshops();
-        const exists = workshops.some(w => w.name === FACTORY_NAME) || true; // check after load
+        void (workshops.some(w => w.name === FACTORY_NAME) || true); // check after load
         const ws = await api.listWorkshops();
         const factoryExists = ws.some((w: { name: string }) => w.name === FACTORY_NAME);
         if (!factoryExists) {

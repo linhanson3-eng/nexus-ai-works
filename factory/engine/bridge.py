@@ -55,6 +55,7 @@ class EngineConfig:
             allow_shell_commands=self.allow_shell_commands,
             allow_destructive_shell_commands=self.allow_destructive_shell,
         )
+        budget = self.budget or BudgetConfig()
         return AgentRuntimeConfig(
             cwd=self.cwd,
             max_turns=self.max_turns,
@@ -64,12 +65,12 @@ class EngineConfig:
             auto_compact_threshold_tokens=self.auto_compact_tokens,
             auto_snip_threshold_tokens=self.auto_snip_tokens,
             compact_preserve_messages=self.compact_preserve_messages,
-            budget_config=self.budget,
+            budget_config=budget,
             session_directory=(
-                Path(self.session_directory) if self.session_directory else None
+                Path(self.session_directory) if self.session_directory else self.cwd / ".sessions"
             ),
             scratchpad_root=(
-                Path(self.scratchpad_root) if self.scratchpad_root else None
+                Path(self.scratchpad_root) if self.scratchpad_root else self.cwd / ".scratch"
             ),
         )
 

@@ -1,22 +1,16 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   ReactFlow, Background, Controls, MiniMap, Panel, addEdge,
   useNodesState, useEdgesState, type Node, type Edge,
   BackgroundVariant, MarkerType, Handle, Position,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { Save, Play, Plus, Trash2, Loader2, ArrowLeft, GitBranch, X, CheckCircle2, XCircle, Circle, Loader } from "lucide-react";
+import { Save, Play, Plus, Trash2, Loader2, ArrowLeft, X, CheckCircle2, XCircle, Circle, Loader } from "lucide-react";
 import { api } from "../lib/api";
 import { useToast } from "./Toast";
-import type { WorkflowTemplate, WorkflowNode as WfNode } from "../lib/types";
+import type { WorkflowTemplate } from "../lib/types";
 
 // ── Custom Agent Node ──────────────────────────────────────
-
-const STATUS_ICONS: Record<string, string> = {
-  running: "animate-spin text-info",
-  passed: "text-success",
-  failed: "text-warning",
-};
 
 function AgentNode({ data, selected }: { data: { label: string; agent_name: string; status?: string }; selected: boolean }) {
   const running = data.status === "running";
@@ -85,8 +79,8 @@ export function WorkflowEditor({ templateName, onBack }: Props) {
   const [name, setName] = useState(templateName || "");
   const [description, setDescription] = useState("");
   const [workspace, setWorkspace] = useState("");
-  const [nodes, setNodes, onNodesChange] = useNodesState([]);
-  const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+  const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [saving, setSaving] = useState(false);
   const [selectedNode, setSelectedNode] = useState<Node | null>(null);
   const [nodeProps, setNodeProps] = useState({ label: "", agent_name: "", prompt: "" });
@@ -97,6 +91,7 @@ export function WorkflowEditor({ templateName, onBack }: Props) {
   const [runStatus, setRunStatus] = useState<Record<string, { status: string; detail: string }>>({});
   const [showRunDialog, setShowRunDialog] = useState(false);
   const [task, setTask] = useState("");
+  const [runWorkspace, setRunWorkspace] = useState(workspace);
   const [runResult, setRunResult] = useState<{
     status: string; final_output: string;
     node_results: Record<string, { node_id: string; agent_name: string; status: string; output: string; error: string }>;
@@ -121,9 +116,9 @@ export function WorkflowEditor({ templateName, onBack }: Props) {
   useEffect(() => {
     if (selectedNode) {
       setNodeProps({
-        label: selectedNode.data.label || "",
-        agent_name: selectedNode.data.agent_name || "",
-        prompt: selectedNode.data.prompt || "",
+        label: String(selectedNode.data.label || ""),
+        agent_name: String(selectedNode.data.agent_name || ""),
+        prompt: String(selectedNode.data.prompt || ""),
       });
     }
   }, [selectedNode]);
@@ -146,7 +141,7 @@ export function WorkflowEditor({ templateName, onBack }: Props) {
   }, [runStatus, setNodes]);
 
   const onConnect = useCallback((conn: { source: string; target: string }) => {
-    setEdges(eds => addEdge({ ...conn, markerEnd: { type: MarkerType.ArrowClosed }, animated: true }, eds));
+    setEdges(eds => addEdge({ id: `e-${conn.source}-${conn.target}`, ...conn, markerEnd: { type: MarkerType.ArrowClosed }, animated: true }, eds));
   }, []);
 
   const addNode = () => {
@@ -186,9 +181,9 @@ export function WorkflowEditor({ templateName, onBack }: Props) {
     name, description, workspace,
     nodes: nodes.map(n => ({
       id: n.id,
-      label: n.data.label || "",
-      agent_name: n.data.agent_name || "",
-      prompt: n.data.prompt || "",
+      label: String(n.data.label || ""),
+      agent_name: String(n.data.agent_name || ""),
+      prompt: String(n.data.prompt || ""),
       depends_on: edges.filter(e => e.target === n.id).map(e => e.source),
       expected_output: "",
     })),
@@ -424,7 +419,7 @@ export function WorkflowEditor({ templateName, onBack }: Props) {
                     "border-border bg-surface"
                   }`}>
                     <div className="flex items-center justify-between">
-                      <span className="text-white font-medium">{n.data.label || n.id}</span>
+                      <span className="text-white font-medium">{String(n.data.label || n.id)}</span>
                       <span className={`text-[10px] ${
                         status === "running" ? "text-info" :
                         status === "passed" ? "text-success" :

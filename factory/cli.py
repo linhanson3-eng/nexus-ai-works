@@ -17,9 +17,9 @@ from factory.skills import SkillRepo
 from factory.workflow.package import validate_package
 
 
-def cmd_serve(args):
-    """Start the FastAPI Gateway server (synchronous wrapper)."""
-    asyncio.run(_serve(args))
+async def cmd_serve(args):
+    """Start the FastAPI Gateway server."""
+    await _serve(args)
 
 
 async def _serve(args):

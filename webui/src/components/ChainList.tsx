@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef } from "react";
-import { Link, Play, Plus, Trash2, Loader2, X, GitMerge, CheckCircle2, XCircle, Loader, ArrowRight } from "lucide-react";
+import { Play, Plus, Trash2, Loader2, X, GitMerge, CheckCircle2, XCircle, Loader, ArrowRight } from "lucide-react";
 import { api } from "../lib/api";
 import { useToast } from "./Toast";
 import { ConfirmDialog } from "./ConfirmDialog";
-import type { ChainInfo, ChainTemplate, ChainStep } from "../lib/types";
+import type { ChainInfo, ChainStep } from "../lib/types";
 
 export function ChainList() {
   const toast = useToast();
