@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import asyncio
 import json
-import re
-
 import logging
+import os
+import re
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -16,6 +16,8 @@ from gateway.auth import require_auth
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api", tags=["agent"])
+
+REQUEST_TIMEOUT = int(os.environ.get("AGENT_REQUEST_TIMEOUT", "600"))
 
 
 def _org(request: Request):
@@ -71,7 +73,7 @@ async def agent_run(request: Request):
     runner.record_chat("system", f"任务开始: {task}", "gateway")
 
     try:
-        result = await runner.run(task)
+        result = await asyncio.wait_for(runner.run(task), timeout=REQUEST_TIMEOUT)
         if result.session_id:
             _session_manager(request).set(workshop_name, result.session_id)
         return JSONResponse(content={
@@ -115,7 +117,7 @@ async def agent_run_stream(request: Request):
     async def event_stream():
         yield _sse("status", {"event": "started", "task": task[:200], "workshop": workshop_name})
         try:
-            result = await runner.run(task)
+            result = await asyncio.wait_for(runner.run(task), timeout=REQUEST_TIMEOUT)
             if result.session_id:
                 _session_manager(request).set(workshop_name, result.session_id)
 

@@ -7,12 +7,15 @@ context passing → gate review with retry (max 3).
 from __future__ import annotations
 
 import asyncio
+import logging
 from collections import deque
 from dataclasses import dataclass, field
 from typing import Any, Callable, Awaitable
 
 from .models import WorkflowNode, WorkflowTemplate, NodeStatus, GateType
 from .snapshot import RunSnapshot
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -37,6 +40,15 @@ class WorkflowResult:
 
 # Callback for SSE streaming: (node_id, status, detail)
 StatusCallback = Callable[[str, str, str], Awaitable[None]]
+
+
+def _is_transient_error(error: str | None) -> bool:
+    """Check if an error string indicates a transient (retryable) failure."""
+    if not error:
+        return False
+    error_lower = error.lower()
+    transient_keywords = ("429", "rate", "limit", "503", "timeout", "connection", "temporarily", "overloaded")
+    return any(k in error_lower for k in transient_keywords)
 
 
 class WorkflowRunner:
@@ -222,15 +234,26 @@ class WorkflowRunner:
         from factory.runner import NexusAgentRunner
 
         store = self.store if self.store is not None else MemoryStore(":memory:")
-        runner = NexusAgentRunner(agent, self.workshop, store)
-        agent_result = await runner.run(prompt)
 
-        if agent_result.error:
+        max_retries = 2
+        for attempt in range(max_retries + 1):
+            runner = NexusAgentRunner(agent, self.workshop, store)
+            agent_result = await runner.run(prompt)
+
+            if agent_result.error is None:
+                await self._notify(node_id, "passed", agent_result.content[:200])
+                return NodeResult(node_id=node_id, agent_name=agent_name, status=NodeStatus.PASSED, output=agent_result.content)
+
+            if attempt < max_retries and _is_transient_error(agent_result.error):
+                await asyncio.sleep(2 ** attempt)  # exponential backoff: 1s, 2s
+                continue
+
             await self._notify(node_id, "failed", agent_result.error or "")
             return NodeResult(node_id=node_id, agent_name=agent_name, status=NodeStatus.FAILED, error=agent_result.error or "")
 
-        await self._notify(node_id, "passed", agent_result.content[:200])
-        return NodeResult(node_id=node_id, agent_name=agent_name, status=NodeStatus.PASSED, output=agent_result.content)
+        # Unreachable — kept for type completeness
+        await self._notify(node_id, "failed", "Max retries exceeded")
+        return NodeResult(node_id=node_id, agent_name=agent_name, status=NodeStatus.FAILED, error="Max retries exceeded")
 
     async def _run_simulated(self, node: WorkflowNode, task: str) -> NodeResult:
         content = f"[simulated] Node: {node.id}\nAgent: {node.agent_name}\nTask: {task}"
@@ -322,7 +345,7 @@ class WorkflowRunner:
             try:
                 await self._on_status(node_id, status, detail)
             except Exception:
-                pass
+                logger.exception("Status callback failed for node %s: %s", node_id, status)
 
     # ── Resume ────────────────────────────────────────────────────
 

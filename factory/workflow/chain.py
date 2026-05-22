@@ -8,11 +8,17 @@ as context into the next step.
 from __future__ import annotations
 
 import asyncio
+import logging
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Awaitable
 
 import yaml
+
+logger = logging.getLogger(__name__)
+
+CHAIN_TOTAL_TIMEOUT = int(os.environ.get("CHAIN_TOTAL_TIMEOUT", "1800"))  # 30 min default
 
 
 # ── Models ─────────────────────────────────────────────────────
@@ -139,6 +145,19 @@ class ChainRunner:
         self._on_status = on_status
 
     async def run(self, chain: Chain, task: str) -> ChainResult:
+        try:
+            return await asyncio.wait_for(
+                self._run_impl(chain, task),
+                timeout=CHAIN_TOTAL_TIMEOUT,
+            )
+        except asyncio.TimeoutError:
+            return ChainResult(
+                chain_name=chain.name,
+                status="failed",
+                final_output=f"Chain timeout after {CHAIN_TOTAL_TIMEOUT}s",
+            )
+
+    async def _run_impl(self, chain: Chain, task: str) -> ChainResult:
         from factory.workshop.manager import WorkshopManager
         from factory.workflow.engine import WorkflowRunner, WorkflowResult
 
@@ -255,4 +274,4 @@ class ChainRunner:
             try:
                 await self._on_status(event, target, detail)
             except Exception:
-                pass
+                logger.exception("Status callback failed for target %s event %s", target, event)

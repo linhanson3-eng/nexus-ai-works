@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+import fcntl
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from config.schema import DepartmentSpec, AgentSpec, WorkflowSpec
 from factory.org import OrgEngine, Workshop
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -73,13 +77,22 @@ class WorkshopManager:
 
         # Auto-create kanban board
         if self.kanban_store:
-            board = self.kanban_store.create_board(
-                name=name,
-                workshop_name=name,
-                description=f"Kanban board for workshop: {name}",
-            )
-            for list_name in ["To Do", "In Progress", "Done", "Blocked"]:
-                self.kanban_store.create_list(board.id, list_name)
+            board = None
+            try:
+                board = self.kanban_store.create_board(
+                    name=name,
+                    workshop_name=name,
+                    description=f"Kanban board for workshop: {name}",
+                )
+                for list_name in ["To Do", "In Progress", "Done", "Blocked"]:
+                    self.kanban_store.create_list(board.id, list_name)
+            except Exception:
+                if board:
+                    try:
+                        self.kanban_store.delete_board(board.id)
+                    except Exception:
+                        pass
+                raise
 
         return workshop
 
@@ -471,34 +484,38 @@ class WorkshopManager:
         config_path = Path("config/org.yaml")
         if not config_path.exists():
             return
-        data = _yaml.safe_load(config_path.read_text("utf-8")) or {}
-        depts: list[dict[str, Any]] = []
-        for ws in self.org.workshops:
-            depts.append({
-                "name": ws.name,
-                "type": "custom",
-                "workspace": str(ws.workspace),
-                "agents": [
-                    {
-                        "name": a.name,
-                        "mode": getattr(a, "mode", "super"),
-                        "model": a.model,
-                        "tools": a.tools if a.tools else [],
-                        "system_prompt": getattr(a, "system_prompt", ""),
-                        "guide_file": getattr(a, "guide_file", ""),
-                        "skills": getattr(a, "skills", []),
-                        "permissions": {
-                            "file_write": len(a.permissions.filesystem.write) > 0,
-                            "shell_exec": a.permissions.shell.exec,
-                            "subagent_spawn": a.permissions.subagent.spawn,
-                        },
-                    }
-                    for a in ws.agents.values()
-                ],
-                "workflow": {"name": ws.workflow_name},
-            })
-        data["departments"] = depts
-        config_path.write_text(
-            _yaml.dump(data, allow_unicode=True, default_flow_style=False, sort_keys=False),
-            "utf-8",
-        )
+        with open(config_path, "r+") as f:
+            fcntl.flock(f, fcntl.LOCK_EX)
+            try:
+                data = _yaml.safe_load(f) or {}
+                depts: list[dict[str, Any]] = []
+                for ws in self.org.workshops:
+                    depts.append({
+                        "name": ws.name,
+                        "type": "custom",
+                        "workspace": str(ws.workspace),
+                        "agents": [
+                            {
+                                "name": a.name,
+                                "mode": getattr(a, "mode", "super"),
+                                "model": a.model,
+                                "tools": a.tools if a.tools else [],
+                                "system_prompt": getattr(a, "system_prompt", ""),
+                                "guide_file": getattr(a, "guide_file", ""),
+                                "skills": getattr(a, "skills", []),
+                                "permissions": {
+                                    "file_write": len(a.permissions.filesystem.write) > 0,
+                                    "shell_exec": a.permissions.shell.exec,
+                                    "subagent_spawn": a.permissions.subagent.spawn,
+                                },
+                            }
+                            for a in ws.agents.values()
+                        ],
+                        "workflow": {"name": ws.workflow_name},
+                    })
+                data["departments"] = depts
+                f.seek(0)
+                f.truncate()
+                _yaml.dump(data, f, allow_unicode=True, default_flow_style=False, sort_keys=False)
+            finally:
+                fcntl.flock(f, fcntl.LOCK_UN)
