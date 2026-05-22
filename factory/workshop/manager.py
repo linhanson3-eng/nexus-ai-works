@@ -306,8 +306,12 @@ class WorkshopManager:
         )
         return str(pkg_dir)
 
-    def import_package(self, pkg_dir: str) -> dict[str, Any] | None:
+    def import_package(self, pkg_dir: str, custom_name: str = "") -> dict[str, Any] | None:
         """Import a .nexus package, creating a new workspace.
+
+        Args:
+            pkg_dir: Path to the .nexus package directory.
+            custom_name: Optional custom workspace name (defaults to manifest name).
 
         Returns status dict with created resources.
         """
@@ -315,7 +319,7 @@ class WorkshopManager:
 
         data = unpack_package(pkg_dir)
         manifest = data["manifest"]
-        name = manifest["name"]
+        name = custom_name or manifest["name"]
 
         # Check if already exists
         if self.get(name) is not None:

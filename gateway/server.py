@@ -461,6 +461,9 @@ def create_app(org, kanban_store):
             if file is None:
                 return JSONResponse(content={"detail": "No file uploaded"}, status_code=400)
 
+            custom_name_raw = form.get("name")
+            custom_name = str(custom_name_raw).strip() if custom_name_raw else ""
+
             with tempfile.TemporaryDirectory() as tmpdir:
                 if hasattr(file, "filename") and file.filename:
                     fname = getattr(file, "filename", "upload")
@@ -479,7 +482,7 @@ def create_app(org, kanban_store):
                     pkg_dir = filepath
 
                 mgr = WorkshopManager(org, kanban_store)
-                result = mgr.import_package(str(pkg_dir))
+                result = mgr.import_package(str(pkg_dir), custom_name=custom_name)
                 if result is None:
                     return JSONResponse(
                         content={"detail": "Import failed (workspace may already exist)"},

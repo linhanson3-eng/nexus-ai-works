@@ -43,6 +43,10 @@ export function ModuleFactory() {
   const [workshops, setWorkshops] = useState<Workshop[]>([]);
   const [activeCategory, setActiveCategory] = useState("全部");
   const [importing, setImporting] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importName, setImportName] = useState("");
+  const [importCategory, setImportCategory] = useState("其他");
+  const [importDesc, setImportDesc] = useState("");
 
   // Factory state
   const [factoryReady, setFactoryReady] = useState(false);
@@ -124,13 +128,24 @@ export function ModuleFactory() {
     } catch { toast.error("导出失败"); }
   };
 
-  const importPackage = async (file: File) => {
+  const handleFileSelect = (file: File) => {
+    const baseName = file.name.replace(/\.(zip|nexus)$/i, "");
+    setImportFile(file);
+    setImportName(baseName);
+    setImportDesc("");
+  };
+
+  const confirmImport = async () => {
+    if (!importFile || !importName.trim()) return;
     setImporting(true);
     try {
-      const formData = new FormData(); formData.append("file", file);
+      const formData = new FormData();
+      formData.append("file", importFile);
+      formData.append("name", importName.trim());
       const res = await fetch("/api/workshops/import", { method: "POST", body: formData });
       if (!res.ok) { const e = await res.json().catch(() => ({ detail: "导入失败" })); throw new Error(e.detail); }
-      toast.success("模块已导入");
+      toast.success(`"${importName.trim()}" 已导入`);
+      setImportFile(null);
       loadWorkshops();
     } catch (err) { toast.error(err instanceof Error ? err.message : "导入失败"); }
     finally { setImporting(false); }
@@ -244,21 +259,14 @@ export function ModuleFactory() {
             <Factory className="w-4 h-4" /> 模块工厂
           </button>
         </div>
-        <div className="flex items-center gap-2">
-          <input type="file" ref={fileInputRef} accept=".zip,.nexus" onChange={e => { const f = e.target.files?.[0]; if (f) importPackage(f); }} className="hidden" />
-          <button onClick={() => fileInputRef.current?.click()} disabled={importing}
-            className="flex items-center gap-1.5 px-3 py-2 bg-info/10 text-info border border-info/20 rounded-xl text-sm font-medium hover:bg-info/20 disabled:opacity-30">
-            {importing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />} 导入
-          </button>
-        </div>
       </div>
 
       {tab === "store" ? (
-        /* ── Module Store ── */
         <div className="flex-1 flex gap-4 overflow-hidden">
           <div className="flex-1 overflow-auto">
-            {/* Category chips */}
-            <div className="flex gap-1.5 flex-wrap mb-4">
+            {/* Import + categories */}
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex gap-1.5 flex-wrap">
               {CATEGORIES.map(c => (
                 <button key={c} onClick={() => setActiveCategory(c)}
                   className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
@@ -267,6 +275,12 @@ export function ModuleFactory() {
                   {c === "全部" ? <Tag className="w-3 h-3 inline mr-1" /> : null}{c}
                 </button>
               ))}
+              </div>
+              <input type="file" ref={fileInputRef} accept=".zip,.nexus" onChange={e => { const f = e.target.files?.[0]; if (f) { handleFileSelect(f); e.target.value = ""; } }} className="hidden" />
+              <button onClick={() => fileInputRef.current?.click()} disabled={importing}
+                className="flex items-center gap-1.5 px-3 py-2 bg-info/10 text-info border border-info/20 rounded-xl text-sm font-medium hover:bg-info/20 disabled:opacity-30 shrink-0">
+                {importing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />} 导入
+              </button>
             </div>
 
             {filtered.length === 0 ? (
@@ -307,10 +321,37 @@ export function ModuleFactory() {
                 ))}
               </div>
             )}
+            {/* Import dialog */}
+            {importFile && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setImportFile(null)}>
+                <div className="bg-card border border-border rounded-[20px] p-6 w-full max-w-md space-y-4 shadow-2xl" onClick={e => e.stopPropagation()}>
+                  <h2 className="text-lg font-bold text-white">导入模块</h2>
+                  <div>
+                    <label className="text-[10px] uppercase tracking-widest text-muted">模块文件</label>
+                    <p className="text-sm text-white mt-1">{importFile.name}</p>
+                  </div>
+                  <div>
+                    <label className="text-[10px] uppercase tracking-widest text-muted">工作区名称</label>
+                    <input value={importName} onChange={e => setImportName(e.target.value)}
+                      placeholder="自定义名称，或使用默认名称"
+                      className="w-full bg-surface border border-border rounded-xl px-3 py-2 text-sm text-white placeholder:text-muted focus:outline-none focus:border-accent/30 mt-1" />
+                    <p className="text-[10px] text-muted mt-1">修改不会影响模块原本的名称</p>
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <button onClick={() => setImportFile(null)}
+                      className="px-4 py-2 bg-surface border border-border rounded-xl text-sm text-muted hover:text-white transition-colors">取消</button>
+                    <button onClick={confirmImport} disabled={importing || !importName.trim()}
+                      className="flex items-center gap-1.5 px-4 py-2 bg-accent/10 text-accent border border-accent/20 rounded-xl text-sm font-medium hover:bg-accent/20 transition-colors disabled:opacity-30">
+                      {importing ? <Loader2 className="w-4 h-4 animate-spin" /> : null} 确认导入
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
+
       ) : (
-        /* ── Module Factory ── */
         <div className="flex-1 flex gap-4 overflow-hidden">
           {/* Chat */}
           <div className="flex-1 flex flex-col bg-card border border-border rounded-[20px] overflow-hidden">
