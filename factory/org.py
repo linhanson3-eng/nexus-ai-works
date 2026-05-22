@@ -8,7 +8,6 @@ from pathlib import Path
 import yaml
 
 from config.schema import AgentSpec, DepartmentSpec, OrgSpec
-from factory.template import TemplateLibrary
 from factory.warehouse import Warehouse
 from factory.workflow import WorkflowStore
 
@@ -16,7 +15,7 @@ from factory.workflow import WorkflowStore
 class Workshop:
     """一个工作区 = 隔离 workspace + Agent 集合 + 工作流引擎。"""
 
-    def __init__(self, spec: DepartmentSpec, templates: TemplateLibrary, warehouse: Warehouse):
+    def __init__(self, spec: DepartmentSpec, warehouse: Warehouse):
         self.spec = spec
         self.name = spec.name
         self.workspace = Path(spec.workspace).expanduser().resolve()
@@ -24,7 +23,6 @@ class Workshop:
         self.agents: dict[str, AgentSpec] = {}
         self.workflow_name = spec.workflow.name if spec.workflow else "simple"
 
-        self._templates = templates
         self._setup_workspace()
         self._spawn_agents()
 
@@ -39,13 +37,19 @@ class Workshop:
     def _spawn_agents(self) -> None:
         """根据 spec 实例化所有 Agent。"""
         for agent_cfg in self.spec.agents:
-            tmpl_name = getattr(agent_cfg, "template", "") or ""
-            agent_spec = self._templates.create_agent_spec(
-                template_name=tmpl_name,
+            agent_spec = AgentSpec(
                 name=agent_cfg.name,
+                mode=agent_cfg.mode,
                 model=agent_cfg.model,
+                tools=agent_cfg.tools,
+                system_prompt=agent_cfg.system_prompt,
+                guide_file=agent_cfg.guide_file,
+                skills=agent_cfg.skills,
+                permissions=agent_cfg.permissions,
+                budget=agent_cfg.budget,
+                template=agent_cfg.template,
+                role=agent_cfg.role,
             )
-            # 限制写权限到本工作区
             agent_spec.permissions.warehouse.write = [self.name]
             self.agents[agent_spec.name] = agent_spec
 
@@ -79,7 +83,6 @@ class OrgEngine:
         self.config_path = Path(config_path)
         self.spec: OrgSpec = self._load()
         self.warehouse = Warehouse(self.spec.warehouse.path)
-        self.templates = TemplateLibrary()
         self.workflow_store = WorkflowStore()
         self.workshops: list[Workshop] = []
 
@@ -97,7 +100,7 @@ class OrgEngine:
             if not dept_spec.workspace:
                 dept_spec.workspace = f"workspaces/{dept_spec.name}"
 
-            ws = Workshop(dept_spec, self.templates, self.warehouse)
+            ws = Workshop(dept_spec, self.warehouse)
             self.workshops.append(ws)
         return self.workshops
 
@@ -105,7 +108,7 @@ class OrgEngine:
         """动态创建一个工作区（无需重启）。"""
         if not dept_spec.workspace:
             dept_spec.workspace = f"workspaces/{dept_spec.name}"
-        ws = Workshop(dept_spec, self.templates, self.warehouse)
+        ws = Workshop(dept_spec, self.warehouse)
         self.workshops.append(ws)
         return ws
 

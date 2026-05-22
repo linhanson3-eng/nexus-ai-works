@@ -57,11 +57,7 @@ class WorkshopManager:
             agent_specs.append(spec)
         else:
             for aname in agents:
-                spec = self.org.templates.create_agent_spec(
-                    template_name=aname,
-                    name=aname,
-                    model=model,
-                )
+                spec = AgentSpec(name=aname, model=model)
                 agent_specs.append(spec)
 
         dept_spec = DepartmentSpec(

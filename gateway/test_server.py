@@ -43,6 +43,10 @@ async def app(kanban_store):
 async def client(app):
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as c:
+        # Fetch CSRF token cookie first
+        resp = await c.get("/api/csrf-token")
+        token = resp.json()["token"]
+        c.headers["X-CSRF-Token"] = token
         yield c
 
 
