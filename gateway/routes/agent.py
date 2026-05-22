@@ -10,6 +10,7 @@ import re
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse, StreamingResponse
+from pydantic import BaseModel, Field
 
 from gateway.auth import require_auth
 
@@ -18,6 +19,20 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["agent"])
 
 REQUEST_TIMEOUT = int(os.environ.get("AGENT_REQUEST_TIMEOUT", "600"))
+
+
+class AgentRunRequest(BaseModel):
+    task: str
+    workshop: str = ""
+
+
+class AgentChatRequest(BaseModel):
+    message: str
+
+
+class AgentAnswerRequest(BaseModel):
+    request_id: str = ""
+    answer: str = ""
 
 
 def _org(request: Request):
@@ -41,14 +56,13 @@ def _sse(event: str, data: dict) -> str:
 
 
 @router.post("/agent/run", dependencies=[Depends(require_auth)])
-async def agent_run(request: Request):
+async def agent_run(body: AgentRunRequest, request: Request):
     from factory.workshop.manager import WorkshopManager
     from factory.runner import NexusAgentRunner
     from factory.memory import MemoryStore
 
-    body = await request.json()
-    task = body.get("task", "").strip()
-    workshop_name = body.get("workshop", "")
+    task = body.task.strip()
+    workshop_name = body.workshop
     if not task:
         return JSONResponse(content={"detail": "task is required"}, status_code=400)
 
@@ -90,14 +104,13 @@ async def agent_run(request: Request):
 
 
 @router.post("/agent/run/stream", dependencies=[Depends(require_auth)])
-async def agent_run_stream(request: Request):
+async def agent_run_stream(body: AgentRunRequest, request: Request):
     from factory.workshop.manager import WorkshopManager
     from factory.runner import NexusAgentRunner
     from factory.memory import MemoryStore
 
-    body = await request.json()
-    task = body.get("task", "").strip()
-    workshop_name = body.get("workshop", "")
+    task = body.task.strip()
+    workshop_name = body.workshop
     if not task:
         return JSONResponse(content={"detail": "task is required"}, status_code=400)
 
@@ -163,10 +176,9 @@ async def poll_question(request_id: str, request: Request):
 
 
 @router.post("/agent/answer", dependencies=[Depends(require_auth)])
-async def submit_answer(request: Request):
-    body = await request.json()
-    request_id = body.get("request_id", "")
-    answer = body.get("answer", "")
+async def submit_answer(body: AgentAnswerRequest, request: Request):
+    request_id = body.request_id
+    answer = body.answer
     if not request_id:
         return JSONResponse(content={"detail": "request_id required"}, status_code=400)
     ok = _question_bridge(request).submit_answer(request_id, answer)
@@ -177,12 +189,11 @@ async def submit_answer(request: Request):
 
 
 @router.post("/agent/chat", dependencies=[Depends(require_auth)])
-async def agent_chat(request: Request):
+async def agent_chat(body: AgentChatRequest, request: Request):
     from factory.workshop.manager import WorkshopManager
     from factory.workflow.engine import WorkflowRunner
 
-    body = await request.json()
-    message = body.get("message", "").strip()
+    message = body.message.strip()
     if not message:
         return JSONResponse(content={"reply": "请输入消息。", "actions": []})
 

@@ -7,10 +7,16 @@ import json
 
 from fastapi import APIRouter, Body, Depends, Request
 from fastapi.responses import JSONResponse, StreamingResponse
+from pydantic import BaseModel
 
 from gateway.auth import require_auth
 
 router = APIRouter(prefix="/api", tags=["workflows"])
+
+
+class ExecuteWorkflowRequest(BaseModel):
+    task: str
+    workshop: str = ""
 
 
 def _org(request: Request):
@@ -63,13 +69,12 @@ async def delete_workflow(name: str, request: Request):
 
 
 @router.post("/workflows/{name}/execute", dependencies=[Depends(require_auth)])
-async def execute_workflow_stream(name: str, request: Request):
+async def execute_workflow_stream(name: str, body: ExecuteWorkflowRequest, request: Request):
     from factory.workshop.manager import WorkshopManager
     from factory.workflow.engine import WorkflowRunner
 
-    body = await request.json()
-    task = body.get("task", "").strip()
-    workshop_name = body.get("workshop", "")
+    task = body.task.strip()
+    workshop_name = body.workshop
 
     if not task:
         return JSONResponse(content={"detail": "task is required"}, status_code=400)

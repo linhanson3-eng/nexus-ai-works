@@ -53,6 +53,8 @@ CREATE TABLE IF NOT EXISTS kanban_cards (
 CREATE INDEX IF NOT EXISTS idx_kanban_cards_status ON kanban_cards(task_status);
 CREATE INDEX IF NOT EXISTS idx_kanban_cards_agent ON kanban_cards(source_agent);
 CREATE INDEX IF NOT EXISTS idx_kanban_lists_board ON kanban_lists(board_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_card_task ON kanban_cards(source_agent, source_task_id)
+    WHERE source_agent != '' AND source_task_id != '';
 """
 
 
@@ -298,26 +300,34 @@ class KanbanStore:
         If the card doesn't exist and no list_id is given, a default
         board and 'To Do' list are created automatically.
         """
-        existing = self.conn.execute(
-            "SELECT * FROM kanban_cards WHERE source_agent = ? AND source_task_id = ?",
-            (agent_name, task_id),
-        ).fetchone()
-        if existing:
-            self.update_card(existing["id"], title=title, task_status=status)
-            updated = self.conn.execute(
-                "SELECT * FROM kanban_cards WHERE id = ?", (existing["id"],)
+        self.conn.execute("BEGIN IMMEDIATE")
+        try:
+            existing = self.conn.execute(
+                "SELECT * FROM kanban_cards WHERE source_agent = ? AND source_task_id = ?",
+                (agent_name, task_id),
             ).fetchone()
-            return self._row_to_card(dict(updated))
+            if existing:
+                self.update_card(existing["id"], title=title, task_status=status)
+                updated = self.conn.execute(
+                    "SELECT * FROM kanban_cards WHERE id = ?", (existing["id"],)
+                ).fetchone()
+                return self._row_to_card(dict(updated))
 
-        if not list_id:
-            list_id = self._ensure_default_list(agent_name)
-        return self.create_card(
-            list_id=list_id, title=title, task_status=status,
-            source_agent=agent_name, source_task_id=task_id,
-        )
+            if not list_id:
+                list_id = self._ensure_default_list(agent_name)
+            return self.create_card(
+                list_id=list_id, title=title, task_status=status,
+                source_agent=agent_name, source_task_id=task_id,
+            )
+        except Exception:
+            self.conn.execute("ROLLBACK")
+            raise
 
     def _ensure_default_list(self, agent_name: str) -> str:
         """Get or create a default board and 'To Do' list for an agent."""
+        in_txn = self.conn.in_transaction
+        if not in_txn:
+            self.conn.execute("BEGIN IMMEDIATE")
         board = self.conn.execute(
             "SELECT id FROM kanban_boards WHERE workshop_name = ? LIMIT 1",
             (agent_name,),
@@ -367,7 +377,23 @@ class KanbanStore:
         if not board:
             return {}
         lists = self.get_lists(board_id)
+        if not lists:
+            board["lists"] = []
+            return board
+        # Batch-fetch all cards for all lists in ONE query (fix N+1)
+        list_ids = [lst["id"] for lst in lists]
+        placeholders = ",".join("?" for _ in list_ids)
+        rows = self.conn.execute(
+            f"SELECT * FROM kanban_cards WHERE list_id IN ({placeholders}) ORDER BY position",
+            list_ids,
+        ).fetchall()
+        cards_by_list: dict[str, list] = {}
+        for row in rows:
+            lid = row["list_id"]
+            if lid not in cards_by_list:
+                cards_by_list[lid] = []
+            cards_by_list[lid].append(dict(row))
         for lst in lists:
-            lst["cards"] = self.get_cards(lst["id"])
+            lst["cards"] = cards_by_list.get(lst["id"], [])
         board["lists"] = lists
         return board

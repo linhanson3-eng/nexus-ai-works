@@ -305,7 +305,7 @@ class WorkshopManager:
                         chain_data = c.to_dict()
                     break
         except Exception:
-            pass
+            logger.warning("Failed to load chain for export: %s", name, exc_info=True)
 
         pkg_dir = pack_workspace(
             workspace_name=name,
@@ -465,7 +465,10 @@ class WorkshopManager:
 
         # Remove workspace directory
         import shutil
-        ws_dir = ws.workspace
+        ws_dir = Path(ws.workspace).resolve()
+        workspaces_root = Path("workspaces").resolve()
+        if not str(ws_dir).startswith(str(workspaces_root)):
+            raise ValueError(f"Refusing to remove directory outside workspaces: {ws_dir}")
         if ws_dir.exists():
             shutil.rmtree(ws_dir)
             result["directory_removed"] = True
