@@ -16,3 +16,4 @@ webui/dist/
 .port_sessions/
 ~/.nexus/
 ~/.factory/
+.coverage
