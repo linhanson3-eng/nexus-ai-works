@@ -117,13 +117,19 @@ class WorkshopManager:
         ws = self.get(name)
         if ws is None:
             return False
-        # Remove kanban board
+        # Remove all kanban boards for this workshop
         if self.kanban_store:
-            board = self.kanban_store.get_board_by_name(name, name)
-            if board:
-                self.kanban_store.delete_board(board["id"])
-        # Remove from org
+            boards = self.kanban_store.list_boards(name)
+            for b in boards:
+                self.kanban_store.delete_board(b["id"])
+        # Remove from org (in-memory)
         self.org.workshops = [w for w in self.org.workshops if w.name != name]
+        # Remove from org spec
+        self.org.spec.departments = [
+            d for d in self.org.spec.departments if d.name != name
+        ]
+        # Persist to disk
+        self._persist_org()
         return True
 
     def status(self, name: str) -> dict | None:

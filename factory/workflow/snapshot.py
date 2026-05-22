@@ -6,11 +6,15 @@ Storage: ~/.nexus/runs/{run_id}.json
 from __future__ import annotations
 
 import json
+import logging
+import os
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
 from .models import NodeStatus, WorkflowTemplate
+
+logger = logging.getLogger(__name__)
 
 SNAPSHOT_DIR = Path("~/.nexus/runs").expanduser()
 
@@ -47,9 +51,10 @@ class RunSnapshot:
             "retries": retries,
             "final_output": final_output,
         }
-        self._path(run_id).write_text(
-            json.dumps(data, ensure_ascii=False, indent=2)
-        )
+        target = self._path(run_id)
+        tmp = target.with_suffix(".tmp")
+        tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2))
+        os.replace(tmp, target)  # atomic rename
 
     def load(self, run_id: str) -> dict | None:
         path = self._path(run_id)
@@ -69,6 +74,7 @@ class RunSnapshot:
             try:
                 data = json.loads(f.read_text())
             except (json.JSONDecodeError, OSError):
+                logger.warning("Corrupt snapshot file: %s", f)
                 continue
             states = data.get("node_states", {})
             has_incomplete = any(
@@ -81,8 +87,7 @@ class RunSnapshot:
 
     def delete(self, run_id: str) -> None:
         path = self._path(run_id)
-        if path.exists():
-            path.unlink()
+        path.unlink(missing_ok=True)
 
     @staticmethod
     def new_run_id() -> str:
