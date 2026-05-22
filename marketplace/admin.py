@@ -16,8 +16,6 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from marketplace.models import ActivateRequest, MarketplacePackage
 from marketplace.store import MarketplaceStore
 
-ADMIN_TOKEN = "nexus-admin-secret"
-
 admin = FastAPI(title="Nexus Solution Marketplace — Admin", version="1.0.0")
 
 store = MarketplaceStore()
@@ -29,9 +27,11 @@ def require_admin(
     credentials: HTTPAuthorizationCredentials | None = Depends(security),
 ) -> None:
     """Verify the admin token. Raises 403 if invalid."""
+    from marketplace.auth import verify_admin_token
+
     if credentials is None:
         raise HTTPException(status_code=403, detail="Missing admin token")
-    if credentials.credentials != ADMIN_TOKEN:
+    if not verify_admin_token(credentials.credentials):
         raise HTTPException(status_code=403, detail="Invalid admin token")
 
 

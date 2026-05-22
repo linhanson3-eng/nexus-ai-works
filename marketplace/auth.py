@@ -108,3 +108,15 @@ def decode_token(token: str) -> dict | None:
         return payload
     except Exception:
         return None
+
+
+import os as _os
+
+ADMIN_TOKEN_HASH = _os.environ.get("MARKETPLACE_ADMIN_TOKEN_HASH", "")
+if not ADMIN_TOKEN_HASH:
+    ADMIN_TOKEN_HASH = hash_password("nexus-admin-secret")
+
+
+def verify_admin_token(token: str) -> bool:
+    """Verify admin token against stored hash."""
+    return verify_password(token, ADMIN_TOKEN_HASH)

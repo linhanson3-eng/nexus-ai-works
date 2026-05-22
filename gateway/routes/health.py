@@ -28,3 +28,9 @@ async def csrf_token(request: Request):
         secure=False,
     )
     return resp
+
+
+@router.get("/api/auth/status")
+async def auth_status():
+    from gateway.auth import API_KEY_PATH
+    return {"key_configured": API_KEY_PATH.exists()}

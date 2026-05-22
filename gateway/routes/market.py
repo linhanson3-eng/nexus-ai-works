@@ -7,9 +7,13 @@ import zipfile
 import shutil
 from pathlib import Path
 
+from datetime import datetime, timezone
+
 import httpx
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, StreamingResponse
+
+from gateway.signature import sign_request
 
 router = APIRouter(prefix="/api/market", tags=["market"])
 CLOUD_URL = os.environ.get("MARKETPLACE_API_URL", "http://127.0.0.1:8800")
@@ -27,14 +31,21 @@ def _forward_headers(request: Request) -> dict[str, str]:
     return headers
 
 
+def _signed_headers(method: str, path: str, body: str = "") -> dict[str, str]:
+    ts = datetime.now(timezone.utc).isoformat()
+    sig = sign_request(method, path, body, ts)
+    return {"X-Signature": sig, "X-Timestamp": ts}
+
+
 async def _proxy_get(request: Request, cloud_path: str) -> JSONResponse:
     """Forward a GET request to the cloud API."""
     async with httpx.AsyncClient(timeout=30.0) as client:
         url = f"{CLOUD_URL.rstrip('/')}{cloud_path}"
+        headers = {**_forward_headers(request), **_signed_headers("GET", cloud_path)}
         resp = await client.get(
             url,
             params=dict(request.query_params),
-            headers=_forward_headers(request),
+            headers=headers,
         )
         try:
             data = resp.json()
@@ -48,10 +59,14 @@ async def _proxy_post(request: Request, cloud_path: str) -> JSONResponse:
     async with httpx.AsyncClient(timeout=30.0) as client:
         url = f"{CLOUD_URL.rstrip('/')}{cloud_path}"
         body = await request.body()
+        headers = {
+            **_forward_headers(request),
+            **_signed_headers("POST", cloud_path, body.decode()),
+        }
         resp = await client.post(
             url,
             content=body,
-            headers=_forward_headers(request),
+            headers=headers,
         )
         try:
             data = resp.json()
@@ -111,7 +126,9 @@ async def install_package(package_id: str, request: Request):
         # 1. Download zip from cloud
         async with httpx.AsyncClient(timeout=120.0) as client:
             url = f"{CLOUD_URL.rstrip('/')}/api/packages/{package_id}/download"
-            resp = await client.get(url, headers=_forward_headers(request))
+            cloud_path = f"/api/packages/{package_id}/download"
+            headers = {**_forward_headers(request), **_signed_headers("GET", cloud_path)}
+            resp = await client.get(url, headers=headers)
             if resp.status_code != 200:
                 try:
                     detail = resp.json()
