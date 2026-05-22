@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import os
 import secrets
 from pathlib import Path
 
@@ -26,12 +27,16 @@ def get_or_create_secret() -> str:
     # Migrate from old path
     if OLD_SECRET_PATH.exists():
         secret = OLD_SECRET_PATH.read_text().strip()
-        SECRET_PATH.write_text(secret)
-        SECRET_PATH.chmod(0o600)
+        tmp_path = SECRET_PATH.with_suffix(".tmp")
+        tmp_path.write_text(secret)
+        tmp_path.chmod(0o600)
+        os.replace(tmp_path, SECRET_PATH)
         return secret
     secret = secrets.token_hex(32)
-    SECRET_PATH.write_text(secret)
-    SECRET_PATH.chmod(0o600)
+    tmp_path = SECRET_PATH.with_suffix(".tmp")
+    tmp_path.write_text(secret)
+    tmp_path.chmod(0o600)
+    os.replace(tmp_path, SECRET_PATH)
     return secret
 
 

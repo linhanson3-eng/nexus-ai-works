@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import hmac
+import os
 import secrets
 from pathlib import Path
 
@@ -22,8 +23,10 @@ def get_or_create_api_key() -> str:
     if API_KEY_PATH.exists():
         return API_KEY_PATH.read_text().strip()
     key = "nk-" + secrets.token_hex(24)
-    API_KEY_PATH.write_text(key)
-    API_KEY_PATH.chmod(0o600)
+    tmp_path = API_KEY_PATH.with_suffix(".tmp")
+    tmp_path.write_text(key)
+    tmp_path.chmod(0o600)
+    os.replace(tmp_path, API_KEY_PATH)
     return key
 
 

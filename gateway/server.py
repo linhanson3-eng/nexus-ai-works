@@ -13,6 +13,7 @@ from datetime import datetime, timezone
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from slowapi.middleware import SlowAPIMiddleware
 
@@ -207,6 +208,21 @@ def create_app(org: "OrgEngine", kanban_store: "KanbanStore") -> FastAPI:
             "/api/market/",
         ),
     )
+
+    # --- Max body size (10 MB) ---
+    class MaxBodySizeMiddleware(BaseHTTPMiddleware):
+        async def dispatch(self, request, call_next):
+            if request.method in ("POST", "PUT", "PATCH"):
+                content_length = request.headers.get("content-length")
+                if content_length and int(content_length) > 10 * 1024 * 1024:
+                    from fastapi.responses import JSONResponse
+                    return JSONResponse(
+                        content={"detail": "Request body too large"},
+                        status_code=413,
+                    )
+            return await call_next(request)
+
+    app.add_middleware(MaxBodySizeMiddleware)
 
     # --- Rate limiting ---
     app.add_middleware(SlowAPIMiddleware)

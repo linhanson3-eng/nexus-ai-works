@@ -19,13 +19,14 @@ async def csrf_token(request: Request):
 
     token = request.cookies.get(CSRF_COOKIE) or _generate_token()
     resp = JSONResponse(content={"token": token})
+    is_secure = request.headers.get("X-Forwarded-Proto", "http") == "https"
     resp.set_cookie(
         CSRF_COOKIE,
         token,
         max_age=COOKIE_MAX_AGE,
         httponly=False,
         samesite="strict",
-        secure=False,
+        secure=is_secure,
     )
     return resp
 

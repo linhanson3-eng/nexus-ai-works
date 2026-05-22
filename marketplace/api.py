@@ -12,6 +12,9 @@ from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from slowapi import Limiter
+from slowapi.middleware import SlowAPIMiddleware
+from slowapi.util import get_remote_address
 
 from marketplace.auth import create_token, decode_token, hash_password, verify_password
 from marketplace.models import (
@@ -39,6 +42,10 @@ app.add_middleware(
     allow_methods=["GET", "POST", "DELETE"],
     allow_headers=["Content-Type", "Authorization", "X-CSRF-Token"],
 )
+
+limiter = Limiter(key_func=get_remote_address, default_limits=["30/minute"])
+app.state.limiter = limiter
+app.add_middleware(SlowAPIMiddleware)
 
 store = MarketplaceStore()
 security = HTTPBearer(auto_error=False)

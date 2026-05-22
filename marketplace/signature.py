@@ -51,11 +51,13 @@ async def verify_signature(request: Request) -> None:
     # Anti-replay: +/- 5 minute window
     try:
         req_time = datetime.fromisoformat(ts)
+        if req_time.tzinfo is None:
+            req_time = req_time.replace(tzinfo=timezone.utc)
         now = datetime.now(timezone.utc)
         if abs((now - req_time).total_seconds()) > 300:
             raise HTTPException(status_code=401, detail="Timestamp expired")
-    except ValueError:
-        raise HTTPException(status_code=401, detail="Invalid timestamp")
+    except ValueError as e:
+        raise HTTPException(status_code=401, detail="Invalid timestamp") from e
 
     secret = _get_shared_secret()
 

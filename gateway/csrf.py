@@ -23,6 +23,12 @@ def _generate_token() -> str:
     return secrets.token_hex(32)
 
 
+def _path_matches(request_path: str, prefix: str) -> bool:
+    """Match prefix only if followed by ``/`` or end of string."""
+    normalized = prefix.rstrip("/")
+    return request_path == normalized or request_path.startswith(normalized + "/")
+
+
 class CSRFTokenMiddleware(BaseHTTPMiddleware):
     """Middleware that sets csrf_token cookie and validates on unsafe methods.
 
@@ -36,7 +42,7 @@ class CSRFTokenMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         # Skip certain paths (e.g. webhook callbacks, SSE streams)
         for prefix in self._skip_prefixes:
-            if request.url.path.startswith(prefix):
+            if _path_matches(request.url.path, prefix):
                 return await call_next(request)
 
         # Read existing token or generate new one
@@ -52,12 +58,13 @@ class CSRFTokenMiddleware(BaseHTTPMiddleware):
         if not cookie_token:
             cookie_token = _generate_token()
 
+        is_secure = request.headers.get("X-Forwarded-Proto", "http") == "https"
         response.set_cookie(
             CSRF_COOKIE,
             cookie_token,
             max_age=COOKIE_MAX_AGE,
             httponly=False,  # must be JS-readable for double-submit
             samesite="strict",
-            secure=False,  # True in prod behind HTTPS
+            secure=is_secure,
         )
         return response
