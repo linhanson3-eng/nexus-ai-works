@@ -1,0 +1,202 @@
+"""Settings endpoints: providers, skills, tools, plugins, and search."""
+
+from __future__ import annotations
+
+from fastapi import APIRouter, Body, Request
+from fastapi.responses import JSONResponse
+
+router = APIRouter(prefix="/api", tags=["settings"])
+
+
+def _settings_store(request: Request):
+    return request.app.state.settings_store
+
+
+# ── Providers ──
+
+
+@router.get("/settings/providers")
+async def list_providers(request: Request):
+    return JSONResponse(content=_settings_store(request).list_providers())
+
+
+@router.post("/settings/providers")
+async def save_provider(request: Request):
+    body = await request.json()
+    name = body.pop("name", "")
+    if not name:
+        return JSONResponse(content={"detail": "name is required"}, status_code=400)
+    result = _settings_store(request).save_provider(name, **body)
+    return JSONResponse(content=result)
+
+
+@router.delete("/settings/providers/{name}")
+async def delete_provider(name: str, request: Request):
+    ok = _settings_store(request).delete_provider(name)
+    if not ok:
+        return JSONResponse(content={"detail": "Not found"}, status_code=404)
+    return JSONResponse(content={"deleted": name})
+
+
+# ── Skills ──
+
+
+@router.get("/settings/skills")
+async def list_settings_skills():
+    from factory.skills.marketplace import SkillMarketplace
+
+    mp = SkillMarketplace()
+    mp.discover()
+    return JSONResponse(content=[
+        {
+            "name": s.name, "full_name": s.full_name, "description": s.description,
+            "plugin": s.plugin, "source": s.source, "file_path": s.file_path,
+        }
+        for s in mp.list_all()
+    ])
+
+
+@router.post("/settings/skills/sync")
+async def sync_skills():
+    from factory.skills.marketplace import SkillMarketplace
+
+    mp = SkillMarketplace()
+    count = mp.discover()
+    return JSONResponse(content={
+        "status": "ok", "count": count,
+        "skills": [
+            {
+                "name": s.name, "full_name": s.full_name, "description": s.description,
+                "plugin": s.plugin, "source": s.source,
+            }
+            for s in mp.list_all()
+        ],
+    })
+
+
+@router.get("/settings/skills/{name}")
+async def get_skill_detail(name: str):
+    from factory.skills.marketplace import SkillMarketplace
+
+    mp = SkillMarketplace()
+    mp.discover()
+    skill = mp.get(name)
+    if skill is None:
+        return JSONResponse(content={"detail": "Not found"}, status_code=404)
+    return JSONResponse(content={
+        "name": skill.name, "full_name": skill.full_name,
+        "description": skill.description, "plugin": skill.plugin,
+        "source": skill.source, "file_path": skill.file_path,
+        "body": skill.get_body()[:5000],
+    })
+
+
+# ── Tools ──
+
+
+@router.get("/settings/tools")
+async def list_settings_tools():
+    from factory.mcp.registry import MCPRegistry
+
+    registry = MCPRegistry()
+    servers = []
+    for s in registry.list_servers():
+        servers.append({
+            "name": s.name, "description": s.description,
+            "category": s.category, "transport": s.transport,
+        })
+    for entry in registry.list_marketplace():
+        servers.append({
+            "name": entry.name, "description": entry.description,
+            "category": entry.category, "install_command": entry.install_command,
+        })
+    return JSONResponse(content=servers)
+
+
+@router.post("/settings/tools")
+async def save_tool(request: Request):
+    body = await request.json()
+    name = body.pop("name", "")
+    if not name:
+        return JSONResponse(content={"detail": "name is required"}, status_code=400)
+    result = _settings_store(request).save_tool(name, **body)
+    return JSONResponse(content=result)
+
+
+@router.post("/settings/tools/sync")
+async def sync_tools():
+    from factory.mcp.registry import MCPRegistry
+
+    registry = MCPRegistry()
+    servers = []
+    for s in registry.list_servers():
+        servers.append({
+            "name": s.name, "description": s.description, "category": s.category,
+        })
+    for entry in registry.list_marketplace():
+        servers.append({
+            "name": entry.name, "description": entry.description,
+            "category": entry.category, "install_command": entry.install_command,
+        })
+    return JSONResponse(content={"status": "ok", "count": len(servers), "servers": servers})
+
+
+# ── Plugins ──
+
+
+@router.get("/settings/plugins")
+async def list_settings_plugins(request: Request):
+    from factory.channel.adapter import get_adapter, list_adapters as list_channel_names
+
+    names = list_channel_names()
+    stored = _settings_store(request).list_plugins()
+    result = {}
+    for name in names:
+        adapter = get_adapter(name)
+        result[name] = {
+            "name": name,
+            "enabled": stored.get(name, {}).get("enabled", True),
+            "healthy": adapter.health() if adapter else False,
+        }
+    for name, cfg in stored.items():
+        if name not in result:
+            result[name] = {"name": name, "enabled": cfg.get("enabled", False), "healthy": False}
+    return JSONResponse(content=result)
+
+
+@router.post("/settings/plugins")
+async def save_plugin(request: Request):
+    body = await request.json()
+    name = body.pop("name", "")
+    if not name:
+        return JSONResponse(content={"detail": "name is required"}, status_code=400)
+    result = _settings_store(request).save_plugin(name, **body)
+    return JSONResponse(content=result)
+
+
+@router.delete("/settings/plugins/{name}")
+async def delete_plugin(name: str, request: Request):
+    ok = _settings_store(request).delete_plugin(name)
+    if not ok:
+        return JSONResponse(content={"detail": "Not found"}, status_code=404)
+    return JSONResponse(content={"deleted": name})
+
+
+# ── Search ──
+
+
+@router.get("/settings/search")
+async def get_search_config(request: Request):
+    return JSONResponse(content=_settings_store(request).get_search())
+
+
+@router.post("/settings/search")
+async def save_search_config(body: dict = Body(...), request: Request = None):  # type: ignore[assignment]
+    allowed = {
+        "tavily_api_key", "brave_api_key", "searxng_base_url",
+        "active_provider", "deep_search_enabled", "max_results",
+    }
+    fields = {k: v for k, v in body.items() if k in allowed}
+    store = _settings_store(request) if request and hasattr(request, "app") else None
+    result = store.save_search(**fields) if store else {}
+    return JSONResponse(content=result)
