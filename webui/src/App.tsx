@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { ToastProvider } from "./components/Toast";
 import { ErrorBoundary } from "./components/ErrorBoundary";
@@ -10,8 +11,14 @@ import { KanbanBoard } from "./components/KanbanBoard";
 import { WorkflowList } from "./components/WorkflowList";
 import { ChainList } from "./components/ChainList";
 import { ModuleFactory } from "./components/ModuleFactory";
+import { TemplateLibrary } from "./components/TemplateLibrary";
+import { Marketplace } from "./components/Marketplace";
+import { fetchCsrfToken } from "./lib/api";
 
 function App() {
+  useEffect(() => {
+    fetchCsrfToken();
+  }, []);
   return (
     <ToastProvider>
       <BrowserRouter>
@@ -26,6 +33,8 @@ function App() {
             <Route path="/chains" element={<ErrorBoundary><ChainList /></ErrorBoundary>} />
             <Route path="/factory" element={<ErrorBoundary><ModuleFactory /></ErrorBoundary>} />
             <Route path="/settings" element={<ErrorBoundary><Settings /></ErrorBoundary>} />
+            <Route path="/library" element={<ErrorBoundary><TemplateLibrary /></ErrorBoundary>} />
+            <Route path="/market" element={<ErrorBoundary><Marketplace /></ErrorBoundary>} />
             <Route path="*" element={<Navigate to="/chat" replace />} />
           </Route>
         </Routes>

@@ -161,3 +161,53 @@ export interface ChainInfo {
   step_count: number;
   steps: string[];
 }
+
+export interface LibraryEntry {
+  id: string;
+  entry_type: "workflow" | "agent" | "role";
+  name: string;
+  description: string;
+  category: string;
+  tags: string[];
+  source_workshop: string;
+  version: string;
+  created_at: string;
+  body: string;
+}
+
+// ── Marketplace ──
+
+export interface MarketPackage {
+  id: string;
+  name: string;
+  description: string;
+  long_description: string;
+  category: string;
+  tags: string[];
+  author: string;
+  version: string;
+  icon_url: string;
+  screenshots: string[];
+  plan_monthly_price: number;
+  plan_yearly_price: number;
+  package_size: number;
+  download_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MarketSubscription {
+  package_id: string;
+  plan_type: string;
+  expires_at: string;
+  created_at: string;
+  name: string;
+  category: string;
+  version: string;
+}
+
+export interface UserInfo {
+  user_id: string;
+  username: string;
+  is_vip: boolean;
+}

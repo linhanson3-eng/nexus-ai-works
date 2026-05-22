@@ -1,17 +1,44 @@
-import type { KanbanBoard, KanbanCard, KanbanList, OrgStatus, SearchConfig, SkillDetail, WorkflowInfo, WorkflowResult, WorkflowTemplate, Workshop } from "./types";
+import type { KanbanBoard, KanbanCard, KanbanList, LibraryEntry, MarketPackage, MarketSubscription, OrgStatus, SearchConfig, SkillDetail, UserInfo, WorkflowInfo, WorkflowResult, WorkflowTemplate, Workshop } from "./types";
 
 const BASE = "/api";
 
-async function get<T>(url: string): Promise<T> {
-  const res = await fetch(`${BASE}${url}`);
+let _csrfToken: string | null = null;
+
+function csrfHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {};
+  if (_csrfToken) {
+    headers["X-CSRF-Token"] = _csrfToken;
+  }
+  return headers;
+}
+
+export async function fetchCsrfToken(): Promise<void> {
+  const res = await fetch(`${BASE}/csrf-token`, { credentials: "include" });
+  if (res.ok) {
+    const data = await res.json();
+    _csrfToken = data.token;
+  }
+}
+
+async function get<T>(url: string, authToken?: string): Promise<T> {
+  const headers: Record<string, string> = {};
+  if (authToken) {
+    headers["Authorization"] = `Bearer ${authToken}`;
+  }
+  const res = await fetch(`${BASE}${url}`, { headers, credentials: "include" });
   if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
   return res.json();
 }
 
-async function post<T>(url: string, body: unknown): Promise<T> {
+async function post<T>(url: string, body: unknown, authToken?: string): Promise<T> {
+  const headers: Record<string, string> = { "Content-Type": "application/json", ...csrfHeaders() };
+  if (authToken) {
+    headers["Authorization"] = `Bearer ${authToken}`;
+  }
   const res = await fetch(`${BASE}${url}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers,
+    credentials: "include",
     body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
@@ -19,14 +46,19 @@ async function post<T>(url: string, body: unknown): Promise<T> {
 }
 
 async function del(url: string): Promise<void> {
-  const res = await fetch(`${BASE}${url}`, { method: "DELETE" });
+  const res = await fetch(`${BASE}${url}`, {
+    method: "DELETE",
+    headers: csrfHeaders(),
+    credentials: "include",
+  });
   if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
 }
 
 async function put<T>(url: string, body: unknown): Promise<T> {
   const res = await fetch(`${BASE}${url}`, {
     method: "PUT",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...csrfHeaders() },
+    credentials: "include",
     body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
@@ -117,6 +149,32 @@ export const api = {
   getChain: (name: string) => get<import("./types").ChainTemplate>("/chains/" + name),
   saveChain: (data: import("./types").ChainTemplate) => post<import("./types").ChainTemplate>("/chains", data),
   deleteChain: (name: string) => del("/chains/" + name),
+
+  // ── Library ──
+  listLibrary: (type: string, search?: string, category?: string) =>
+    get<LibraryEntry[]>(`/library/${type}?search=${encodeURIComponent(search || "")}&category=${encodeURIComponent(category || "")}`),
+  getLibraryEntry: (type: string, name: string) =>
+    get<LibraryEntry>(`/library/${type}/${encodeURIComponent(name)}`),
+  saveToLibrary: (type: string, data: { name: string; description?: string; category?: string; tags?: string[]; workshop?: string }) =>
+    post<LibraryEntry>(`/library/${type}`, data),
+  installFromLibrary: (type: string, name: string, workshop: string) =>
+    post<{ installed: string }>(`/library/${type}/${encodeURIComponent(name)}/install`, { workshop }),
+  deleteFromLibrary: (type: string, name: string) =>
+    del(`/library/${type}/${encodeURIComponent(name)}`),
+
+  // ── Marketplace ──
+  marketCatalog: (category?: string) =>
+    get<MarketPackage[]>(`/market/catalog?category=${encodeURIComponent(category || "")}`),
+  marketPackage: (id: string) =>
+    get<MarketPackage>(`/market/packages/${id}`),
+  marketInstall: (id: string, token: string) =>
+    post<Record<string, unknown>>(`/market/packages/${id}/install`, {}, token),
+  marketMy: (token: string) =>
+    get<MarketSubscription[]>("/market/my", token),
+  marketLogin: (username: string, password: string) =>
+    post<{ token: string; user: UserInfo }>("/market/auth/login", { username, password }),
+  marketRegister: (username: string, password: string) =>
+    post<{ token: string; user: UserInfo }>("/market/auth/register", { username, password }),
 };
 
 // ── WebSocket ──
