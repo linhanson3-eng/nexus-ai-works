@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from typing import Any
 
 from mcp import ClientSession
 from mcp.client.stdio import stdio_client, StdioServerParameters
 from mcp.client.streamable_http import streamable_http_client
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -116,8 +119,8 @@ class MCPClient:
         if transport:
             try:
                 await transport.__aexit__(None, None, None)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("MCP transport close failed for %s: %s", server_name, exc)
 
     async def close_all(self) -> None:
         """Disconnect all servers."""

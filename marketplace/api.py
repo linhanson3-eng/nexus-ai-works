@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import os
 from datetime import datetime, timezone
 from pathlib import Path
@@ -21,9 +20,7 @@ from factory.security.audit import record as audit_record, AuditEvent
 from marketplace.auth import create_token, decode_token, hash_password, verify_password
 from marketplace.models import (
     LoginRequest,
-    MarketplacePackage,
     RegisterRequest,
-    Subscription,
     TokenResponse,
     UserInfo,
 )

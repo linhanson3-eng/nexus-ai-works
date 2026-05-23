@@ -1,7 +1,5 @@
 """Tests for usage tracking."""
-import os
 import secrets
-from pathlib import Path
 
 import pytest
 from factory.usage import record, get_user_stats, UsageEvent

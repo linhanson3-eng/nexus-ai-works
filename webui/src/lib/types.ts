@@ -143,37 +143,6 @@ export interface AgentInfo {
 
 // ── Chain ──
 
-export interface ChainStep {
-  workshop: string;
-  workflow: string;
-  description: string;
-}
-
-export interface ChainTemplate {
-  name: string;
-  description: string;
-  steps: ChainStep[];
-}
-
-export interface ChainInfo {
-  name: string;
-  description: string;
-  step_count: number;
-  steps: string[];
-}
-
-export interface LibraryEntry {
-  id: string;
-  entry_type: "workflow" | "agent" | "role";
-  name: string;
-  description: string;
-  category: string;
-  tags: string[];
-  source_workshop: string;
-  version: string;
-  created_at: string;
-  body: string;
-}
 
 // ── Marketplace ──
 

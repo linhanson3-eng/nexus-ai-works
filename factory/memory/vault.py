@@ -6,10 +6,9 @@ SQLite 写入同时维护可读的 Obsidian vault。
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
 from pathlib import Path
 
-from factory.memory.store import Chunk, MemoryStore, SummaryNode, SourceKind
+from factory.memory.store import Chunk, MemoryStore, SummaryNode
 
 
 class VaultWriter:

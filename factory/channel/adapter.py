@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import logging
 from abc import ABC, abstractmethod
 from collections.abc import Awaitable, Callable
 from typing import Any
 
 from factory.channel.types import ChannelMessage
+
+logger = logging.getLogger(__name__)
 
 
 class ChannelAdapter(ABC):
@@ -51,8 +54,13 @@ class ChannelAdapter(ABC):
         for handler in _inbound_handlers:
             try:
                 await handler(message)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning(
+                    "Inbound handler %s failed for channel %s: %s",
+                    getattr(handler, "__name__", handler),
+                    self.name,
+                    exc,
+                )
 
     # -- Health --
 
@@ -120,9 +128,12 @@ class DummyChannel(ChannelAdapter):
     """A no-op channel adapter for testing and development."""
 
     async def send(self, message: ChannelMessage) -> bool:
-        # In test/CLI mode, just print the message
-        print(
-            f"[{self.name}] TO {message.workshop_name or '?'}/{message.agent_name or '?'}: "
-            f"{message.content[:120]}"
+        # In test/CLI mode, log the message
+        logger.debug(
+            "[%s] TO %s/%s: %s",
+            self.name,
+            message.workshop_name or "?",
+            message.agent_name or "?",
+            message.content[:120],
         )
         return True

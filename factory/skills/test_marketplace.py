@@ -2,14 +2,11 @@
 
 from __future__ import annotations
 
-import json
-import tempfile
 from pathlib import Path
 
 import pytest
 
 from factory.skills.marketplace import (
-    MarketplaceSkill,
     SkillMarketplace,
     _infer_plugin_name,
     _parse_frontmatter,

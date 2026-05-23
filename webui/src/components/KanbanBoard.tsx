@@ -4,9 +4,10 @@ import { SortableContext, sortableKeyboardCoordinates, useSortable, verticalList
 import { CSS } from "@dnd-kit/utilities";
 import { GripVertical } from "lucide-react";
 import { api, connectWS } from "../lib/api";
-import type { KanbanBoard as Board } from "../lib/types";
+import type { KanbanBoard as Board, KanbanCard, KanbanList } from "../lib/types";
+import { useToast } from "./Toast";
 
-function Card({ card, onDelete }: { card: any; onDelete: (id: string) => void }) {
+function Card({ card, onDelete }: { card: KanbanCard; onDelete: (id: string) => void }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: card.id, data: { type: "card", card } });
   return (
@@ -19,7 +20,7 @@ function Card({ card, onDelete }: { card: any; onDelete: (id: string) => void })
   );
 }
 
-function Column({ list, cards, onAdd, onDelCard }: { list: any; cards: any[]; onAdd: (listId: string, title: string) => void; onDelCard: (id: string) => void }) {
+function Column({ list, cards, onAdd, onDelCard }: { list: KanbanList; cards: KanbanCard[]; onAdd: (listId: string, title: string) => void; onDelCard: (id: string) => void }) {
   const ids = useMemo(() => cards.map(c => c.id), [cards]);
   const [adding, setAdding] = useState(false);
   const [title, setTitle] = useState("");
@@ -51,9 +52,10 @@ function Column({ list, cards, onAdd, onDelCard }: { list: any; cards: any[]; on
 export function KanbanBoard() {
   const [boards, setBoards] = useState<Board[]>([]);
   const [selectedBoard, setSelectedBoard] = useState<string | null>(null);
-  const [lists, setLists] = useState<any[]>([]);
-  const [activeCard, setActiveCard] = useState<any>(null);
+  const [lists, setLists] = useState<KanbanList[]>([]);
+  const [activeCard, setActiveCard] = useState<KanbanCard | null>(null);
   const wsRef = useRef<(() => void) | null>(null);
+  const toast = useToast();
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -62,10 +64,10 @@ export function KanbanBoard() {
   );
 
   const loadBoard = useCallback(async (id: string) => {
-    try { const b = await api.getBoard(id); setLists((b as any).lists || []); } catch {}
+    try { const b = await api.getBoard(id); setLists(b.lists || []); } catch (err) { console.error("加载看板失败", err); toast.error("加载看板失败"); }
   }, []);
 
-  useEffect(() => { api.listBoards().then(setBoards).catch(() => {}); }, []);
+  useEffect(() => { api.listBoards().then(setBoards).catch((err) => { console.error("加载看板列表失败", err); }); }, []);
   useEffect(() => { if (!selectedBoard && boards.length) setSelectedBoard(boards[0].id); }, [boards]);
 
   useEffect(() => {
@@ -76,13 +78,13 @@ export function KanbanBoard() {
   }, [selectedBoard, loadBoard]);
 
   const addCard = async (listId: string, title: string) => {
-    try { await api.createCard(listId, title); if (selectedBoard) loadBoard(selectedBoard); } catch {}
+    try { await api.createCard(listId, title); if (selectedBoard) loadBoard(selectedBoard); } catch (err) { console.error("创建卡片失败", err); toast.error("创建卡片失败"); }
   };
   const delCard = async (id: string) => {
-    try { await api.deleteCard(id); if (selectedBoard) loadBoard(selectedBoard); } catch {}
+    try { await api.deleteCard(id); if (selectedBoard) loadBoard(selectedBoard); } catch (err) { console.error("删除卡片失败", err); toast.error("删除卡片失败"); }
   };
   const moveCard = async (cardId: string, toListId: string) => {
-    try { await api.moveCard(cardId, toListId); if (selectedBoard) loadBoard(selectedBoard); } catch {}
+    try { await api.moveCard(cardId, toListId); if (selectedBoard) loadBoard(selectedBoard); } catch (err) { console.error("移动卡片失败", err); toast.error("移动卡片失败"); }
   };
 
   return (
@@ -99,15 +101,15 @@ export function KanbanBoard() {
 
       {selectedBoard && lists.length > 0 && (
         <DndContext sensors={sensors} collisionDetection={closestCorners}
-          onDragStart={e => { const d = e.active.data.current as any; if (d?.type === "card") setActiveCard(d.card); }}
+          onDragStart={e => { const d = e.active.data.current; if (d?.type === "card") setActiveCard(d.card as KanbanCard); }}
           onDragEnd={e => {
             setActiveCard(null); if (!e.over) return;
-            const a = e.active.data.current as any; const o = e.over.data.current as any;
-            if (a?.type === "card") { const tid = o?.type === "col" ? o.listId : o?.card?.list_id; if (tid && tid !== a.card.list_id) moveCard(a.card.id, tid); }
+            const a = e.active.data.current; const o = e.over.data.current;
+            if (a?.type === "card") { const tid = o?.type === "col" ? (o.listId as string) : (o?.card as KanbanCard)?.list_id; if (tid && tid !== (a.card as KanbanCard).list_id) moveCard((a.card as KanbanCard).id, tid); }
           }}
         >
           <div className="flex-1 flex gap-4 overflow-x-auto pb-4 items-start min-h-0">
-            {lists.map((l: any) => (
+            {lists.map((l) => (
               <Column key={l.id} list={l} cards={l.cards || []} onAdd={addCard} onDelCard={delCard} />
             ))}
           </div>

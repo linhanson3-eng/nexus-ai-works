@@ -1408,7 +1408,7 @@ def _handle_effort(agent: 'LocalCodingAgent', args: str, input_text: str) -> Sla
         level = current or env_override or 'auto'
         msg = f'Current effort level: {level}'
         if env_override:
-            msg += f' (from CLAUDE_CODE_EFFORT_LEVEL env var)'
+            msg += ' (from CLAUDE_CODE_EFFORT_LEVEL env var)'
         return _local_result(input_text, msg)
 
     level = args.strip().lower()
@@ -1432,10 +1432,8 @@ def _handle_effort(agent: 'LocalCodingAgent', args: str, input_text: str) -> Sla
 
 def _handle_doctor(agent: 'LocalCodingAgent', _args: str, input_text: str) -> SlashCommandResult:
     """Diagnose and verify the claw-code installation."""
-    import os
     import shutil
     import sys
-    from pathlib import Path as _Path
 
     checks: list[str] = []
 
@@ -2234,7 +2232,7 @@ def _handle_btw(
 
 def _read_package_version() -> str:
     try:
-        from importlib.metadata import PackageNotFoundError, version
+        from importlib.metadata import version
 
         return version('claw-code-agent')
     except Exception:

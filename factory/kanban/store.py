@@ -5,11 +5,14 @@ Follows the same patterns as factory/memory/store.py.
 
 from __future__ import annotations
 
+import logging
 import sqlite3
 import hashlib
 import time
 from dataclasses import dataclass
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 INIT_KANBAN_SQL = """
 PRAGMA journal_mode = WAL;
@@ -148,6 +151,7 @@ class KanbanStore:
             (board_id, name, workshop_name, description, now, now),
         )
         self.commit()
+        logger.debug("kanban board created: %s (%s)", name, board_id[:8])
         return KanbanBoard(
             id=board_id, name=name, workshop_name=workshop_name,
             description=description, created_at=now, updated_at=now,
@@ -177,6 +181,7 @@ class KanbanStore:
     def delete_board(self, board_id: str) -> None:
         self.conn.execute("DELETE FROM kanban_boards WHERE id = ?", (board_id,))
         self.commit()
+        logger.debug("kanban board deleted: %s", board_id[:8])
 
     # --- List CRUD ---
 
@@ -247,6 +252,7 @@ class KanbanStore:
              assignee, due_date, task_status, source_agent, source_task_id, now, now),
         )
         self.commit()
+        logger.debug("kanban card created: %s in list %s", title[:40], list_id[:8])
         return KanbanCard(
             id=card_id, list_id=list_id, title=title, description=description,
             position=position, labels=tuple(labels or ()), assignee=assignee,
@@ -296,10 +302,12 @@ class KanbanStore:
             ).fetchone()[0]
             position = max_pos + 1
         self.update_card(card_id, list_id=target_list_id, position=position)
+        logger.debug("kanban card moved: %s → list %s", card_id[:8], target_list_id[:8])
 
     def delete_card(self, card_id: str) -> None:
         self.conn.execute("DELETE FROM kanban_cards WHERE id = ?", (card_id,))
         self.commit()
+        logger.debug("kanban card deleted: %s", card_id[:8])
 
     # --- Agent Task Sync ---
 
@@ -349,12 +357,13 @@ class KanbanStore:
     def _row_to_card(self, row: dict) -> KanbanCard:
         """Convert a SQLite row dict to a KanbanCard."""
         import json
-        labels_raw = row.pop("labels_json", "[]")
+        labels_raw = row.get("labels_json", "[]")
         try:
             labels = tuple(json.loads(labels_raw) if isinstance(labels_raw, str) else labels_raw)
         except (json.JSONDecodeError, TypeError):
             labels = ()
-        return KanbanCard(labels=labels, **row)
+        fields = {k: v for k, v in row.items() if k != "labels_json"}
+        return KanbanCard(labels=labels, **fields)
 
     def get_cards_by_agent(self, agent_name: str) -> list[dict]:
         rows = self.conn.execute(

@@ -4,12 +4,15 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 
 from fastapi import APIRouter, Body, Depends, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 
 from gateway.auth import require_auth
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api", tags=["workflows"])
 
@@ -31,12 +34,12 @@ def _sse(event: str, data: dict) -> str:
     return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
 
 
-@router.get("/workflows")
+@router.get("/workflows", dependencies=[Depends(require_auth)])
 async def list_workflows(request: Request):
     return JSONResponse(content=_org(request).workflow_store.list_all())
 
 
-@router.get("/workflows/{name}")
+@router.get("/workflows/{name}", dependencies=[Depends(require_auth)])
 async def get_workflow(name: str, request: Request):
     tmpl = _org(request).workflow_store.load(name)
     if tmpl is None:
@@ -126,8 +129,9 @@ async def execute_workflow_stream(name: str, body: ExecuteWorkflowRequest, reque
                 },
                 "final_output": result.final_output[:3000],
             })
-        except Exception as exc:
-            yield _sse("error", {"message": str(exc)})
+        except Exception:
+            logger.exception("Workflow run SSE failed")
+            yield _sse("error", {"message": "An internal error occurred. Please try again."})
         finally:
             if not run_task.done():
                 run_task.cancel()

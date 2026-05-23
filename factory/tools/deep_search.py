@@ -10,11 +10,14 @@ Registered as a configurable agent tool alongside web_search.
 from __future__ import annotations
 
 import concurrent.futures
+import logging
 import re
 from typing import Any
 from urllib.parse import urlparse
 
 import httpx
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_MAX_RESULTS = 5
 MAX_RESULTS = 10
@@ -164,7 +167,8 @@ def _fetch_all(urls: list[str]) -> list[str]:
                 })
                 resp.raise_for_status()
                 return resp.text
-        except Exception:
+        except Exception as exc:
+            logger.debug("deep_search fetch failed for %s: %s", url, exc)
             return ""
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=min(len(urls), 5)) as pool:

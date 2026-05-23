@@ -4,11 +4,14 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 
 from fastapi import APIRouter, Body, Depends, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from gateway.auth import require_auth
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api", tags=["chains"])
 
@@ -29,12 +32,12 @@ def _sse(event: str, data: dict) -> str:
     return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
 
 
-@router.get("/chains")
+@router.get("/chains", dependencies=[Depends(require_auth)])
 async def list_chains(request: Request):
     return JSONResponse(content=_chain_store(request).list_all())
 
 
-@router.get("/chains/{name}")
+@router.get("/chains/{name}", dependencies=[Depends(require_auth)])
 async def get_chain(name: str, request: Request):
     chain = _chain_store(request).load(name)
     if chain is None:
@@ -112,8 +115,9 @@ async def execute_chain_stream(name: str, request: Request):
                 "step_results": result.step_results,
                 "final_output": result.final_output[:3000],
             })
-        except Exception as exc:
-            yield _sse("error", {"message": str(exc)})
+        except Exception:
+            logger.exception("Chain run SSE failed")
+            yield _sse("error", {"message": "An internal error occurred. Please try again."})
         finally:
             if not run_task.done():
                 run_task.cancel()

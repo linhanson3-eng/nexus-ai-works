@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 import tempfile
 from pathlib import Path
 
@@ -13,8 +12,6 @@ from factory.security.guard import (
     sanitize_path,
     detect_secrets,
     sanitize_html,
-    ShellCheckResult,
-    SecretDetectResult,
 )
 
 

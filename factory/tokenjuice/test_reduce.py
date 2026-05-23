@@ -1,6 +1,5 @@
 """TokenJuice 压缩管线测试。"""
 
-import pytest
 
 from factory.tokenjuice.reduce import compact_tool_output, reduce_execution_with_rules
 from factory.tokenjuice.rules import load_builtin_rules

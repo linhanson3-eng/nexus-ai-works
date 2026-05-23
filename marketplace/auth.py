@@ -10,11 +10,13 @@ import base64
 import hashlib
 import hmac
 import json
+import logging
 import os
 import secrets
-import sys
 import time
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 JWT_SECRET_PATH = Path("~/.nexus/marketplace_jwt_secret").expanduser()
 
@@ -129,7 +131,8 @@ def decode_token(token: str) -> dict | None:
             return None
 
         return payload
-    except Exception:
+    except Exception as exc:
+        logger.warning("Token decode failed: %s", exc)
         return None
 
 
@@ -144,10 +147,8 @@ if not ADMIN_TOKEN_HASH:
         ADMIN_TOKEN_PATH.parent.mkdir(parents=True, exist_ok=True)
         ADMIN_TOKEN_PATH.write_text(admin_token)
         ADMIN_TOKEN_PATH.chmod(0o600)
-        print(
-            f"[marketplace] Admin token saved to {ADMIN_TOKEN_PATH} "
-            f"(set MARKETPLACE_ADMIN_TOKEN_HASH env var to persist)",
-            file=sys.stderr,
+        logger.info(
+            "Admin token generated. Set MARKETPLACE_ADMIN_TOKEN_HASH env var to persist."
         )
 
 

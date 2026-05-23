@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import sqlite3
 import logging
-from dataclasses import dataclass
 from datetime import datetime, timezone
 import os
 from pathlib import Path
@@ -96,7 +95,7 @@ def record(
         )
         conn.commit()
         conn.close()
-    except Exception as e:
+    except Exception:
         logger.exception("Audit record failed: event_type=%s action=%s actor=%s", event_type, action, actor)
 
 

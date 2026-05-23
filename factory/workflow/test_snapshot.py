@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from factory.workflow.models import (
-    NodeStatus, WorkflowNode, WorkflowTemplate,
+    WorkflowNode, WorkflowTemplate,
 )
 from factory.workflow.snapshot import RunSnapshot
 

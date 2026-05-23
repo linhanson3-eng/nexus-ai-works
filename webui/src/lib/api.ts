@@ -1,9 +1,10 @@
-import type { KanbanBoard, KanbanCard, KanbanList, LibraryEntry, MarketPackage, MarketSubscription, OrgStatus, SearchConfig, SkillDetail, UserInfo, WorkflowInfo, WorkflowResult, WorkflowTemplate, Workshop } from "./types";
+import type { KanbanBoard, KanbanCard, KanbanList, MarketPackage, MarketSubscription, OrgStatus, SearchConfig, SkillDetail, UserInfo, WorkflowInfo, WorkflowResult, WorkflowTemplate, Workshop } from "./types";
 
 const BASE = "/api";
 
 let _csrfToken: string | null = null;
 let _authToken: string | null = null;
+let _apiKey: string | null = null;
 
 export function setAuthToken(token: string | null): void {
   _authToken = token;
@@ -13,23 +14,22 @@ export function getAuthHeaders(): Record<string, string> {
   const headers: Record<string, string> = {};
   if (_csrfToken) headers["X-CSRF-Token"] = _csrfToken;
   if (_authToken) headers["Authorization"] = `Bearer ${_authToken}`;
+  if (_apiKey) headers["X-API-Key"] = _apiKey;
+  return headers;
+}
+
+function defaultHeaders(authToken?: string): Record<string, string> {
+  const headers: Record<string, string> = {};
+  if (_apiKey) headers["X-API-Key"] = _apiKey;
+  const token = authToken || _authToken;
+  if (token) headers["Authorization"] = `Bearer ${token}`;
   return headers;
 }
 
 function csrfHeaders(): Record<string, string> {
   const headers: Record<string, string> = {};
-  if (_csrfToken) {
-    headers["X-CSRF-Token"] = _csrfToken;
-  }
+  if (_csrfToken) headers["X-CSRF-Token"] = _csrfToken;
   return headers;
-}
-
-function authHeaders(authToken?: string): Record<string, string> {
-  const token = authToken || _authToken;
-  if (token) {
-    return { Authorization: `Bearer ${token}` };
-  }
-  return {};
 }
 
 export async function fetchCsrfToken(): Promise<void> {
@@ -40,15 +40,30 @@ export async function fetchCsrfToken(): Promise<void> {
   }
 }
 
+async function fetchApiKey(): Promise<void> {
+  try {
+    const res = await fetch(`${BASE}/auth/api-key`, { credentials: "include" });
+    if (res.ok) {
+      const data = await res.json();
+      _apiKey = data.api_key;
+    }
+  } catch { /* gateway may not be running yet */ }
+}
+
+/** Initialize auth — call once on app startup. */
+export async function initApi(): Promise<void> {
+  await Promise.all([fetchCsrfToken(), fetchApiKey()]);
+}
+
 async function get<T>(url: string, authToken?: string): Promise<T> {
-  const headers: Record<string, string> = { ...authHeaders(authToken) };
+  const headers: Record<string, string> = { ...defaultHeaders(authToken) };
   const res = await fetch(`${BASE}${url}`, { headers, credentials: "include" });
   if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
   return res.json();
 }
 
 async function post<T>(url: string, body: unknown, authToken?: string): Promise<T> {
-  const headers: Record<string, string> = { "Content-Type": "application/json", ...csrfHeaders(), ...authHeaders(authToken) };
+  const headers: Record<string, string> = { "Content-Type": "application/json", ...csrfHeaders(), ...defaultHeaders(authToken) };
   const res = await fetch(`${BASE}${url}`, {
     method: "POST",
     headers,
@@ -62,7 +77,7 @@ async function post<T>(url: string, body: unknown, authToken?: string): Promise<
 async function del(url: string): Promise<void> {
   const res = await fetch(`${BASE}${url}`, {
     method: "DELETE",
-    headers: { ...csrfHeaders(), ...authHeaders() },
+    headers: { ...csrfHeaders(), ...defaultHeaders() },
     credentials: "include",
   });
   if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
@@ -71,7 +86,7 @@ async function del(url: string): Promise<void> {
 async function put<T>(url: string, body: unknown): Promise<T> {
   const res = await fetch(`${BASE}${url}`, {
     method: "PUT",
-    headers: { "Content-Type": "application/json", ...csrfHeaders(), ...authHeaders() },
+    headers: { "Content-Type": "application/json", ...csrfHeaders(), ...defaultHeaders() },
     credentials: "include",
     body: JSON.stringify(body),
   });
@@ -163,23 +178,6 @@ export const api = {
     put<import("./types").AgentInfo>(`/workshops/${workshop}/agents/${name}`, data),
   deleteAgent: (workshop: string, name: string) => del(`/workshops/${workshop}/agents/${name}`),
 
-  // Chains
-  listChains: () => get<import("./types").ChainInfo[]>("/chains"),
-  getChain: (name: string) => get<import("./types").ChainTemplate>("/chains/" + name),
-  saveChain: (data: import("./types").ChainTemplate) => post<import("./types").ChainTemplate>("/chains", data),
-  deleteChain: (name: string) => del("/chains/" + name),
-
-  // ── Library ──
-  listLibrary: (type: string, search?: string, category?: string) =>
-    get<LibraryEntry[]>(`/library/${type}?search=${encodeURIComponent(search || "")}&category=${encodeURIComponent(category || "")}`),
-  getLibraryEntry: (type: string, name: string) =>
-    get<LibraryEntry>(`/library/${type}/${encodeURIComponent(name)}`),
-  saveToLibrary: (type: string, data: { name: string; description?: string; category?: string; tags?: string[]; workshop?: string }) =>
-    post<LibraryEntry>(`/library/${type}`, data),
-  installFromLibrary: (type: string, name: string, workshop: string) =>
-    post<{ installed: string }>(`/library/${type}/${encodeURIComponent(name)}/install`, { workshop }),
-  deleteFromLibrary: (type: string, name: string) =>
-    del(`/library/${type}/${encodeURIComponent(name)}`),
 
   // ── Marketplace ──
   marketCatalog: (category?: string) =>

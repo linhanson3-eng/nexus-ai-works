@@ -6,7 +6,6 @@ from pathlib import Path
 import pytest
 
 from factory.memory.store import (
-    Buffer,
     Chunk,
     MemoryStore,
     SourceKind,

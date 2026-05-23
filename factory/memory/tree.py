@@ -10,11 +10,13 @@
 from __future__ import annotations
 
 import hashlib
-import json
-from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
+import logging
+from abc import ABC
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Callable
+
+logger = logging.getLogger(__name__)
 
 from factory.memory.store import (
     Buffer,
@@ -82,7 +84,8 @@ class BucketSeal:
 
         try:
             summary_content = await summariser(contents, tree_id)
-        except Exception:
+        except Exception as exc:
+            logger.warning("Summariser failed for %s L%d: %s", tree_id, level, exc)
             summary_content = "\n".join(contents[-3:])
 
         summary_id = f"{tree_id}-L{level}-{_short_hash(summary_content)}"

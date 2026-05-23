@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Search, ShoppingBag, Package, X, Clock, Shield, Download, User, LogIn, Tag, Crown } from "lucide-react";
 import { api } from "../lib/api";
 import type { MarketPackage, MarketSubscription, UserInfo } from "../lib/types";
+import { useToast } from "./Toast";
 
 const CATEGORIES = [
   "全部",
@@ -45,6 +46,7 @@ function formatExpiry(dateStr: string): string {
 }
 
 export function Marketplace() {
+  const toast = useToast();
   // ── State ──
   const [packages, setPackages] = useState<MarketPackage[]>([]);
   const [selected, setSelected] = useState<MarketPackage | null>(null);
@@ -146,10 +148,10 @@ export function Marketplace() {
     }
     try {
       await api.marketInstall(pkg.id, token);
-      alert(`"${pkg.name}" 安装成功！`);
+      toast.success(`"${pkg.name}" 安装成功！`);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
-      alert(`安装失败: ${msg}`);
+      toast.error(`安装失败: ${msg}`);
     }
   };
 
@@ -176,7 +178,7 @@ export function Marketplace() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-black tracking-tight text-white">方案市场</h1>
+          <h1 className="text-2xl font-black tracking-tight text-white">解决方案</h1>
           <p className="text-muted text-sm mt-1">浏览、购买和安装解决方案包</p>
         </div>
 
@@ -449,7 +451,7 @@ export function Marketplace() {
           <div className="relative bg-card border border-border rounded-[20px] p-6 w-full max-w-sm mx-4 shadow-2xl animate-in zoom-in">
             <div className="flex items-center justify-between mb-5">
               <h2 className="text-lg font-bold text-white">
-                {loginMode === "login" ? "登录方案市场" : "注册账号"}
+                {loginMode === "login" ? "登录解决方案" : "注册账号"}
               </h2>
               <button
                 onClick={() => {
@@ -653,7 +655,7 @@ export function Marketplace() {
 
               {!token && (
                 <p className="text-xs text-muted text-center mt-2">
-                  需要登录方案市场账号才能安装
+                  需要登录解决方案账号才能安装
                 </p>
               )}
 

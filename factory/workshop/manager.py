@@ -8,7 +8,15 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from config.schema import DepartmentSpec, AgentSpec, WorkflowSpec
+from config.schema import (
+    AgentPermissions,
+    AgentSpec,
+    DepartmentSpec,
+    FilesystemPermission,
+    ShellPermission,
+    SubagentPermission,
+    WorkflowSpec,
+)
 from factory.org import OrgEngine, Workshop
 
 logger = logging.getLogger(__name__)
@@ -90,8 +98,8 @@ class WorkshopManager:
                 if board:
                     try:
                         self.kanban_store.delete_board(board.id)
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        logger.warning("Failed to clean up board after create failure: %s", exc)
                 raise
 
         return workshop
@@ -393,7 +401,6 @@ class WorkshopManager:
                     spec.skills = agent_data.get("skills", [])
                 if "permissions" in agent_data:
                     perm = agent_data["permissions"]
-                    from config.schema import FilesystemPermission, ShellPermission, SubagentPermission
                     spec.permissions.filesystem.write = (
                         ["workspace"] if perm.get("file_write") else []
                     )
@@ -425,12 +432,14 @@ class WorkshopManager:
         # Import chain if present
         if data.get("chain"):
             try:
-                from factory.workflow.chain import Chain, ChainStep, ChainStore
+                from factory.workflow.chain import Chain, ChainStore
                 cs = ChainStore()
                 chain = Chain.from_dict(data["chain"])
                 cs.save(chain)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("Failed to import chain during package import: %s", exc)
+                if result is not None:
+                    result.setdefault("skipped", []).append("chain")
 
         # Copy tools
         for tool_file in data.get("tools", []):

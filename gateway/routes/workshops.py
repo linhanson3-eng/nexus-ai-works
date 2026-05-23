@@ -73,7 +73,7 @@ async def create_workshop(request: Request):
     return JSONResponse(content=info or {}, status_code=201)
 
 
-@router.get("/workshops")
+@router.get("/workshops", dependencies=[Depends(require_auth)])
 async def list_workshops(request: Request):
     from factory.workshop.manager import WorkshopManager
 
@@ -89,7 +89,7 @@ async def list_workshops(request: Request):
     ])
 
 
-@router.get("/workshops/{name}")
+@router.get("/workshops/{name}", dependencies=[Depends(require_auth)])
 async def get_workshop(name: str, request: Request):
     from factory.workshop.manager import WorkshopManager
 
@@ -189,7 +189,7 @@ async def import_workspace_api(request: Request):
 # ── Workshop Agent CRUD ──
 
 
-@router.get("/workshops/{name}/agents")
+@router.get("/workshops/{name}/agents", dependencies=[Depends(require_auth)])
 async def list_workshop_agents(name: str, request: Request):
     from factory.workshop.manager import WorkshopManager
 
@@ -347,7 +347,7 @@ async def run_workflow(name: str, request: Request):
 # ── Workshop Bridge ──
 
 
-@router.get("/workshops/{name}/files/{filename:path}")
+@router.get("/workshops/{name}/files/{filename:path}", dependencies=[Depends(require_auth)])
 async def read_workshop_file(name: str, filename: str, request: Request):
     from factory.workshop.manager import WorkshopManager
 

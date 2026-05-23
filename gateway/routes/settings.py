@@ -50,7 +50,7 @@ async def sync_provider_models(name: str, request: Request):
 # ── Skills ──
 
 
-@router.get("/settings/skills")
+@router.get("/settings/skills", dependencies=[Depends(require_auth)])
 async def list_settings_skills():
     from factory.skills.marketplace import SkillMarketplace
 
@@ -83,7 +83,7 @@ async def sync_skills():
     })
 
 
-@router.get("/settings/skills/{name}")
+@router.get("/settings/skills/{name}", dependencies=[Depends(require_auth)])
 async def get_skill_detail(name: str):
     from factory.skills.marketplace import SkillMarketplace
 
@@ -103,7 +103,7 @@ async def get_skill_detail(name: str):
 # ── Tools ──
 
 
-@router.get("/settings/tools")
+@router.get("/settings/tools", dependencies=[Depends(require_auth)])
 async def list_settings_tools():
     from factory.mcp.registry import MCPRegistry
 
@@ -153,7 +153,7 @@ async def sync_tools():
 # ── Plugins ──
 
 
-@router.get("/settings/plugins")
+@router.get("/settings/plugins", dependencies=[Depends(require_auth)])
 async def list_settings_plugins(request: Request):
     from factory.channel.adapter import get_adapter, list_adapters as list_channel_names
 
@@ -194,7 +194,7 @@ async def delete_plugin(name: str, request: Request):
 # ── Preferences ──
 
 
-@router.get("/settings/preferences")
+@router.get("/settings/preferences", dependencies=[Depends(require_auth)])
 async def get_preferences(request: Request):
     store = _settings_store(request)
     prefs = store._data.setdefault("preferences", {})
@@ -225,12 +225,11 @@ async def get_search_config(request: Request):
 
 
 @router.post("/settings/search", dependencies=[Depends(require_auth)])
-async def save_search_config(body: dict = Body(...), request: Request = None):  # type: ignore[assignment]
+async def save_search_config(body: dict = Body(...), request: Request = None):  # type: ignore[assignment]  # FastAPI injects Request via DI
     allowed = {
         "tavily_api_key", "brave_api_key", "searxng_base_url",
         "active_provider", "deep_search_enabled", "max_results",
     }
     fields = {k: v for k, v in body.items() if k in allowed}
-    store = _settings_store(request) if request and hasattr(request, "app") else None
-    result = store.save_search(**fields) if store else {}
+    result = _settings_store(request).save_search(**fields)
     return JSONResponse(content=result)

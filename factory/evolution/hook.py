@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import replace
-from typing import Any
 
 from factory.evolution.types import ExecutionTrajectory
 from factory.evolution.engine import EvolutionEngine

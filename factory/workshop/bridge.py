@@ -6,7 +6,6 @@ through the Warehouse (file-based) and Global Memory Tree (SQLite).
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Any
 
 

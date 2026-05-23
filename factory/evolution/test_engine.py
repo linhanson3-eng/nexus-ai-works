@@ -587,7 +587,6 @@ class TestRollbackManager:
 class TestEvolutionHook:
     @pytest.fixture
     def hook(self, tmp_path):
-        from pathlib import Path
         log = EvolutionLogger(tmp_path / "evo.db")
         yield EvolutionHook(skills_dir=str(tmp_path), logger=log)
 

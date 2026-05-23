@@ -5,7 +5,6 @@ Agent 不直接写文件系统，所有产出物通过此接口写入制品仓�
 
 from datetime import datetime
 from pathlib import Path
-from typing import Any
 
 
 class Warehouse:

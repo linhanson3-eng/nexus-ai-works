@@ -4,15 +4,12 @@ from __future__ import annotations
 
 import pytest
 
-import os
-from pathlib import Path
 
 from factory.workflow import (
     WorkflowNode,
     WorkflowTemplate,
     WorkflowRunner,
     WorkflowStore,
-    NodeResult,
     NodeStatus,
 )
 

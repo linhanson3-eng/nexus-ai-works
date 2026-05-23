@@ -5,14 +5,13 @@ import logging
 import os
 import tempfile
 import zipfile
-import shutil
 from pathlib import Path
 
 from datetime import datetime, timezone
 
 import httpx
 from fastapi import APIRouter, Request
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse
 
 from gateway.signature import sign_request
 

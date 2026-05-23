@@ -1,7 +1,5 @@
 """Tests for audit trail system."""
-import os
 import secrets
-from pathlib import Path
 
 import pytest
 from factory.security.audit import record, query, get_recent_events, purge_old, AuditEvent

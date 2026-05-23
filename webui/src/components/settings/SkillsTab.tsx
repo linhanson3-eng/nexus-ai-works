@@ -33,7 +33,7 @@ export function SkillsTab({ toast }: { toast: ToastFn }) {
     if (expanded === name) { setExpanded(null); setDetail(null); return; }
     setExpanded(name); setDetailLoading(true);
     try { setDetail(await api.getSkillDetail(name)); }
-    catch (err) { console.warn("加载技能详情失败", err); setDetail(null); }
+    catch (err) { console.error("加载技能详情失败", err); setDetail(null); }
     finally { setDetailLoading(false); }
   };
 

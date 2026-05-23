@@ -39,6 +39,7 @@ async def main():
     serve_p = sub.add_parser("serve", help="启动 FastAPI gateway 服务器")
     serve_p.add_argument("--host", default="127.0.0.1")
     serve_p.add_argument("--port", type=int, default=8600)
+    serve_p.add_argument("--dev", action="store_true", help="开发模式（松弛 CSP 以兼容 Vite HMR）")
 
     # kanban
     kanban_p = sub.add_parser("kanban", help="看板任务管理")

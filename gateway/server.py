@@ -7,11 +7,14 @@ SSE streaming for agent execution.
 
 from __future__ import annotations
 
-import asyncio
+import logging
 import os
+import signal
+import uuid
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 
@@ -19,6 +22,13 @@ from slowapi.middleware import SlowAPIMiddleware
 
 from gateway.csrf import CSRFTokenMiddleware
 from gateway.rate_limit import limiter
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(name)s] %(levelname)s %(message)s",
+    datefmt="%Y-%m-%dT%H:%M:%S",
+)
+logger = logging.getLogger(__name__)
 
 # ── Route modules ──
 from gateway.routes.health import router as health_router
@@ -31,6 +41,88 @@ from gateway.routes.settings import router as settings_router
 from gateway.routes.ws import router as ws_router
 from gateway.routes.library import router as library_router
 from gateway.routes.market import router as market_router
+
+
+# ── Graceful shutdown state ────────────────────────────────────
+
+
+class _ShutdownState:
+    """Track shutdown state for graceful termination."""
+
+    def __init__(self):
+        self._shutting_down = False
+        self._active_requests: set[str] = set()
+
+    @property
+    def is_shutting_down(self) -> bool:
+        return self._shutting_down
+
+    def signal_shutdown(self) -> None:
+        self._shutting_down = True
+
+    def enter_request(self, request_id: str) -> None:
+        self._active_requests.add(request_id)
+
+    def exit_request(self, request_id: str) -> None:
+        self._active_requests.discard(request_id)
+
+    @property
+    def pending_count(self) -> int:
+        return len(self._active_requests)
+
+
+shutdown_state = _ShutdownState()
+
+
+# ── Lifespan ───────────────────────────────────────────────────
+
+
+@asynccontextmanager
+async def _app_lifespan(app: FastAPI):
+    """Startup / shutdown lifecycle for the FastAPI app."""
+    logger.info("Gateway starting up")
+    yield
+    logger.info("Gateway shutting down — draining %d active requests", shutdown_state.pending_count)
+    shutdown_state.signal_shutdown()
+    # Give in-flight requests a brief window to complete
+    import asyncio
+    deadline = asyncio.get_event_loop().time() + 5.0
+    while shutdown_state.pending_count > 0 and asyncio.get_event_loop().time() < deadline:
+        await asyncio.sleep(0.25)
+    if shutdown_state.pending_count > 0:
+        logger.warning("Gateway shutdown with %d requests still in-flight", shutdown_state.pending_count)
+    else:
+        logger.info("Gateway shutdown complete — all requests drained")
+
+
+# ── Request tracing middleware ──────────────────────────────────
+
+
+class RequestTracingMiddleware(BaseHTTPMiddleware):
+    """Inject X-Request-ID into every request and log start/end with timing."""
+
+    async def dispatch(self, request: Request, call_next):
+        request_id = request.headers.get("X-Request-ID") or str(uuid.uuid4())
+        request.state.request_id = request_id
+        request.state.start_time = datetime.now(timezone.utc)
+
+        shutdown_state.enter_request(request_id)
+        try:
+            response = await call_next(request)
+            response.headers["X-Request-ID"] = request_id
+            return response
+        finally:
+            shutdown_state.exit_request(request_id)
+            elapsed_ms = (datetime.now(timezone.utc) - request.state.start_time).total_seconds() * 1000
+            status = getattr(response, "status_code", 0) if "response" in dir() else 0
+            logger.info(
+                "%s %s → %s [%s] %.0fms",
+                request.method,
+                request.url.path,
+                status,
+                request_id[:8],
+                elapsed_ms,
+            )
 
 
 # ── Core helpers (kept in server.py for closure-free access) ──
@@ -105,8 +197,9 @@ def create_app(org: "OrgEngine", kanban_store: "KanbanStore") -> FastAPI:
         org: OrgEngine instance with .status(), .workshops, etc.
         kanban_store: KanbanStore instance for board/Card CRUD.
     """
-    app = FastAPI(title="Nexus AI Works Gateway", version="1.0.0")
+    app = FastAPI(title="Nexus AI Works Gateway", version="1.0.0", lifespan=_app_lifespan)
     app.state.limiter = limiter
+    app.state.shutdown = shutdown_state
 
     ws_manager = KanbanWSManager()
     session_manager = AgentSessionManager()
@@ -123,6 +216,9 @@ def create_app(org: "OrgEngine", kanban_store: "KanbanStore") -> FastAPI:
     app.state.session_manager = session_manager
     app.state.settings_store = settings_store
     app.state.chain_store = chain_store
+
+    # --- Request tracing (outermost — wraps all other middleware) ---
+    app.add_middleware(RequestTracingMiddleware)
 
     # --- CORS ---
     cors_origins = os.environ.get(
@@ -147,7 +243,9 @@ def create_app(org: "OrgEngine", kanban_store: "KanbanStore") -> FastAPI:
             "/api/chains/",
             "/ws/",
             "/health",
-            "/api/market/",
+            "/api/market/health",
+            "/api/market/packages",
+            "/api/market/packages/",
         ),
     )
 
@@ -170,9 +268,10 @@ def create_app(org: "OrgEngine", kanban_store: "KanbanStore") -> FastAPI:
     app.add_middleware(SlowAPIMiddleware)
 
     # --- Security response headers ---
+    _is_dev = os.environ.get("NX_ENV", "") == "development"
+
     class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         async def dispatch(self, request, call_next):
-            from fastapi.responses import Response
             response = await call_next(request)
             response.headers["X-Content-Type-Options"] = "nosniff"
             response.headers["X-Frame-Options"] = "DENY"
@@ -183,17 +282,31 @@ def create_app(org: "OrgEngine", kanban_store: "KanbanStore") -> FastAPI:
             response.headers["Permissions-Policy"] = (
                 "camera=(), microphone=(), geolocation=()"
             )
-            response.headers["Content-Security-Policy"] = (
-                "default-src 'self'; "
-                "script-src 'self'; "
-                "style-src 'self'; "
-                "img-src 'self' data: https:; "
-                "font-src 'self'; "
-                "connect-src 'self' ws: wss:; "
-                "frame-ancestors 'none'; "
-                "base-uri 'self'; "
-                "form-action 'self'"
-            )
+            if _is_dev:
+                # Relaxed CSP for Vite dev server: HMR uses inline scripts + WebSocket
+                response.headers["Content-Security-Policy"] = (
+                    "default-src 'self'; "
+                    "script-src 'self' 'unsafe-inline'; "
+                    "style-src 'self' 'unsafe-inline'; "
+                    "img-src 'self' data: https:; "
+                    "font-src 'self'; "
+                    "connect-src 'self' ws: wss: http://localhost:*; "
+                    "frame-ancestors 'none'; "
+                    "base-uri 'self'; "
+                    "form-action 'self'"
+                )
+            else:
+                response.headers["Content-Security-Policy"] = (
+                    "default-src 'self'; "
+                    "script-src 'self'; "
+                    "style-src 'self'; "
+                    "img-src 'self' data: https:; "
+                    "font-src 'self'; "
+                    "connect-src 'self' ws: wss:; "
+                    "frame-ancestors 'none'; "
+                    "base-uri 'self'; "
+                    "form-action 'self'"
+                )
             return response
 
     app.add_middleware(SecurityHeadersMiddleware)
@@ -217,9 +330,44 @@ def create_app(org: "OrgEngine", kanban_store: "KanbanStore") -> FastAPI:
 
 
 async def serve(app: FastAPI, host: str = "127.0.0.1", port: int = 8600) -> None:
-    """Run the FastAPI app with uvicorn programmatically."""
+    """Run the FastAPI app with uvicorn programmatically.
+
+    Handles SIGTERM/SIGINT for graceful shutdown: stops accepting new
+    connections, drains in-flight requests (up to 5s grace period),
+    then exits cleanly.
+    """
+    import asyncio
     import uvicorn
 
     config = uvicorn.Config(app, host=host, port=port, log_level="info")
     server = uvicorn.Server(config)
-    await server.serve()
+
+    loop = asyncio.get_event_loop()
+    stop_event = asyncio.Event()
+
+    def _handle_signal(sig: signal.Signals) -> None:
+        logger.info("Received %s — initiating graceful shutdown", sig.name)
+        stop_event.set()
+
+    for sig in (signal.SIGTERM, signal.SIGINT):
+        try:
+            loop.add_signal_handler(sig, _handle_signal, sig)
+        except NotImplementedError:
+            # Windows compatibility — signal handlers not supported
+            signal.signal(sig, lambda s, f: stop_event.set())
+
+    serve_task = asyncio.ensure_future(server.serve())
+
+    await stop_event.wait()
+    logger.info("Stopping server (active requests: %d)...", shutdown_state.pending_count)
+    shutdown_state.signal_shutdown()
+    server.should_exit = True
+
+    try:
+        await asyncio.wait_for(serve_task, timeout=10.0)
+    except asyncio.TimeoutError:
+        logger.warning("Server did not exit within 10s — forcing shutdown")
+    except asyncio.CancelledError:
+        pass
+
+    logger.info("Server stopped")

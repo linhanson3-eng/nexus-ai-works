@@ -14,7 +14,7 @@ export function SearchTab({ toast }: { toast: ToastFn }) {
   const [showKeys, setShowKeys] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
-    api.getSearchConfig().then((data: unknown) => setConfig(data as SearchConfig)).catch((err) => { console.warn("加载搜索配置失败", err); }).finally(() => setLoading(false));
+    api.getSearchConfig().then((data: unknown) => setConfig(data as SearchConfig)).catch((err) => { console.error("加载搜索配置失败", err); }).finally(() => setLoading(false));
   }, []);
 
   const save = async () => {

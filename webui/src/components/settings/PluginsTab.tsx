@@ -8,6 +8,8 @@ import type { PluginEntry } from "../../lib/types";
 export function PluginsTab({ toast }: { toast: ToastFn }) {
   const [plugins, setPlugins] = useState<Record<string, PluginEntry>>({});
   const [loading, setLoading] = useState(true);
+  const [addingPlugin, setAddingPlugin] = useState(false);
+  const [newPluginName, setNewPluginName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
 
@@ -73,15 +75,38 @@ export function PluginsTab({ toast }: { toast: ToastFn }) {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted">Channel 适配器和平台插件。让 Nexus AI Works 接入微信、飞书、钉钉等外部平台。</p>
-        <button
-          onClick={() => {
-            const name = window.prompt("插件名称:");
-            if (name) api.savePlugin(name, { enabled: true }).then(() => load()).catch(e => toast.error(e.message));
-          }}
-          className="flex items-center gap-2 px-4 py-2 bg-accent/10 text-accent border border-accent/20 rounded-xl text-sm hover:bg-accent/20 transition-colors shrink-0"
-        >
-          <Plus className="w-4 h-4" /> 安装插件
-        </button>
+        {addingPlugin ? (
+          <div className="flex items-center gap-2 shrink-0">
+            <input
+              autoFocus
+              value={newPluginName}
+              onChange={e => setNewPluginName(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === "Enter" && newPluginName.trim()) {
+                  api.savePlugin(newPluginName.trim(), { enabled: true }).then(() => load()).catch(e2 => toast.error(e2.message));
+                  setNewPluginName(""); setAddingPlugin(false);
+                }
+                if (e.key === "Escape") { setNewPluginName(""); setAddingPlugin(false); }
+              }}
+              placeholder="插件名称..."
+              className="w-40 bg-transparent border border-border/60 rounded-lg px-3 py-2 text-sm text-white placeholder:text-muted/40 outline-none focus:border-accent/50"
+            />
+            <button onClick={() => {
+              if (newPluginName.trim()) {
+                api.savePlugin(newPluginName.trim(), { enabled: true }).then(() => load()).catch(e2 => toast.error(e2.message));
+                setNewPluginName(""); setAddingPlugin(false);
+              }
+            }} className="px-3 py-2 text-xs bg-accent/10 text-accent rounded-lg hover:bg-accent/20">确认</button>
+            <button onClick={() => { setNewPluginName(""); setAddingPlugin(false); }} className="px-3 py-2 text-xs text-muted/50 hover:text-white">取消</button>
+          </div>
+        ) : (
+          <button
+            onClick={() => setAddingPlugin(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-accent/10 text-accent border border-accent/20 rounded-xl text-sm hover:bg-accent/20 transition-colors shrink-0"
+          >
+            <Plus className="w-4 h-4" /> 安装插件
+          </button>
+        )}
       </div>
 
       {entries.length === 0 ? (

@@ -9,16 +9,17 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Awaitable
 
 import yaml
 
+from factory.env import env_int
+
 logger = logging.getLogger(__name__)
 
-CHAIN_TOTAL_TIMEOUT = int(os.environ.get("CHAIN_TOTAL_TIMEOUT", "1800"))  # 30 min default
+CHAIN_TOTAL_TIMEOUT = env_int("CHAIN_TOTAL_TIMEOUT", 1800, min=10, max=86400)  # 30 min default
 
 
 # ── Models ─────────────────────────────────────────────────────
@@ -240,7 +241,8 @@ class ChainRunner:
                     upstream_products = bridge_products
                 elif step_output:
                     upstream_products = step_output
-            except Exception:
+            except Exception as exc:
+                logger.warning("Bridge product collection failed for step %s: %s", step_name, exc)
                 upstream_products = step_output
 
         result.status = "passed"
@@ -264,7 +266,8 @@ class ChainRunner:
                 if len(content) > 2000:
                     content = content[:2000] + "\n...(truncated)"
                 parts.append(f"### {filename}\n{content}")
-            except Exception:
+            except Exception as exc:
+                logger.debug("Skipping unreadable product %s/%s: %s", workshop_name, filename, exc)
                 continue
 
         return "\n\n".join(parts) if parts else ""

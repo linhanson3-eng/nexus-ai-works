@@ -39,6 +39,8 @@ def parse_frontmatter(text: str) -> tuple[dict[str, Any], str]:
     try:
         meta = yaml.safe_load(parts[1]) or {}
     except Exception:
+        logger = logging.getLogger(__name__)
+        logger.warning("Failed to parse memory V2 frontmatter: %s", parts[1][:80] if len(parts) > 1 else "(empty)")
         meta = {}
     body = parts[2]
     return meta, body

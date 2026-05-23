@@ -35,7 +35,6 @@ from ..agent_types import (
 from ..bundled_skills import get_bundled_skills
 from ..paste_refs import PastedContent, expand_pasted_text_refs
 from ..session_store import (
-    DEFAULT_AGENT_SESSION_DIR,
     StoredAgentSession,
     load_agent_session,
 )

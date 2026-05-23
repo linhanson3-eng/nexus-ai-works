@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import hmac
+import logging
 import os
 import secrets
 from pathlib import Path
@@ -15,6 +16,7 @@ from pathlib import Path
 from fastapi import HTTPException, Request
 
 API_KEY_PATH = Path("~/.nexus/api_key").expanduser()
+logger = logging.getLogger(__name__)
 
 
 def get_or_create_api_key() -> str:
@@ -59,5 +61,6 @@ def _verify_jwt(token: str) -> bool:
 
         payload = decode_token(token)
         return payload is not None
-    except Exception:
+    except Exception as exc:
+        logger.debug("JWT verification failed: %s", exc)
         return False

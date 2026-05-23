@@ -43,11 +43,11 @@ export function AgentEditor({ workshopName, existingAgent, onClose, onSaved, toa
         }
       }
       setProviderGroups(groups);
-    }).catch((err: unknown) => { console.warn("加载模型列表失败", err); });
+    }).catch((err: unknown) => { console.error("加载模型列表失败", err); });
 
     api.listSkills().then((data: { name: string; description?: string }[]) => {
       setAvailableSkills(data.map(s => ({ name: s.name, description: s.description || "" })));
-    }).catch((err: unknown) => { console.warn("加载技能列表失败", err); });
+    }).catch((err: unknown) => { console.error("加载技能列表失败", err); });
   }, []);
 
   // Close skills dropdown on outside click

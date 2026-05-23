@@ -6,7 +6,7 @@ import hashlib
 import hmac
 import os
 import secrets
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import HTTPException, Request

@@ -184,10 +184,14 @@ class AgentLoopEngine:
 
     @property
     def agent(self) -> LocalCodingAgent:
+        if self._agent is None:
+            raise RuntimeError("Engine has been invalidated. Create a new engine.")
         return self._agent
 
     @property
     def tool_registry(self) -> dict[str, Any]:
+        if self._agent is None:
+            raise RuntimeError("Engine has been invalidated. Create a new engine.")
         return self._agent.tool_registry
 
     @property

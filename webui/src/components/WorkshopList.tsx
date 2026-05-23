@@ -59,7 +59,7 @@ export function WorkshopList() {
         }
       }
       setProviderGroups(groups);
-    }).catch((err) => { console.warn("加载模型列表失败", err); });
+    }).catch((err) => { console.error("加载模型列表失败", err); });
   }, []);
 
   const create = async () => {
@@ -164,7 +164,7 @@ export function WorkshopList() {
     try {
       setAgents(await api.listAgents(wsName));
     } catch (err) {
-      console.warn("加载 Agent 列表失败", err);
+      console.error("加载 Agent 列表失败", err);
       setAgents([]);
     } finally {
       setAgentsLoading(false);

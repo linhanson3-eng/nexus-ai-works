@@ -11,8 +11,8 @@ Connects:
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
-import os
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
@@ -26,10 +26,12 @@ from factory.engine.bridge import (
 )
 from factory.engine.providers import ProviderRegistry
 from factory.engine.tools import build_tool_registry, resolve_tools
-from factory.memory import MemoryStore, SourceTree, SourceKind, VaultWriter
+from factory.memory import MemoryStore, SourceTree, VaultWriter
 from factory.memory.tree import BucketSeal
 from factory.tokenjuice import compact_tool_output, load_rules
 from factory.kanban.sync import KanbanSync, TaskEvent
+
+logger = logging.getLogger(__name__)
 
 
 class ErrorKind(str, Enum):
@@ -136,7 +138,7 @@ class NexusAgentRunner:
             default_model = prefs.get("default_model", "")
             if default_model:
                 return default_model
-        except Exception:
+        except (ImportError, json.JSONDecodeError, OSError):
             pass
 
         # 2. First model from provider with an API key, then any provider
@@ -158,7 +160,7 @@ class NexusAgentRunner:
             for name, cfg in keyed + unkeyed:
                 provider_type = cfg.get("provider_type", name)
                 return f"{provider_type}/{cfg['models'][0]}"
-        except Exception:
+        except (ImportError, json.JSONDecodeError, OSError):
             pass
 
         return ""
@@ -209,6 +211,13 @@ class NexusAgentRunner:
     async def run(self, task: str) -> TaskResult:
         """Execute a task through the claw-code-agent loop."""
         task_id = f"task-{self.source_tree.tree_id}"
+        request_id = getattr(self, "_request_id", "") or ""
+        model = self._resolve_model()
+        ws = getattr(self.workshop, "name", "") if self.workshop else ""
+        logger.info(
+            "Agent run start — agent=%s workshop=%s model=%s task=[%s] rid=%s",
+            self.spec.name, ws, model, task[:120], request_id[:8],
+        )
 
         # Notify kanban
         if self.kanban_sync:
@@ -244,7 +253,8 @@ class NexusAgentRunner:
             prompt = f"{system_prompt}\n\n{prompt}"
 
         # 3. Execute via claw-code-agent
-        AGENT_TOTAL_TIMEOUT = int(os.environ.get("AGENT_TOTAL_TIMEOUT", "600"))
+        from factory.env import env_int
+        AGENT_TOTAL_TIMEOUT = env_int("AGENT_TOTAL_TIMEOUT", 600, min=10, max=7200)
         try:
             engine = self._get_engine()
             result = await asyncio.wait_for(
@@ -280,7 +290,6 @@ class NexusAgentRunner:
                     if more:
                         self.vault.write_summary(more)
         except Exception:
-            logger = logging.getLogger(__name__)
             logger.exception("Bucket-Seal cascade failed for run")
 
         # 5. Write INDEX
@@ -296,6 +305,12 @@ class NexusAgentRunner:
                 detail=result.error or result.content[:200],
             ))
 
+        logger.info(
+            "Agent run end — agent=%s turns=%d cost=%.4f tools=%d error=%s rid=%s",
+            self.spec.name, result.turns, result.cost_usd,
+            len(result.tools_used), result.error_kind.value or "none",
+            getattr(self, "_request_id", "")[:8],
+        )
         return result
 
     async def _run_agent_loop(
@@ -411,7 +426,7 @@ class NexusAgentRunner:
                     for s in installed:
                         lines.append(f"- **{s.name}**: {s.description}")
                     skill_prompt_parts.append("\n".join(lines))
-            except Exception:
+            except (ImportError, OSError):
                 pass
 
         skill_prompt = "\n\n".join(skill_prompt_parts)

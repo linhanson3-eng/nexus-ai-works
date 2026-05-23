@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useState } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { ToastProvider } from "./components/Toast";
 import { ErrorBoundary } from "./components/ErrorBoundary";
@@ -13,9 +13,8 @@ import { WorkflowList } from "./components/WorkflowList";
 import { ModuleFactory } from "./components/ModuleFactory";
 import { Marketplace } from "./components/Marketplace";
 import { AuthProvider, useAuth } from "./lib/AuthContext";
-import { fetchCsrfToken, api } from "./lib/api";
+import { api } from "./lib/api";
 import { Onboarding } from "./components/Onboarding";
-import { useState } from "react";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth();
@@ -57,10 +56,6 @@ function AppRoutes() {
   const [showOnboarding, setShowOnboarding] = useState(
     !localStorage.getItem("nexus_onboarding_done"),
   );
-
-  useEffect(() => {
-    fetchCsrfToken();
-  }, []);
 
   const finishOnboarding = () => {
     localStorage.setItem("nexus_onboarding_done", "1");

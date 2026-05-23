@@ -42,7 +42,8 @@ class MarketplaceSkill:
             try:
                 raw = Path(self.file_path).read_text(encoding="utf-8")
                 self._body = _strip_frontmatter(raw)
-            except Exception:
+            except Exception as exc:
+                logger.warning("Failed to read skill body %s: %s", self.file_path, exc)
                 self._body = ""
         return self._body
 
@@ -147,7 +148,8 @@ def _parse_skill_file(path: Path, source: str = "plugin") -> MarketplaceSkill | 
     """Parse a SKILL.md file, extracting name + description from frontmatter."""
     try:
         raw = path.read_text(encoding="utf-8")
-    except Exception:
+    except Exception as exc:
+        logger.warning("Failed to read skill file %s: %s", path, exc)
         return None
 
     fm = _parse_frontmatter(raw)
@@ -186,8 +188,8 @@ def _parse_frontmatter(text: str) -> dict[str, str]:
         parsed = yaml.safe_load(fm_text)
         if isinstance(parsed, dict):
             return {str(k): str(v) for k, v in parsed.items() if v is not None}
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("Failed to parse skill frontmatter YAML: %s", exc)
     return {}
 
 

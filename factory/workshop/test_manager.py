@@ -11,7 +11,6 @@ import yaml
 
 import conftest
 pytestmark = conftest.needs_writable_config
-from config.schema import DepartmentSpec, AgentSpec, WorkflowSpec
 from factory.org import OrgEngine
 from factory.kanban.store import KanbanStore
 from factory.workshop.manager import WorkshopManager, WorkshopInfo

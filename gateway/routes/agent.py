@@ -5,12 +5,11 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import os
 import re
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse, StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from gateway.auth import require_auth
 
@@ -18,18 +17,20 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api", tags=["agent"])
 
-REQUEST_TIMEOUT = int(os.environ.get("AGENT_REQUEST_TIMEOUT", "600"))
+from factory.env import env_int
+
+REQUEST_TIMEOUT = env_int("AGENT_REQUEST_TIMEOUT", 600, min=10, max=3600)
 
 
 class AgentRunRequest(BaseModel):
     model: str = ""
     reasoning_effort: str = ""  # "low" | "medium" | "high" | "xhigh"
-    task: str
-    workshop: str = ""
+    task: str = Field(..., max_length=10000)
+    workshop: str = Field("", max_length=200)
 
 
 class AgentChatRequest(BaseModel):
-    message: str
+    message: str = Field(..., max_length=5000)
 
 
 def _org(request: Request):
@@ -59,6 +60,10 @@ async def agent_run_stream(body: AgentRunRequest, request: Request):
     if not task:
         return JSONResponse(content={"detail": "task is required"}, status_code=400)
 
+    # Reject new agent runs during graceful shutdown
+    if getattr(request.app.state, "shutdown", None) and request.app.state.shutdown.is_shutting_down:
+        return JSONResponse(content={"detail": "Server is shutting down"}, status_code=503)
+
     org = _org(request)
     mgr = WorkshopManager(org, _kanban_store(request))
     ws = mgr.get(workshop_name) if workshop_name else (org.workshops[0] if org.workshops else None)
@@ -71,13 +76,16 @@ async def agent_run_stream(body: AgentRunRequest, request: Request):
     agent_spec = ws.spec.agents[0]
     store = MemoryStore(":memory:")
     runner = NexusAgentRunner(agent_spec, ws, store)
+    runner._request_id = request_id  # attach for log tracing
     if body.model:
         runner.set_model_override(body.model)
     if body.reasoning_effort:
         runner.set_reasoning_effort(body.reasoning_effort)
 
+    request_id = getattr(request.state, "request_id", "")
+
     async def event_stream():
-        yield _sse("status", {"event": "started", "task": task[:200], "workshop": workshop_name})
+        yield _sse("status", {"event": "started", "task": task[:200], "workshop": workshop_name, "request_id": request_id[:8]})
 
         agent_task = asyncio.create_task(
             asyncio.wait_for(runner.run(task), timeout=REQUEST_TIMEOUT)
@@ -108,8 +116,9 @@ async def agent_run_stream(body: AgentRunRequest, request: Request):
             })
             if result.error:
                 yield _sse("error", {"message": result.error})
-        except Exception as exc:
-            yield _sse("error", {"message": str(exc)})
+        except Exception:
+            logger.exception("Agent run SSE failed")
+            yield _sse("error", {"message": "An internal error occurred. Please try again."})
         yield _sse("done", {})
 
     return StreamingResponse(
@@ -267,7 +276,8 @@ async def get_session(session_id: str, request: Request):
             "turns": stored.turns,
             "cost_usd": stored.total_cost_usd,
         })
-    except Exception:
+    except Exception as exc:
+        logger.warning("Failed to load session %s: %s", session_id, exc)
         return JSONResponse(content={"session_id": session_id, "messages": []})
 
 @router.get("/agent/sessions", dependencies=[Depends(require_auth)])
@@ -289,8 +299,8 @@ async def list_sessions(request: Request):
                     "turns": data.get("turns", 0),
                     "cost_usd": data.get("total_cost_usd", 0),
                 })
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Skipping corrupted session file %s: %s", f.name, exc)
     return JSONResponse(content={"sessions": sessions})
 
 

@@ -10,13 +10,15 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from pathlib import Path
 from string import Template
 from typing import Any
 
 from factory.memory.v2_store import MemoryV2Store
+
+logger = logging.getLogger(__name__)
 
 # ── Default extraction prompt ────────────────────────────────────────
 
@@ -89,7 +91,6 @@ class MemoryV2Extractor:
 
     async def _extract_with_llm(self, prompt: str) -> ExtractedFacts:
         """Use the provided LLM callable for extraction."""
-        import json
 
         try:
             result = await self._llm(prompt)
@@ -102,8 +103,8 @@ class MemoryV2Extractor:
                     event_summary=result.get("event_summary", ""),
                     feedback_rules=result.get("feedback_rules", []),
                 )
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("LLM extraction failed: %s", exc)
         return ExtractedFacts()
 
     def _extract_heuristic(self, text: str) -> ExtractedFacts:

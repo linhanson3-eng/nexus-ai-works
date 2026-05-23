@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from factory.kanban.store import KanbanStore, KanbanBoard, KanbanList, KanbanCard
+from factory.kanban.store import KanbanStore
 from factory.kanban.sync import KanbanSync, TaskEvent
 
 

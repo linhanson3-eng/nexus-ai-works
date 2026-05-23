@@ -7,7 +7,6 @@
 from __future__ import annotations
 
 import re
-from pathlib import Path
 
 from factory.tokenjuice.classify import classify as classify_input
 from factory.tokenjuice.rules import CompiledRule, load_rules

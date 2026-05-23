@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback, type FormEvent, type DragEvent } from "react";
 import { Send, User, Loader2, AlertTriangle, RefreshCw, Wrench, ChevronDown, ChevronRight, Bot, Square, Paperclip, X, ImageIcon, FileIcon, Cpu, Brain, Lightbulb } from "lucide-react";
 import { api, getAuthHeaders } from "../lib/api";
+import { useToast } from "./Toast";
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -143,6 +144,7 @@ function AttachPreview({ attachments, onRemove }: { attachments: Attachment[]; o
 // ── Main ─────────────────────────────────────────────────────
 
 export function ChatPanel() {
+  const toast = useToast();
   const [messages, setMessages] = useState<ChatMessage[]>(() => {
     // Restore messages from localStorage on mount
     try {
@@ -151,7 +153,7 @@ export function ChatPanel() {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       }
-    } catch {}
+    } catch { /* localStorage corrupted or unavailable — non-critical */ }
     return [{
       id: "welcome", role: "assistant",
       content: "你好，我是 Nexus 助手。告诉我你想做什么，我会调用工具来完成任务。",
@@ -180,7 +182,7 @@ export function ChatPanel() {
     api.listWorkshops().then(data => {
       setWorkshops(data as { name: string }[]);
       if (data.length && !activeWs) setActiveWs(data[0].name);
-    }).catch(() => {});
+    }).catch((err) => { console.error("加载工作区列表失败", err); });
   }, []);
 
   useEffect(() => {
@@ -196,13 +198,13 @@ export function ChatPanel() {
         }
       }
       setChatProviderGroups(groups);
-    }).catch(() => {});
+    }).catch((err) => { console.error("加载模型列表失败", err); });
   }, []);
 
   useEffect(() => {
     api.getPreferences().then((prefs: unknown) => {
       setModel((prefs as Record<string, string>)?.default_model || "");
-    }).catch(() => {});
+    }).catch((err) => { console.error("加载偏好设置失败", err); });
   }, []);
 
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
@@ -213,7 +215,7 @@ export function ChatPanel() {
     if (streaming || messages.length <= 1) return;
     try {
       localStorage.setItem("nexus_messages", JSON.stringify(messages.slice(-200)));
-    } catch {}
+    } catch { /* localStorage full or disabled — non-critical */ }
   }, [messages]);
 
   // Restore session from backend (complementary to localStorage)
@@ -249,7 +251,7 @@ export function ChatPanel() {
             });
           }
         }
-      }).catch(() => {});
+      }).catch((err) => { console.error("加载会话记录失败", err); });
   }, [activeWs]);
 
   // ── SSE Streaming ──────────────────────────────────────
@@ -362,7 +364,7 @@ export function ChatPanel() {
       case "completed": {
         const c = event as { reply: string; turns: number; cost_usd: number; tools_used: string[]; session_id: string; model: string };
         setSessionId(c.session_id);
-        try { localStorage.setItem('nexus_session_' + activeWs, c.session_id); } catch {}
+        try { localStorage.setItem('nexus_session_' + activeWs, c.session_id); } catch { /* localStorage full — non-critical */ }
         update(m => ({ ...m, content: m.content || c.reply || "", isStreaming: false, turns: c.turns, cost: c.cost_usd, toolsUsed: c.tools_used, model: m.model || c.model, sessionId: c.session_id }));
         break;
       }
@@ -537,7 +539,7 @@ export function ChatPanel() {
 
             {/* Model pill */}
             <div className="relative">
-              <select value={model} onChange={e => { setModel(e.target.value); if (!supportsReasoning(e.target.value)) setReasoningEffort(""); }}
+              <select value={model} onChange={e => { const v = e.target.value; setModel(v); if (!supportsReasoning(v)) setReasoningEffort(""); api.savePreferences({ default_model: v }).catch(() => {}); }}
                 className="appearance-none bg-white/[0.04] border border-white/[0.06] hover:border-white/[0.12] rounded-lg pl-2 pr-5 py-1 text-[11px] text-muted outline-none cursor-pointer transition-colors max-w-[120px] truncate">
                 <option value="">自动</option>
                 {chatProviderGroups.map(g => (

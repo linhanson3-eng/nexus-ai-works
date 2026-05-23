@@ -8,13 +8,17 @@ project restarts without requiring a database migration.
 from __future__ import annotations
 
 import json
+import logging
 import os
 from copy import deepcopy
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from factory.env import env_bool
 from factory.security.crypto import encrypt as _encrypt, decrypt as _decrypt
+
+logger = logging.getLogger(__name__)
 
 
 SETTINGS_PATH = Path.home() / ".factory" / "settings.json"
@@ -143,8 +147,8 @@ class SettingsStore:
             if key and not key.startswith("$e$"):
                 try:
                     provider["api_key"] = "$e$" + _encrypt(key)
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.error("Failed to encrypt API key: %s", exc)
 
     def _decrypt_provider_keys(self) -> None:
         """Decrypt api_key fields after loading from disk."""
@@ -153,7 +157,8 @@ class SettingsStore:
             if key.startswith("$e$"):
                 try:
                     provider["api_key"] = _decrypt(key[3:])
-                except Exception:
+                except Exception as exc:
+                    logger.error("Failed to decrypt API key: %s", exc)
                     provider["api_key"] = ""
 
     # ── providers ─────────────────────────────────────────
@@ -213,10 +218,11 @@ class SettingsStore:
         if api_key:
             headers["Authorization"] = f"Bearer {api_key}"
 
-        # Allow unverified SSL for self-hosted proxies
+        # Allow unverified SSL only when explicitly opted in
         ctx = ssl.create_default_context()
-        ctx.check_hostname = False
-        ctx.verify_mode = ssl.CERT_NONE
+        if env_bool("ALLOW_INSECURE_SSL"):
+            ctx.check_hostname = False
+            ctx.verify_mode = ssl.CERT_NONE
 
         try:
             req = urllib.request.Request(models_url, headers=headers)

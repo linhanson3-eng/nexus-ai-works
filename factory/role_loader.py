@@ -6,10 +6,12 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
-from typing import Any
 
 import yaml
+
+logger = logging.getLogger(__name__)
 
 from config.schema import AgentPermissions, AgentSpec, BudgetSpec, RoleSpec
 
@@ -44,7 +46,8 @@ class RoleLoader:
             role = RoleSpec(**data)
             self._cache[name] = role
             return role
-        except Exception:
+        except Exception as exc:
+            logger.warning("Failed to load role %s: %s", role_name, exc)
             return None
 
     def list_all(self) -> list[str]:

@@ -26,6 +26,9 @@ async def _serve(args):
     import certifi
     import os
 
+    if getattr(args, "dev", False):
+        os.environ["NX_ENV"] = "development"
+
     os.environ.setdefault("SSL_CERT_FILE", certifi.where())
 
     from gateway.server import create_app, serve
@@ -139,7 +142,7 @@ def cmd_skill(args):
         if skill.tools:
             print(f"  工具: {', '.join(skill.tools)}")
         if skill.body:
-            print(f"\n  ---")
+            print("\n  ---")
             print(f"  {skill.body[:2000]}")
 
     elif args.skill_cmd == "install":
@@ -282,9 +285,9 @@ def cmd_module(args):
             return
         result = mgr.import_package(args.package, force=getattr(args, "force", False))
         if result is None:
-            print(f"  导入失败（工作区可能已存在，使用 --force 覆盖）")
+            print("  导入失败（工作区可能已存在，使用 --force 覆盖）")
             return
-        print(f"\n  已导入:")
+        print("\n  已导入:")
         for k, v in result.items():
             print(f"    {k}: {v}")
 
@@ -298,7 +301,7 @@ def cmd_module(args):
         if result is None:
             print(f"  工作区 '{args.workspace}' 不存在")
             return
-        print(f"\n  已卸载:")
+        print("\n  已卸载:")
         for k, v in result.items():
             print(f"    {k}: {v}")
 
@@ -434,7 +437,7 @@ def _library_show(args):
         print(f"  来源: {entry.source_workshop}")
     print(f"  入库: {entry.created_at}")
     if entry.body:
-        print(f"\n  --- 内容 ---")
+        print("\n  --- 内容 ---")
         print(f"  {entry.body[:2000]}")
 
 

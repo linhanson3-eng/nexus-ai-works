@@ -43,14 +43,14 @@ async def create_board(request: Request):
     )
 
 
-@router.get("/boards")
+@router.get("/boards", dependencies=[Depends(require_auth)])
 async def list_boards(request: Request):
     workshop_name = request.query_params.get("workshop_name", "")
     boards = _kanban_store(request).list_boards(workshop_name)
     return JSONResponse(content=boards)
 
 
-@router.get("/boards/{board_id}")
+@router.get("/boards/{board_id}", dependencies=[Depends(require_auth)])
 async def get_board(board_id: str, request: Request):
     full = _kanban_store(request).get_board_full(board_id)
     if not full:
@@ -97,7 +97,7 @@ async def create_list(board_id: str, request: Request):
     )
 
 
-@router.get("/boards/{board_id}/lists")
+@router.get("/boards/{board_id}/lists", dependencies=[Depends(require_auth)])
 async def get_lists(board_id: str, request: Request):
     lists = _kanban_store(request).get_lists(board_id)
     return JSONResponse(content=lists)
@@ -171,13 +171,13 @@ async def create_card(list_id: str, request: Request):
     return JSONResponse(content=payload, status_code=201)
 
 
-@router.get("/lists/{list_id}/cards")
+@router.get("/lists/{list_id}/cards", dependencies=[Depends(require_auth)])
 async def get_cards(list_id: str, request: Request):
     cards = _kanban_store(request).get_cards(list_id)
     return JSONResponse(content=cards)
 
 
-@router.get("/cards/{card_id}")
+@router.get("/cards/{card_id}", dependencies=[Depends(require_auth)])
 async def get_card(card_id: str, request: Request):
     card = _kanban_store(request).get_card(card_id)
     if not card:
@@ -235,7 +235,7 @@ async def delete_card(card_id: str, request: Request):
 # ── Agent Sync ──
 
 
-@router.get("/cards/agent/{agent_name}")
+@router.get("/cards/agent/{agent_name}", dependencies=[Depends(require_auth)])
 async def get_cards_by_agent(agent_name: str, request: Request):
     cards = _kanban_store(request).get_cards_by_agent(agent_name)
     return JSONResponse(content=cards)

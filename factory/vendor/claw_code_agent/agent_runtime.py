@@ -50,7 +50,6 @@ from .agent_types import (
     AssistantTurn,
     BudgetConfig,
     ModelConfig,
-    OutputSchemaConfig,
     StreamEvent,
     ToolCall,
     ToolExecutionResult,
