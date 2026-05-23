@@ -12,6 +12,7 @@ from __future__ import annotations
 import concurrent.futures
 import re
 from typing import Any
+from urllib.parse import urlparse
 
 import httpx
 
@@ -152,6 +153,9 @@ def _fetch_all(urls: list[str]) -> list[str]:
         return []
 
     def _fetch_one(url: str) -> str:
+        parsed = urlparse(url)
+        if parsed.scheme not in ("http", "https"):
+            return ""
         try:
             with httpx.Client(timeout=FETCH_TIMEOUT, follow_redirects=True) as client:
                 resp = client.get(url, headers={

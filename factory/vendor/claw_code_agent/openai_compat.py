@@ -383,6 +383,13 @@ class OpenAICompatClient:
                     delta=content,
                     raw_event=choice,
                 )
+            reasoning = delta.get('reasoning_content')
+            if isinstance(reasoning, str) and reasoning:
+                yield StreamEvent(
+                    type='reasoning_delta',
+                    delta=reasoning,
+                    raw_event=choice,
+                )
             tool_calls = delta.get('tool_calls')
             if isinstance(tool_calls, list):
                 for raw_tool_call in tool_calls:

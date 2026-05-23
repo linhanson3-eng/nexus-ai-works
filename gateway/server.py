@@ -52,62 +52,6 @@ class AgentSessionManager:
         self._sessions.pop(workshop_name, None)
 
 
-class QuestionBridge:
-    """Bridges interactive questions from Agent to SSE/Frontend.
-
-    When the agent calls ask_user_question, the question is stored here.
-    The frontend polls or listens via SSE for pending questions.
-    """
-
-    def __init__(self):
-        self._pending: dict[str, str] = {}
-        self._answers: dict[str, str] = {}
-        self._events: dict[str, asyncio.Event] = {}
-        self._created_at: dict[str, datetime] = {}
-
-    def set_question(self, request_id: str, question: str) -> None:
-        self._cleanup()
-        self._pending[request_id] = question
-        self._answers.pop(request_id, None)
-        self._created_at[request_id] = datetime.now(timezone.utc)
-
-    def get_question(self, request_id: str) -> str:
-        self._cleanup()
-        return self._pending.get(request_id, "")
-
-    def _cleanup(self) -> None:
-        """Remove entries older than 1 hour."""
-        now = datetime.now(timezone.utc)
-        expired = [
-            rid for rid, ts in self._created_at.items()
-            if (now - ts).total_seconds() > 3600
-        ]
-        for rid in expired:
-            self._pending.pop(rid, None)
-            self._answers.pop(rid, None)
-            self._events.pop(rid, None)
-            self._created_at.pop(rid, None)
-
-    def submit_answer(self, request_id: str, answer: str) -> bool:
-        if request_id not in self._pending:
-            return False
-        self._answers[request_id] = answer
-        self._pending.pop(request_id, None)
-        event = self._events.pop(request_id, None)
-        if event:
-            event.set()
-        return True
-
-    async def wait_answer(self, request_id: str, timeout: float = 300.0) -> str:
-        event = asyncio.Event()
-        self._events[request_id] = event
-        try:
-            await asyncio.wait_for(event.wait(), timeout=timeout)
-        except asyncio.TimeoutError:
-            return "[TIMEOUT]"
-        return self._answers.get(request_id, "[NO_ANSWER]")
-
-
 class KanbanWSManager:
     """WebSocket connection manager with board-room based routing.
 
@@ -166,7 +110,6 @@ def create_app(org: "OrgEngine", kanban_store: "KanbanStore") -> FastAPI:
 
     ws_manager = KanbanWSManager()
     session_manager = AgentSessionManager()
-    question_bridge = QuestionBridge()
 
     from factory.settings import SettingsStore
     from factory.workflow.chain import ChainStore
@@ -178,7 +121,6 @@ def create_app(org: "OrgEngine", kanban_store: "KanbanStore") -> FastAPI:
     app.state.kanban_store = kanban_store
     app.state.ws_manager = ws_manager
     app.state.session_manager = session_manager
-    app.state.question_bridge = question_bridge
     app.state.settings_store = settings_store
     app.state.chain_store = chain_store
 
@@ -243,8 +185,8 @@ def create_app(org: "OrgEngine", kanban_store: "KanbanStore") -> FastAPI:
             )
             response.headers["Content-Security-Policy"] = (
                 "default-src 'self'; "
-                "script-src 'self' https://cdn.jsdelivr.net; "
-                "style-src 'self' 'unsafe-inline'; "
+                "script-src 'self'; "
+                "style-src 'self'; "
                 "img-src 'self' data: https:; "
                 "font-src 'self'; "
                 "connect-src 'self' ws: wss:; "

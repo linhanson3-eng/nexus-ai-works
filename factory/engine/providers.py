@@ -80,20 +80,9 @@ class ProviderRegistry:
         stored = store.list_providers()
 
         registry = cls(_providers={})
-        _ENV_MAP: dict[str, str] = {
-            "anthropic": "ANTHROPIC_API_KEY",
-            "deepseek": "DEEPSEEK_API_KEY",
-            "openai": "OPENAI_API_KEY",
-            "moonshot": "MOONSHOT_API_KEY",
-        }
-
+        # SettingsStore already applies env vars, so api_key from stored is authoritative
         for name, cfg in stored.items():
             api_key = cfg.get("api_key", "")
-            env_var = _ENV_MAP.get(name, "")
-            if env_var:
-                env_key = os.environ.get(env_var, "")
-                if env_key:
-                    api_key = env_key
             registry.register(
                 name=name,
                 base_url=cfg.get("base_url", ""),

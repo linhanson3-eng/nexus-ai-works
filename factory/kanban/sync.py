@@ -104,5 +104,6 @@ class KanbanSync:
         for cb in self._listeners:
             try:
                 await cb(event)
-            except Exception:
-                pass
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).warning("Kanban listener failed: %s", e)

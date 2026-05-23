@@ -25,13 +25,13 @@ class EvolutionHook:
         candidates = await hook.evolve()
     """
 
-    def __init__(self, skills_dir: str = "skills",
+    def __init__(self, skills_dir: str = "skills", logger=None,
                  min_tool_calls: int = 5, min_errors: int = 1):
         self.skills_dir = skills_dir
         self.min_tool_calls = min_tool_calls
         self.min_errors = min_errors
         self.engine = EvolutionEngine(skills_dir)
-        self.logger = EvolutionLogger()
+        self.logger = logger if logger is not None else EvolutionLogger()
         self.lifecycle = SkillLifecycle(skills_dir)
         self.trajectory: ExecutionTrajectory | None = None
         self._tool_count = 0

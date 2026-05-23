@@ -1,14 +1,16 @@
 """Tests for usage tracking."""
 import os
 import secrets
+from pathlib import Path
+
 import pytest
-from factory.usage import record, get_user_stats, UsageEvent, DB_PATH
+from factory.usage import record, get_user_stats, UsageEvent
 
 
 @pytest.fixture(autouse=True)
-def clean_db():
-    """Remove usage DB before each test for isolation."""
-    db_path = DB_PATH.expanduser()
+def clean_db(tmp_path, monkeypatch):
+    db_path = tmp_path / "usage.db"
+    monkeypatch.setenv("USAGE_DB_PATH", str(db_path))
     if db_path.exists():
         db_path.unlink()
     yield

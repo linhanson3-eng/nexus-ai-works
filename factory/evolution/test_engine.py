@@ -586,10 +586,10 @@ class TestRollbackManager:
 
 class TestEvolutionHook:
     @pytest.fixture
-    def hook(self):
-        import tempfile
-        with tempfile.TemporaryDirectory() as tmp:
-            yield EvolutionHook(skills_dir=tmp)
+    def hook(self, tmp_path):
+        from pathlib import Path
+        log = EvolutionLogger(tmp_path / "evo.db")
+        yield EvolutionHook(skills_dir=str(tmp_path), logger=log)
 
     def test_on_task_start_sets_trajectory(self, hook):
         hook.on_task_start("agent-1", "build feature")

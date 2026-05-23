@@ -1,12 +1,16 @@
 """Tests for audit trail system."""
+import os
 import secrets
+from pathlib import Path
+
 import pytest
-from factory.security.audit import record, query, get_recent_events, purge_old, AuditEvent, AUDIT_DB_PATH
+from factory.security.audit import record, query, get_recent_events, purge_old, AuditEvent
 
 
 @pytest.fixture(autouse=True)
-def clean_audit_db():
-    db_path = AUDIT_DB_PATH.expanduser()
+def clean_audit_db(tmp_path, monkeypatch):
+    db_path = tmp_path / "audit.db"
+    monkeypatch.setenv("AUDIT_DB_PATH", str(db_path))
     if db_path.exists():
         db_path.unlink()
     yield
@@ -50,7 +54,6 @@ class TestAuditRecord:
 
     def test_purge_old(self):
         record(AuditEvent.DATA_DELETE, "card.deleted", actor="user")
-        # Purge with 0 days should delete nothing (event was just created)
         deleted = purge_old(days=365)
         assert deleted >= 0
 

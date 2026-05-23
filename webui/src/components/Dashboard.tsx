@@ -99,7 +99,7 @@ export function Dashboard() {
           </div>
           <div>
             <div className="text-5xl font-black text-white tracking-tight tabular-nums">{totalAgents}</div>
-            <p className="text-sm text-muted mt-1">{totalAgents} 个 Agent · {workshops.length} 个工作区</p>
+            <p className="text-sm text-muted mt-1">{totalAgents} 个 Agent · {workshops.length} 个项目</p>
           </div>
         </div>
 
@@ -117,7 +117,7 @@ export function Dashboard() {
         <div className="bg-card rounded-[20px] border border-border p-5 flex flex-col justify-between hover:bg-card-hover transition-colors">
           <div className="flex items-center gap-2.5">
             <Blocks className="w-4 h-4 text-info" />
-            <span className="text-[11px] uppercase tracking-widest text-muted font-medium">工作区</span>
+            <span className="text-[11px] uppercase tracking-widest text-muted font-medium">项目</span>
           </div>
           <div className="text-2xl font-bold text-white tracking-tight">{workshops.length}</div>
           <p className="text-xs text-muted">{workshops.filter(w => w.has_kanban).length} 个已绑定看板</p>
@@ -135,16 +135,16 @@ export function Dashboard() {
 
         {/* Workshop list */}
         <div className="col-span-2 bg-card rounded-[20px] border border-border p-5 flex flex-col hover:bg-card-hover transition-colors overflow-hidden max-lg:col-span-2">
-          <span className="text-[11px] uppercase tracking-widest text-muted font-medium mb-3">工作区列表</span>
+          <span className="text-[11px] uppercase tracking-widest text-muted font-medium mb-3">项目列表</span>
           {workshops.length === 0 ? (
             <div className="flex-1 flex flex-col items-center justify-center gap-3">
               <Activity className="w-8 h-8 text-muted" />
-              <p className="text-sm text-muted">暂无工作区</p>
+              <p className="text-sm text-muted">暂无项目</p>
               <button
                 onClick={() => navigate("/workshops")}
                 className="px-4 py-2 bg-accent/10 text-accent border border-accent/20 rounded-xl text-sm hover:bg-accent/20 transition-colors"
               >
-                创建第一个工作区
+                创建第一个项目
               </button>
             </div>
           ) : (

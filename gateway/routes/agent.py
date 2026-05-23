@@ -1,4 +1,4 @@
-"""Agent run, chat, and interactive questioning endpoints."""
+"""Agent run and chat endpoints."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ import re
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse, StreamingResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from gateway.auth import require_auth
 
@@ -22,17 +22,14 @@ REQUEST_TIMEOUT = int(os.environ.get("AGENT_REQUEST_TIMEOUT", "600"))
 
 
 class AgentRunRequest(BaseModel):
+    model: str = ""
+    reasoning_effort: str = ""  # "low" | "medium" | "high" | "xhigh"
     task: str
     workshop: str = ""
 
 
 class AgentChatRequest(BaseModel):
     message: str
-
-
-class AgentAnswerRequest(BaseModel):
-    request_id: str = ""
-    answer: str = ""
 
 
 def _org(request: Request):
@@ -47,60 +44,8 @@ def _session_manager(request: Request):
     return request.app.state.session_manager
 
 
-def _question_bridge(request: Request):
-    return request.app.state.question_bridge
-
-
 def _sse(event: str, data: dict) -> str:
     return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
-
-
-@router.post("/agent/run", dependencies=[Depends(require_auth)])
-async def agent_run(body: AgentRunRequest, request: Request):
-    from factory.workshop.manager import WorkshopManager
-    from factory.runner import NexusAgentRunner
-    from factory.memory import MemoryStore
-
-    task = body.task.strip()
-    workshop_name = body.workshop
-    if not task:
-        return JSONResponse(content={"detail": "task is required"}, status_code=400)
-
-    org = _org(request)
-    mgr = WorkshopManager(org, _kanban_store(request))
-    if workshop_name:
-        ws = mgr.get(workshop_name)
-        if ws is None:
-            return JSONResponse(content={"detail": f"Workshop not found: {workshop_name}"}, status_code=404)
-    else:
-        if not org.workshops:
-            return JSONResponse(content={"detail": "No workshops configured"}, status_code=404)
-        ws = org.workshops[0]
-        workshop_name = ws.name
-
-    if not ws.spec.agents:
-        return JSONResponse(content={"detail": "No agents in workshop"}, status_code=400)
-    agent_spec = ws.spec.agents[0]
-    store = MemoryStore(":memory:")
-
-    runner = NexusAgentRunner(agent_spec, ws, store)
-    runner.record_chat("system", f"任务开始: {task}", "gateway")
-
-    try:
-        result = await asyncio.wait_for(runner.run(task), timeout=REQUEST_TIMEOUT)
-        if result.session_id:
-            _session_manager(request).set(workshop_name, result.session_id)
-        return JSONResponse(content={
-            "reply": result.content[:5000],
-            "tools_used": result.tools_used,
-            "turns": result.turns,
-            "cost_usd": result.cost_usd,
-            "session_id": result.session_id,
-            "error": result.error,
-        })
-    except Exception as exc:
-        logger.error("Agent execution failed: %s", exc, exc_info=True)
-        return JSONResponse(content={"reply": "执行失败，请稍后重试", "error": "internal_error"}, status_code=500)
 
 
 @router.post("/agent/run/stream", dependencies=[Depends(require_auth)])
@@ -126,11 +71,26 @@ async def agent_run_stream(body: AgentRunRequest, request: Request):
     agent_spec = ws.spec.agents[0]
     store = MemoryStore(":memory:")
     runner = NexusAgentRunner(agent_spec, ws, store)
+    if body.model:
+        runner.set_model_override(body.model)
+    if body.reasoning_effort:
+        runner.set_reasoning_effort(body.reasoning_effort)
 
     async def event_stream():
         yield _sse("status", {"event": "started", "task": task[:200], "workshop": workshop_name})
+
+        agent_task = asyncio.create_task(
+            asyncio.wait_for(runner.run(task), timeout=REQUEST_TIMEOUT)
+        )
+
+        while True:
+            done, _ = await asyncio.wait([agent_task], timeout=15.0)
+            if agent_task in done:
+                break
+            yield ": heartbeat\n\n"
+
         try:
-            result = await asyncio.wait_for(runner.run(task), timeout=REQUEST_TIMEOUT)
+            result = await agent_task
             if result.session_id:
                 _session_manager(request).set(workshop_name, result.session_id)
 
@@ -144,6 +104,7 @@ async def agent_run_stream(body: AgentRunRequest, request: Request):
                 "cost_usd": result.cost_usd,
                 "tools_used": result.tools_used,
                 "session_id": result.session_id,
+                "model": result.model,
             })
             if result.error:
                 yield _sse("error", {"message": result.error})
@@ -160,29 +121,6 @@ async def agent_run_stream(body: AgentRunRequest, request: Request):
             "X-Accel-Buffering": "no",
         },
     )
-
-
-# ── Interactive Questioning ──
-
-
-@router.get("/agent/question/{request_id}")
-async def poll_question(request_id: str, request: Request):
-    question = _question_bridge(request).get_question(request_id)
-    return JSONResponse(content={
-        "request_id": request_id,
-        "has_question": bool(question),
-        "question": question,
-    })
-
-
-@router.post("/agent/answer", dependencies=[Depends(require_auth)])
-async def submit_answer(body: AgentAnswerRequest, request: Request):
-    request_id = body.request_id
-    answer = body.answer
-    if not request_id:
-        return JSONResponse(content={"detail": "request_id required"}, status_code=400)
-    ok = _question_bridge(request).submit_answer(request_id, answer)
-    return JSONResponse(content={"request_id": request_id, "accepted": ok})
 
 
 # ── Agent Chat ──
@@ -303,6 +241,57 @@ async def agent_chat(body: AgentChatRequest, request: Request):
             f"试试对我说：**「创建一个开发工作区」** 或 **「帮助」**"
         )
         return JSONResponse(content={"reply": reply})
+
+
+
+# ── Session History ──
+
+@router.get("/agent/session/{session_id}", dependencies=[Depends(require_auth)])
+async def get_session(session_id: str, request: Request):
+    """Load conversation history from a persisted session."""
+    from pathlib import Path
+    from factory.vendor.claw_code_agent.session_store import load_agent_session
+
+    sessions_dir = Path(".port_sessions/agent")
+    try:
+        stored = load_agent_session(session_id, directory=sessions_dir)
+        messages = []
+        for msg in stored.messages:
+            role = msg.get("role", "")
+            content = msg.get("content", "") or ""
+            if role in ("user", "assistant"):
+                messages.append({"role": role, "content": str(content)})
+        return JSONResponse(content={
+            "session_id": stored.session_id,
+            "messages": messages,
+            "turns": stored.turns,
+            "cost_usd": stored.total_cost_usd,
+        })
+    except Exception:
+        return JSONResponse(content={"session_id": session_id, "messages": []})
+
+@router.get("/agent/sessions", dependencies=[Depends(require_auth)])
+async def list_sessions(request: Request):
+    """List recent sessions."""
+    from pathlib import Path
+    import json
+
+    sessions_dir = Path(".port_sessions/agent")
+    sessions = []
+    if sessions_dir.exists():
+        for f in sorted(sessions_dir.glob("*.json"), key=lambda p: p.stat().st_mtime, reverse=True)[:20]:
+            try:
+                data = json.loads(f.read_text(encoding="utf-8"))
+                user_msgs = [m.get("content", "")[:80] for m in data.get("messages", []) if m.get("role") == "user"]
+                sessions.append({
+                    "session_id": data.get("session_id", f.stem),
+                    "preview": user_msgs[0] if user_msgs else "",
+                    "turns": data.get("turns", 0),
+                    "cost_usd": data.get("total_cost_usd", 0),
+                })
+            except Exception:
+                pass
+    return JSONResponse(content={"sessions": sessions})
 
 
 def _parse_intent(message: str) -> tuple[str, dict]:

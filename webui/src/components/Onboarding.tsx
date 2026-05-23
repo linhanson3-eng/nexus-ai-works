@@ -8,7 +8,7 @@ const steps = [
   {
     icon: Zap,
     title: "欢迎使用 Nexus AI Works",
-    description: "一个开源、自进化的 AI 工作平台。配置你的 LLM、创建工作区、运行工作流——全部在浏览器中完成。",
+    description: "一个开源、自进化的 AI 工作平台。配置你的 LLM、创建项目、运行工作流——全部在浏览器中完成。",
     action: "开始配置",
     path: "/settings",
   },
@@ -21,15 +21,15 @@ const steps = [
   },
   {
     icon: Blocks,
-    title: "创建第一个工作区",
-    description: "工作区是隔离的 AI 团队空间。每个工作区有自己的 Agent、工作流、看板和记忆。你可以创建多个工作区用于不同项目。",
-    action: "前往工作区",
+    title: "创建第一个项目",
+    description: "项目是隔离的 AI 团队空间。每个项目有自己的 Agent、工作流、看板和记忆。你可以创建多个项目用于不同业务场景。",
+    action: "前往项目",
     path: "/workshops",
   },
   {
     icon: Play,
     title: "运行第一个工作流",
-    description: "展开工作区，输入任务描述，选择工作流模板，点击执行。Agent 将自动完成任务并生成结果。",
+    description: "展开项目，输入任务描述，选择工作流模板，点击执行。Agent 将自动完成任务并生成结果。",
     action: "开始使用",
     path: "/workshops",
   },

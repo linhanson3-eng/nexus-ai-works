@@ -46,12 +46,16 @@ def _score_rule(input: ToolExecutionInput, rule: CompiledRule) -> float:
                 score += 100.0
                 break
 
-    # argv_includes 子串匹配
+    # argv_includes 子组匹配（每组内 AND，组间 OR）
     if rule.argv_includes:
-        for ai in rule.argv_includes:
-            for arg in argv:
-                if ai.lower() in arg.lower():
-                    score += 40.0
+        for group in rule.argv_includes:
+            if isinstance(group, str):
+                group = [group]
+            if any(
+                all(term.lower() in arg.lower() for term in group)
+                for arg in argv
+            ):
+                score += 40.0
 
     # command_includes 命令子串匹配
     if rule.command_includes:

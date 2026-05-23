@@ -10,9 +10,7 @@ import { Dashboard } from "./components/Dashboard";
 import { WorkshopList } from "./components/WorkshopList";
 import { KanbanBoard } from "./components/KanbanBoard";
 import { WorkflowList } from "./components/WorkflowList";
-import { ChainList } from "./components/ChainList";
 import { ModuleFactory } from "./components/ModuleFactory";
-import { TemplateLibrary } from "./components/TemplateLibrary";
 import { Marketplace } from "./components/Marketplace";
 import { AuthProvider, useAuth } from "./lib/AuthContext";
 import { fetchCsrfToken, api } from "./lib/api";
@@ -82,10 +80,8 @@ function AppRoutes() {
           <Route path="/workshops" element={<ErrorBoundary><WorkshopList /></ErrorBoundary>} />
           <Route path="/kanban" element={<ErrorBoundary><KanbanBoard /></ErrorBoundary>} />
           <Route path="/workflows" element={<ErrorBoundary><WorkflowList /></ErrorBoundary>} />
-          <Route path="/chains" element={<ErrorBoundary><ChainList /></ErrorBoundary>} />
           <Route path="/factory" element={<ErrorBoundary><ModuleFactory /></ErrorBoundary>} />
           <Route path="/settings" element={<ErrorBoundary><Settings /></ErrorBoundary>} />
-          <Route path="/library" element={<ErrorBoundary><TemplateLibrary /></ErrorBoundary>} />
           <Route path="/market" element={<ErrorBoundary><Marketplace /></ErrorBoundary>} />
           <Route path="*" element={<Navigate to="/chat" replace />} />
         </Route>

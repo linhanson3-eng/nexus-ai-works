@@ -1052,6 +1052,7 @@ class LocalCodingAgent:
                         'tool_call_id': tool_call.id,
                         'message_id': session.messages[tool_message_index].message_id,
                         'ok': tool_result.ok,
+                        'content': tool_result.content,
                         'metadata': dict(tool_result.metadata),
                     }
                 )
@@ -1186,6 +1187,7 @@ class LocalCodingAgent:
         usage = UsageStats()
         finish_reason: str | None = None
         events: list[StreamEvent] = []
+        reasoning_content: str = ''
         for event in self.client.stream(
             session.to_openai_messages(),
             tool_specs,
@@ -1194,6 +1196,8 @@ class LocalCodingAgent:
             events.append(event)
             if event.type == 'content_delta':
                 session.append_assistant_delta(assistant_index, event.delta)
+            elif event.type == 'reasoning_delta':
+                reasoning_content += event.delta
             elif event.type == 'tool_call_delta':
                 session.merge_assistant_tool_call_delta(
                     assistant_index,
@@ -1212,6 +1216,12 @@ class LocalCodingAgent:
             finish_reason=finish_reason,
             usage=usage,
         )
+        if reasoning_content:
+            msg = session.messages[assistant_index]
+            session.messages[assistant_index] = replace(
+                msg,
+                raw_extra={**msg.raw_extra, 'reasoning_content': reasoning_content},
+            )
         assistant_message = session.messages[assistant_index]
         turn = AssistantTurn(
             content=assistant_message.content,
@@ -1834,6 +1844,7 @@ class LocalCodingAgent:
             'tool_call_id': tool_call.id,
             'tool_name': tool_call.name,
             'ok': tool_result.ok,
+                        'content': tool_result.content,
             'history_entry_id': f'{turn_index}:{tool_call.id}:{tool_call.name}',
             'result_preview': self._preview_text(tool_result.content, 220),
             **metadata,

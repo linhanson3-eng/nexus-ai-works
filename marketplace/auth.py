@@ -133,15 +133,22 @@ def decode_token(token: str) -> dict | None:
         return None
 
 
+ADMIN_TOKEN_PATH = Path("~/.nexus/admin_token").expanduser()
 ADMIN_TOKEN_HASH = os.environ.get("MARKETPLACE_ADMIN_TOKEN_HASH", "")
 if not ADMIN_TOKEN_HASH:
-    admin_token = secrets.token_hex(24)
-    ADMIN_TOKEN_HASH = hash_password(admin_token)
-    print(
-        f"[marketplace] Generated admin token: {admin_token} "
-        f"(set MARKETPLACE_ADMIN_TOKEN_HASH to persist)",
-        file=sys.stderr,
-    )
+    if ADMIN_TOKEN_PATH.exists():
+        ADMIN_TOKEN_HASH = hash_password(ADMIN_TOKEN_PATH.read_text().strip())
+    else:
+        admin_token = secrets.token_hex(24)
+        ADMIN_TOKEN_HASH = hash_password(admin_token)
+        ADMIN_TOKEN_PATH.parent.mkdir(parents=True, exist_ok=True)
+        ADMIN_TOKEN_PATH.write_text(admin_token)
+        ADMIN_TOKEN_PATH.chmod(0o600)
+        print(
+            f"[marketplace] Admin token saved to {ADMIN_TOKEN_PATH} "
+            f"(set MARKETPLACE_ADMIN_TOKEN_HASH env var to persist)",
+            file=sys.stderr,
+        )
 
 
 def verify_admin_token(token: str) -> bool:

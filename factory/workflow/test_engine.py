@@ -4,6 +4,9 @@ from __future__ import annotations
 
 import pytest
 
+import os
+from pathlib import Path
+
 from factory.workflow import (
     WorkflowNode,
     WorkflowTemplate,
@@ -26,7 +29,8 @@ def workshop():
 
 
 @pytest.fixture
-def runner(workshop):
+def runner(workshop, tmp_path, monkeypatch):
+    monkeypatch.setenv("SNAPSHOT_DIR", str(tmp_path / "runs"))
     return WorkflowRunner(workshop)
 
 
@@ -103,7 +107,8 @@ class TestDAG:
 
 class TestExecution:
     @pytest.mark.asyncio
-    async def test_single_node(self, workshop):
+    async def test_single_node(self, workshop, tmp_path, monkeypatch):
+        monkeypatch.setenv("SNAPSHOT_DIR", str(tmp_path / "runs"))
         tmpl = WorkflowTemplate(name="simple", nodes=[WorkflowNode(id="exec", label="Exec")])
         events: list = []
         async def cb(nid, status, detail):
@@ -116,7 +121,8 @@ class TestExecution:
         assert ("exec", "running") in events
 
     @pytest.mark.asyncio
-    async def test_parallel_execution_order(self, workshop):
+    async def test_parallel_execution_order(self, workshop, tmp_path, monkeypatch):
+        monkeypatch.setenv("SNAPSHOT_DIR", str(tmp_path / "runs"))
         """A and B have no dependencies, should execute. C depends on A and B."""
         completed_order: list[str] = []
 
@@ -138,7 +144,8 @@ class TestExecution:
         assert completed_order.index("b") < completed_order.index("c")
 
     @pytest.mark.asyncio
-    async def test_mock_outputs(self, workshop):
+    async def test_mock_outputs(self, workshop, tmp_path, monkeypatch):
+        monkeypatch.setenv("SNAPSHOT_DIR", str(tmp_path / "runs"))
         nodes = [
             WorkflowNode(id="a", label="A"),
             WorkflowNode(id="b", label="B", depends_on=["a"]),
@@ -153,7 +160,8 @@ class TestExecution:
         assert result.node_results["a"].output == "result from a"
 
     @pytest.mark.asyncio
-    async def test_mock_failure(self, workshop):
+    async def test_mock_failure(self, workshop, tmp_path, monkeypatch):
+        monkeypatch.setenv("SNAPSHOT_DIR", str(tmp_path / "runs"))
         nodes = [WorkflowNode(id="bad", label="Bad")]
         tmpl = WorkflowTemplate(name="fail", nodes=nodes)
         runner = WorkflowRunner(workshop, mock_outputs={
@@ -164,7 +172,8 @@ class TestExecution:
         assert result.node_results["bad"].error == "boom"
 
     @pytest.mark.asyncio
-    async def test_context_passing(self, workshop):
+    async def test_context_passing(self, workshop, tmp_path, monkeypatch):
+        monkeypatch.setenv("SNAPSHOT_DIR", str(tmp_path / "runs"))
         nodes = [
             WorkflowNode(id="up", label="Up"),
             WorkflowNode(id="down", label="Down", depends_on=["up"], prompt="use upstream"),
@@ -178,7 +187,8 @@ class TestExecution:
         assert "upstream data" in runner._context.get("up", "")
 
     @pytest.mark.asyncio
-    async def test_gate_fail_retries(self, workshop):
+    async def test_gate_fail_retries(self, workshop, tmp_path, monkeypatch):
+        monkeypatch.setenv("SNAPSHOT_DIR", str(tmp_path / "runs"))
         nodes = [
             WorkflowNode(id="impl", label="Impl"),
             WorkflowNode(id="review", label="Review", depends_on=["impl"], gate={"type": "review"}),

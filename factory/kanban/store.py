@@ -266,13 +266,25 @@ class KanbanStore:
         ).fetchall()
         return [dict(r) for r in rows]
 
+    _ALLOWED_CARD_FIELDS = {
+        "title", "description", "position", "labels_json",
+        "assignee", "due_date", "task_status", "list_id",
+        "source_agent", "source_task_id",
+    }
+
     def update_card(self, card_id: str, **fields) -> None:
         if not fields:
             return
-        field_names = list(fields.keys())
+        field_names = []
+        args = []
+        for f, v in fields.items():
+            if f not in self._ALLOWED_CARD_FIELDS:
+                raise ValueError(f"Invalid card field: {f}")
+            field_names.append(f)
+            args.append(v)
         sets = ", ".join(f"{f} = ?" for f in field_names)
         sets += ", updated_at = ?"
-        args = list(fields.values()) + [_utc_now(), card_id]
+        args += [_utc_now(), card_id]
         self.conn.execute(f"UPDATE kanban_cards SET {sets} WHERE id = ?", args)
         self.commit()
 
@@ -300,34 +312,24 @@ class KanbanStore:
         If the card doesn't exist and no list_id is given, a default
         board and 'To Do' list are created automatically.
         """
-        self.conn.execute("BEGIN IMMEDIATE")
-        try:
-            existing = self.conn.execute(
-                "SELECT * FROM kanban_cards WHERE source_agent = ? AND source_task_id = ?",
-                (agent_name, task_id),
+        if existing := self.conn.execute(
+            "SELECT * FROM kanban_cards WHERE source_agent = ? AND source_task_id = ?",
+            (agent_name, task_id),
+        ).fetchone():
+            self.update_card(existing["id"], title=title, task_status=status)
+            updated = self.conn.execute(
+                "SELECT * FROM kanban_cards WHERE id = ?", (existing["id"],)
             ).fetchone()
-            if existing:
-                self.update_card(existing["id"], title=title, task_status=status)
-                updated = self.conn.execute(
-                    "SELECT * FROM kanban_cards WHERE id = ?", (existing["id"],)
-                ).fetchone()
-                return self._row_to_card(dict(updated))
+            return self._row_to_card(dict(updated))
 
-            if not list_id:
-                list_id = self._ensure_default_list(agent_name)
-            return self.create_card(
-                list_id=list_id, title=title, task_status=status,
-                source_agent=agent_name, source_task_id=task_id,
-            )
-        except Exception:
-            self.conn.execute("ROLLBACK")
-            raise
+        if not list_id:
+            list_id = self._ensure_default_list(agent_name)
+        return self.create_card(
+            list_id=list_id, title=title, task_status=status,
+            source_agent=agent_name, source_task_id=task_id,
+        )
 
     def _ensure_default_list(self, agent_name: str) -> str:
-        """Get or create a default board and 'To Do' list for an agent."""
-        in_txn = self.conn.in_transaction
-        if not in_txn:
-            self.conn.execute("BEGIN IMMEDIATE")
         board = self.conn.execute(
             "SELECT id FROM kanban_boards WHERE workshop_name = ? LIMIT 1",
             (agent_name,),

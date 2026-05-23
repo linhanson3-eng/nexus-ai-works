@@ -17,9 +17,9 @@ def _settings_store(request: Request):
 # ── Providers ──
 
 
-@router.get("/settings/providers")
+@router.get("/settings/providers", dependencies=[Depends(require_auth)])
 async def list_providers(request: Request):
-    return JSONResponse(content=_settings_store(request).list_providers())
+    return JSONResponse(content=_settings_store(request).list_providers(mask_keys=True))
 
 
 @router.post("/settings/providers", dependencies=[Depends(require_auth)])
@@ -201,7 +201,7 @@ async def get_preferences(request: Request):
     return JSONResponse(content=dict(prefs))
 
 
-@router.post("/settings/preferences")
+@router.post("/settings/preferences", dependencies=[Depends(require_auth)])
 async def save_preferences(request: Request):
     body = await request.json()
     store = _settings_store(request)
@@ -214,9 +214,14 @@ async def save_preferences(request: Request):
 # ── Search ──
 
 
-@router.get("/settings/search")
+@router.get("/settings/search", dependencies=[Depends(require_auth)])
 async def get_search_config(request: Request):
-    return JSONResponse(content=_settings_store(request).get_search())
+    cfg = _settings_store(request).get_search()
+    for key in ("tavily_api_key", "brave_api_key"):
+        k = cfg.get(key, "")
+        if k and len(k) > 8:
+            cfg[key] = k[:4] + "..." + k[-4:]
+    return JSONResponse(content=cfg)
 
 
 @router.post("/settings/search", dependencies=[Depends(require_auth)])

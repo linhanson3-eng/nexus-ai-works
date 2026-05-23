@@ -28,21 +28,21 @@ export function AgentEditor({ workshopName, existingAgent, onClose, onSaved, toa
   const [saving, setSaving] = useState(false);
   const [availableSkills, setAvailableSkills] = useState<{ name: string; description: string }[]>([]);
   const [skillsDropdownOpen, setSkillsDropdownOpen] = useState(false);
-  const [providerModels, setProviderModels] = useState<string[]>([]);
+  const [providerGroups, setProviderGroups] = useState<{ name: string; hasKey: boolean; models: string[] }[]>([]);
   const [initialized, setInitialized] = useState(false);
 
   const isEditing = !!existingAgent;
 
   // Load reference data
   useEffect(() => {
-    api.listProviders().then((providers: Record<string, { models?: string[] }>) => {
-      const models: string[] = [];
+    api.listProviders().then((providers: Record<string, { models?: string[]; api_key?: string }>) => {
+      const groups: { name: string; hasKey: boolean; models: string[] }[] = [];
       for (const [pname, cfg] of Object.entries(providers)) {
-        for (const m of (cfg.models || [])) {
-          models.push(`${pname}/${m}`);
+        if (cfg.models?.length) {
+          groups.push({ name: pname, hasKey: !!cfg.api_key, models: cfg.models });
         }
       }
-      setProviderModels(models);
+      setProviderGroups(groups);
     }).catch((err: unknown) => { console.warn("加载模型列表失败", err); });
 
     api.listSkills().then((data: { name: string; description?: string }[]) => {
@@ -190,8 +190,12 @@ export function AgentEditor({ workshopName, existingAgent, onClose, onSaved, toa
             <label className="text-[10px] uppercase tracking-widest text-muted">模型</label>
             <select value={form.model} onChange={e => setForm(f => ({ ...f, model: e.target.value }))}
               className="w-full bg-surface border border-border rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-accent/30 mt-1">
-              {providerModels.map(m => (
-                <option key={m} value={m}>{m}</option>
+              {providerGroups.map(g => (
+                <optgroup key={g.name} label={`${g.name} ${g.hasKey ? '✓' : '(未配置 Key)'}`}>
+                  {g.models.map(m => (
+                    <option key={`${g.name}/${m}`} value={`${g.name}/${m}`}>{m}</option>
+                  ))}
+                </optgroup>
               ))}
               <option value="__custom__">自定义输入...</option>
             </select>
@@ -320,7 +324,7 @@ export function AgentEditor({ workshopName, existingAgent, onClose, onSaved, toa
           </label>
           <div className="space-y-2">
             {([
-              { key: "file_write", label: "文件写入", desc: "允许读写工作区文件" },
+              { key: "file_write", label: "文件写入", desc: "允许读写项目文件" },
               { key: "shell_exec", label: "Shell 执行", desc: "允许执行终端命令" },
               { key: "subagent_spawn", label: "子 Agent", desc: "允许创建子 Agent 执行子任务" },
             ] as const).map(perm => (

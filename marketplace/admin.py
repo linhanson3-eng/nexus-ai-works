@@ -1,6 +1,6 @@
 """Admin FastAPI app — package management and subscription activation.
 
-All routes require the admin token: Authorization: Bearer nexus-admin-secret.
+All routes require the admin token: Authorization: Bearer <admin-token>.
 """
 
 from __future__ import annotations

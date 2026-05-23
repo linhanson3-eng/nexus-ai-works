@@ -12,6 +12,21 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
+_CAMEL_TO_SNAKE_MAP = {
+    "toolNames": "tool_names",
+    "argvIncludes": "argv_includes",
+    "commandIncludes": "command_includes",
+    "skipPatterns": "skip_patterns",
+    "keepPatterns": "keep_patterns",
+    "stripAnsi": "strip_ansi",
+    "dedupeAdjacent": "dedupe",
+    "trimEmptyEdges": "trim_empty_edges",
+}
+
+
+def _camel_to_snake(key: str) -> str:
+    return _CAMEL_TO_SNAKE_MAP.get(key, key)
+
 BUILTIN_RULES_DIR = Path(__file__).parent / "rules"
 
 
@@ -39,8 +54,14 @@ class CompiledRule:
     @classmethod
     def from_json(cls, id: str, data: dict, origin: RuleOrigin = RuleOrigin.BUILTIN) -> "CompiledRule":
         match = data.get("match", data)
-        skip_raw = data.get("filters", {}).get("skip_patterns", [])
-        keep_raw = data.get("filters", {}).get("keep_patterns", [])
+        match = {_camel_to_snake(k): v for k, v in match.items()}
+        filters = data.get("filters", {})
+        filters = {_camel_to_snake(k): v for k, v in filters.items()} if filters else {}
+        transforms = data.get("transforms", {})
+        transforms = {_camel_to_snake(k): v for k, v in transforms.items()} if transforms else {}
+        summarize = data.get("summarize", {})
+        skip_raw = filters.get("skip_patterns", [])
+        keep_raw = filters.get("keep_patterns", [])
 
         return cls(
             id=id,
@@ -51,8 +72,8 @@ class CompiledRule:
             command_includes=match.get("command_includes"),
             skip_patterns=[re.compile(p, re.IGNORECASE) for p in skip_raw] if skip_raw else None,
             keep_patterns=[re.compile(p, re.IGNORECASE) for p in keep_raw] if keep_raw else None,
-            transforms=data.get("transforms"),
-            summarize=data.get("summarize"),
+            transforms=transforms if transforms else None,
+            summarize=summarize if summarize else None,
             priority=data.get("priority", match.get("priority", 0)),
             origin=origin,
         )

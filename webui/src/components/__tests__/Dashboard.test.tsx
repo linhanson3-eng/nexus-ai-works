@@ -48,14 +48,14 @@ describe("Dashboard", () => {
   it("shows workspace count", async () => {
     renderDashboard();
     await waitFor(() => {
-      expect(screen.getByText("工作区")).toBeDefined();
+      expect(screen.getByText("项目")).toBeDefined();
     });
   });
 
   it("shows empty state when no workshops", async () => {
     renderDashboard();
     await waitFor(() => {
-      expect(screen.getByText("暂无工作区")).toBeDefined();
+      expect(screen.getByText("暂无项目")).toBeDefined();
     });
   });
 });

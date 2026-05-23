@@ -104,7 +104,7 @@ class AgentSpec(BaseModel):
     template: str = ""
     role: str = ""  # references config/roles/<role>.yaml
     type: str = ""
-    model: str = "anthropic/claude-sonnet-4-6"
+    model: str = ""
     tools: list[str] = Field(default_factory=list)
     system_prompt: str = ""
     guide_file: str = ""  # path to agent guide/prompt file

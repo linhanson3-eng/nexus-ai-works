@@ -8,11 +8,15 @@ append-only SQLite log for compliance and forensic analysis.
 from __future__ import annotations
 
 import sqlite3
+import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
+import os
 from pathlib import Path
 
-AUDIT_DB_PATH = Path("~/.nexus/audit.db").expanduser()
+logger = logging.getLogger(__name__)
+def _get_audit_db_path() -> Path:
+    return Path(os.environ.get("AUDIT_DB_PATH", str(Path("~/.nexus/audit.db").expanduser()))).expanduser()
 
 INIT_AUDIT_SQL = """
 PRAGMA journal_mode = WAL;
@@ -61,8 +65,8 @@ class AuditEvent:
 
 
 def _get_conn() -> sqlite3.Connection:
-    AUDIT_DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(str(AUDIT_DB_PATH))
+    _get_audit_db_path().parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(str(_get_audit_db_path()))
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA synchronous=NORMAL")
     conn.executescript(INIT_AUDIT_SQL)
@@ -92,8 +96,8 @@ def record(
         )
         conn.commit()
         conn.close()
-    except Exception:
-        pass  # Audit failure must never crash the application
+    except Exception as e:
+        logger.exception("Audit record failed: event_type=%s action=%s actor=%s", event_type, action, actor)
 
 
 def query(
@@ -130,13 +134,14 @@ def query(
 
 
 def get_recent_events(hours: int = 24, limit: int = 200) -> list[dict]:
+    from datetime import timedelta
+
     conn = _get_conn()
     conn.row_factory = sqlite3.Row
-    cutoff = datetime.now(timezone.utc).isoformat()
-    # Simple cutoff: just return most recent N
+    cutoff = (datetime.now(timezone.utc) - timedelta(hours=hours)).isoformat()
     rows = conn.execute(
-        "SELECT * FROM audit_events ORDER BY created_at DESC LIMIT ?",
-        (limit,),
+        "SELECT * FROM audit_events WHERE created_at > ? ORDER BY created_at DESC LIMIT ?",
+        (cutoff, limit),
     ).fetchall()
     conn.close()
     return [dict(r) for r in rows]

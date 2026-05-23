@@ -13,7 +13,7 @@ export function WorkshopList() {
   const [showCreate, setShowCreate] = useState(false);
   const [name, setName] = useState("");
   const [model, setModel] = useState("");
-  const [providerModels, setProviderModels] = useState<string[]>([]);
+  const [providerGroups, setProviderGroups] = useState<{ name: string; hasKey: boolean; models: string[] }[]>([]);
   const [creating, setCreating] = useState(false);
   const [selected, setSelected] = useState<Workshop | null>(null);
   const [task, setTask] = useState("");
@@ -49,16 +49,16 @@ export function WorkshopList() {
 
   useEffect(() => { load(); }, [load]);
 
-  // Load provider models for dropdown
+  // Load provider models for dropdown (grouped by provider)
   useEffect(() => {
     api.listProviders().then(providers => {
-      const models: string[] = [];
+      const groups: { name: string; hasKey: boolean; models: string[] }[] = [];
       for (const [pname, cfg] of Object.entries(providers)) {
-        for (const m of cfg.models || []) {
-          models.push(`${pname}/${m}`);
+        if (cfg.models?.length) {
+          groups.push({ name: pname, hasKey: !!cfg.api_key, models: cfg.models });
         }
       }
-      setProviderModels(models);
+      setProviderGroups(groups);
     }).catch((err) => { console.warn("加载模型列表失败", err); });
   }, []);
 
@@ -70,7 +70,7 @@ export function WorkshopList() {
       await api.createWorkshop(trimmed, undefined, model);
       setName("");
       setShowCreate(false);
-      toast.success(`工作区 "${trimmed}" 已创建`);
+      toast.success(`项目 "${trimmed}" 已创建`);
       await load();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "创建失败");
@@ -82,7 +82,7 @@ export function WorkshopList() {
   const remove = async (wsName: string) => {
     try {
       await api.deleteWorkshop(wsName);
-      toast.success(`工作区 "${wsName}" 已删除`);
+      toast.success(`项目 "${wsName}" 已删除`);
       if (selected?.name === wsName) setSelected(null);
       await load();
     } catch (err) {
@@ -102,7 +102,7 @@ export function WorkshopList() {
       const a = document.createElement("a");
       a.href = url; a.download = `${wsName}.nexus.zip`;
       a.click(); URL.revokeObjectURL(url);
-      toast.success(`工作区 "${wsName}" 已导出`);
+      toast.success(`项目 "${wsName}" 已导出`);
     } catch {
       toast.error("导出失败，请确认 Gateway 已启动");
     } finally {
@@ -133,7 +133,7 @@ export function WorkshopList() {
   const removeWorkspace = async (wsName: string) => {
     try {
       await api.deleteWorkshop(wsName);
-      toast.success(`工作区 "${wsName}" 已卸载`);
+      toast.success(`项目 "${wsName}" 已卸载`);
       if (selected?.name === wsName) setSelected(null);
       load();
     } catch (err) {
@@ -203,7 +203,7 @@ export function WorkshopList() {
   if (error) {
     return (
       <div className="space-y-6">
-        <div><h1 className="text-2xl font-black tracking-tight text-white">工作区</h1></div>
+        <div><h1 className="text-2xl font-black tracking-tight text-white">项目</h1></div>
         <div className="flex flex-col items-center justify-center min-h-[300px] gap-4">
           <AlertTriangle className="w-10 h-10 text-warning" />
           <p className="text-white font-semibold">加载失败</p>
@@ -220,8 +220,8 @@ export function WorkshopList() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-black tracking-tight text-white">工作区</h1>
-          <p className="text-muted text-sm mt-1">管理所有 AI 工作区</p>
+          <h1 className="text-2xl font-black tracking-tight text-white">项目</h1>
+          <p className="text-muted text-sm mt-1">管理所有 AI 项目</p>
         </div>
         <div className="flex items-center gap-2">
           <input type="file" ref={fileInputRef} accept=".zip,.nexus"
@@ -236,7 +236,7 @@ export function WorkshopList() {
             onClick={() => setShowCreate(!showCreate)}
             className="flex items-center gap-2 px-4 py-2 bg-accent/10 text-accent border border-accent/20 rounded-xl text-sm font-medium hover:bg-accent/20 transition-colors"
           >
-            <Plus className="w-4 h-4" /> 新建工作区
+            <Plus className="w-4 h-4" /> 新建项目
           </button>
         </div>
       </div>
@@ -247,7 +247,7 @@ export function WorkshopList() {
             value={name}
             onChange={e => setName(e.target.value)}
             onKeyDown={e => e.key === "Enter" && !creating && create()}
-            placeholder="工作区名称"
+            placeholder="项目名称"
             className="flex-1 bg-surface border border-border rounded-xl px-4 py-2 text-sm text-white placeholder:text-muted focus:outline-none focus:border-accent/30"
             autoFocus
           />
@@ -256,9 +256,13 @@ export function WorkshopList() {
             onChange={e => setModel(e.target.value)}
             className="bg-surface border border-border rounded-xl px-4 py-2 text-sm text-white focus:outline-none focus:border-accent/30 min-w-[240px]"
           >
-            <option value="">默认模型</option>
-            {providerModels.map(m => (
-              <option key={m} value={m}>{m}</option>
+            <option value="">默认模型（可前往设置页配置）</option>
+            {providerGroups.map(g => (
+              <optgroup key={g.name} label={`${g.name} ${g.hasKey ? '✓' : '(未配置 Key)'}`}>
+                {g.models.map(m => (
+                  <option key={`${g.name}/${m}`} value={`${g.name}/${m}`}>{m}</option>
+                ))}
+              </optgroup>
             ))}
             <option value="__custom__">自定义输入...</option>
           </select>
@@ -289,8 +293,8 @@ export function WorkshopList() {
             <Blocks className="w-7 h-7 text-muted" />
           </div>
           <div className="text-center">
-            <p className="text-white font-semibold">暂无工作区</p>
-            <p className="text-sm text-muted mt-1">点击上方「新建工作区」开始</p>
+            <p className="text-white font-semibold">暂无项目</p>
+            <p className="text-sm text-muted mt-1">点击上方「新建项目」开始</p>
           </div>
         </div>
       )}
@@ -321,7 +325,7 @@ export function WorkshopList() {
                   {exporting === w.name ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
                 </button>
                 <button onClick={e => { e.stopPropagation(); setRemoveTarget(w.name); }}
-                  className="text-muted/30 hover:text-warning transition-colors" title="卸载工作区">
+                  className="text-muted/30 hover:text-warning transition-colors" title="卸载项目">
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
               </div>
@@ -452,8 +456,8 @@ export function WorkshopList() {
       {/* Delete confirmation */}
       {deleteTarget && (
         <ConfirmDialog
-          title="删除工作区"
-          message={`确定要删除工作区 "${deleteTarget}" 吗？此操作不可恢复。`}
+          title="删除项目"
+          message={`确定要删除项目 "${deleteTarget}" 吗？此操作不可恢复。`}
           confirmLabel="删除"
           onConfirm={() => remove(deleteTarget)}
           onCancel={() => setDeleteTarget(null)}
@@ -463,8 +467,8 @@ export function WorkshopList() {
       {/* Remove (uninstall) confirmation */}
       {removeTarget && (
         <ConfirmDialog
-          title="卸载工作区"
-          message={`确定要完全卸载 "${removeTarget}" 吗？将删除工作区目录、Agent、Workflow 和关联看板。此操作不可恢复。`}
+          title="卸载项目"
+          message={`确定要完全卸载 "${removeTarget}" 吗？将删除项目目录、Agent、Workflow 和关联看板。此操作不可恢复。`}
           confirmLabel="卸载"
           onConfirm={() => removeWorkspace(removeTarget)}
           onCancel={() => setRemoveTarget(null)}

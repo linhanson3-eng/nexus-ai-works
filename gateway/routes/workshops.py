@@ -159,7 +159,7 @@ async def import_workspace_api(request: Request):
 
         with tempfile.TemporaryDirectory() as tmpdir:
             if hasattr(file, "filename") and file.filename:
-                fname = file.filename
+                fname = Path(file.filename).name
             else:
                 fname = "upload.nexus"
             filepath = Path(tmpdir) / fname

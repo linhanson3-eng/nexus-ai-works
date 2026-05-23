@@ -38,6 +38,9 @@ class EngineConfig:
     allow_shell_commands: bool = True
     allow_destructive_shell: bool = False
 
+    # Streaming
+    stream_model_responses: bool = True
+
     # Context management
     auto_compact_tokens: int = 80000
     auto_snip_tokens: int = 30000
@@ -66,6 +69,7 @@ class EngineConfig:
             max_turns=self.max_turns,
             command_timeout_seconds=self.command_timeout_seconds,
             max_output_chars=self.max_output_chars,
+            stream_model_responses=self.stream_model_responses,
             permissions=perm,
             auto_compact_threshold_tokens=self.auto_compact_tokens,
             auto_snip_threshold_tokens=self.auto_snip_tokens,
@@ -90,9 +94,19 @@ class NexusPermissions:
     allow_destructive_shell: bool = False
 
 
+def _normalize_base_url(url: str) -> str:
+    """Ensure base_url ends with /v1 for OpenAI-compatible APIs."""
+    if not url:
+        return url
+    url = url.rstrip("/")
+    if not url.endswith("/v1"):
+        url += "/v1"
+    return url
+
+
 def create_model_config(
     model: str,
-    base_url: str = "http://127.0.0.1:8000/v1",
+    base_url: str = "",
     api_key: str = "",
     temperature: float = 0.0,
     timeout_seconds: float = 120.0,
@@ -112,6 +126,15 @@ def create_model_config(
             actual_model = resolved
             base_url = provider.base_url or base_url
             api_key = provider.api_key or api_key
+
+    base_url = _normalize_base_url(base_url)
+
+    if not base_url:
+        raise ValueError(
+            f"No base_url configured for model '{model}'. "
+            f"Please add a provider in Settings > LLM Key."
+        )
+
     return ModelConfig(
         model=actual_model,
         base_url=base_url,

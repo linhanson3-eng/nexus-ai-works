@@ -16,13 +16,16 @@ from .models import NodeStatus, WorkflowTemplate
 
 logger = logging.getLogger(__name__)
 
-SNAPSHOT_DIR = Path("~/.nexus/runs").expanduser()
+def _get_snapshot_dir() -> Path:
+    return Path(os.environ.get("SNAPSHOT_DIR", str(Path("~/.nexus/runs").expanduser()))).expanduser()
 
 
 class RunSnapshot:
     """单个工作流运行的完整状态快照。"""
 
-    def __init__(self, base_dir: str | Path = SNAPSHOT_DIR) -> None:
+    def __init__(self, base_dir: str | Path | None = None) -> None:
+        if base_dir is None:
+            base_dir = _get_snapshot_dir()
         self._dir = Path(base_dir)
 
     def _path(self, run_id: str) -> Path:

@@ -185,39 +185,56 @@ class WorkshopManager:
 
         existing = ws.agents[agent_name]
 
-        # Update scalar fields
+        # Build updated field values
+        new_values: dict[str, object] = {}
         for field in ("mode", "model", "system_prompt", "guide_file", "type"):
             if field in updates:
-                setattr(existing, field, updates[field])
+                new_values[field] = updates[field]
+            else:
+                new_values[field] = getattr(existing, field)
 
-        # Update tools
-        if "tools" in updates:
-            existing.tools = updates["tools"]
+        new_values["tools"] = updates.get("tools", existing.tools)
+        new_values["skills"] = updates.get("skills", existing.skills)
+        new_values["permissions"] = existing.permissions
 
-        # Update skills
-        if "skills" in updates:
-            existing.skills = updates["skills"]
-
-        # Update permissions
         if "permissions" in updates:
             perm_updates = updates["permissions"]
-            if "file_write" in perm_updates:
-                existing.permissions.filesystem.write = (
-                    ["workspace"] if perm_updates["file_write"] else []
-                )
-            if "shell_exec" in perm_updates:
-                existing.permissions.shell.exec = perm_updates["shell_exec"]
-            if "subagent_spawn" in perm_updates:
-                existing.permissions.subagent.spawn = perm_updates["subagent_spawn"]
+            fs = existing.permissions.filesystem
+            sh = existing.permissions.shell
+            sa = existing.permissions.subagent
+            new_fs = FilesystemPermission(
+                read=fs.read,
+                write=["workspace"] if perm_updates.get("file_write") else fs.write,
+                forbidden=fs.forbidden,
+            )
+            new_sh = ShellPermission(
+                exec=perm_updates.get("shell_exec", sh.exec),
+                network=sh.network,
+                forbidden_patterns=sh.forbidden_patterns,
+            )
+            new_sa = SubagentPermission(
+                spawn=perm_updates.get("subagent_spawn", sa.spawn),
+                max=sa.max,
+            )
+            new_values["permissions"] = AgentPermissions(
+                filesystem=new_fs,
+                shell=new_sh,
+                subagent=new_sa,
+                warehouse=existing.permissions.warehouse,
+                self=existing.permissions.self,
+            )
+
+        updated = AgentSpec(**{k: v for k, v in new_values.items() if k in AgentSpec.model_fields})
 
         # Sync spec list
+        ws.agents[agent_name] = updated
         for i, a in enumerate(ws.spec.agents):
             if a.name == agent_name:
-                ws.spec.agents[i] = existing
+                ws.spec.agents[i] = updated
                 break
 
         self._persist_org()
-        return existing
+        return updated
 
     def remove_agent(self, workshop_name: str, agent_name: str) -> bool:
         """Remove an agent from a workshop."""

@@ -58,6 +58,7 @@ class TaskResult:
     session_id: str = ""
     turns: int = 0
     cost_usd: float = 0.0
+    model: str = ""
     events: tuple = ()  # StreamEvent dicts for SSE streaming
 
 
@@ -95,16 +96,48 @@ class NexusAgentRunner:
         # TokenJuice rules
         self.tj_rules = load_rules()
 
+    # ── Runtime overrides (set by API layer) ─────────────────
+
+    def set_model_override(self, model: str) -> None:
+        """Override the model for the next run."""
+        self._model_override = model
+
+    def set_reasoning_effort(self, effort: str) -> None:
+        """Set reasoning effort: low, medium, high, xhigh."""
+        self._reasoning_effort = effort
+    def _build_budget(self):
+        """Build BudgetConfig with reasoning token limit based on effort."""
+        from factory.vendor.claw_code_agent.agent_types import BudgetConfig
+        effort = getattr(self, "_reasoning_effort", "")
+        mapping = {"low": 1024, "medium": 4096, "high": 8192, "xhigh": 16384}
+        max_reasoning = mapping.get(effort)
+        return BudgetConfig(max_reasoning_tokens=max_reasoning) if max_reasoning else None
+
     # ── Engine lifecycle ────────────────────────────────────────
 
     def _resolve_model(self) -> str:
         """Return the model string for this agent, falling back to the first available provider model."""
+        # 0. Runtime model override (from API request)
+        override = getattr(self, "_model_override", "")
+        if override:
+            return override
         # 1. Spec model
         spec_model = getattr(self.spec, "model", "") or ""
         if hasattr(spec_model, "value"):
             spec_model = spec_model.value
         if spec_model:
             return spec_model
+
+        # 1.5. User-configured default model preference (Settings → Preferences)
+        try:
+            from factory.settings.store import SettingsStore
+            store = SettingsStore()
+            prefs = store._data.get("preferences", {})
+            default_model = prefs.get("default_model", "")
+            if default_model:
+                return default_model
+        except Exception:
+            pass
 
         # 2. First model from provider with an API key, then any provider
         try:
@@ -133,6 +166,7 @@ class NexusAgentRunner:
     def _get_engine(self) -> AgentLoopEngine:
         """Create a fresh engine for each request to avoid shared state."""
         model = self._resolve_model()
+        self._resolved_model = model
 
         workspace_path = str(getattr(self.workshop, "workspace", "."))
         permissions = getattr(self.spec, "permissions", None)
@@ -148,7 +182,7 @@ class NexusAgentRunner:
         registry = ProviderRegistry.load_defaults()
         model_config = create_model_config(
             model=model,
-            base_url=self._model_base_url or "http://127.0.0.1:8000/v1",
+            base_url=self._model_base_url,
             api_key=self._model_api_key,
             registry=registry,
         )
@@ -159,6 +193,7 @@ class NexusAgentRunner:
             allow_file_write=allow_write,
             allow_shell_commands=allow_shell,
             system_prompt="你是Nexus全能助手，简短直接回答问题。",
+            budget=self._build_budget(),
         )
 
         # Generate search manifest from settings so SearchRuntime discovers it
@@ -222,9 +257,16 @@ class NexusAgentRunner:
                 error=f"Agent execution timed out after {AGENT_TOTAL_TIMEOUT}s",
                 error_kind=ErrorKind.TIMEOUT,
                 error_context={"timeout_seconds": str(AGENT_TOTAL_TIMEOUT)},
+                model=getattr(self, "_resolved_model", ""),
             )
         except ImportError:
-            return await self._run_simulated(task, context)
+            simulated = await self._run_simulated(task, context)
+            return TaskResult(
+                content=simulated.content,
+                tools_used=simulated.tools_used,
+                error=simulated.error,
+                model=getattr(self, "_resolved_model", ""),
+            )
 
         # 4. Bucket-Seal cascade compression (non-critical — must not crash the run)
         try:
@@ -295,12 +337,84 @@ class NexusAgentRunner:
             from factory.tools.deep_search import create_deep_search_tool
             engine.agent.tool_registry["deep_search"] = create_deep_search_tool()
 
-        # Inject marketplace skills into system prompt
+        # ── Unified skill system (claude-code-agent compatible) ──
+        # Bundled skills → Marketplace plugins → Project skills → Slash commands
         from factory.skills.marketplace import SkillMarketplace
+        from factory.skills.loader import SkillLoader
+        from factory.vendor.claw_code_agent.agent_types import ToolExecutionResult
 
         marketplace = SkillMarketplace(workspace=engine._config.cwd if engine._config else None)
         marketplace.discover()
-        skill_prompt = marketplace.format_for_prompt()
+
+        _original_execute_skill = engine.agent._execute_skill
+
+        def _skill_executor(arguments: dict[str, object]) -> Any:
+            result = _original_execute_skill(arguments)
+            if result.ok or result.metadata.get("action") != "skill_not_found":
+                return result
+
+            skill_name = str(arguments.get("skill", "")).strip().lstrip("/")
+            if not skill_name:
+                return result
+
+            # Check marketplace (Claude Code plugins ecosystem)
+            mp_skill = marketplace.get(skill_name)
+            if mp_skill is not None:
+                body = mp_skill.get_body()
+                return ToolExecutionResult(
+                    name="Skill",
+                    ok=True,
+                    content=body,
+                    metadata={
+                        "action": "skill",
+                        "skill_name": skill_name,
+                        "source": "marketplace",
+                        "should_query": True,
+                    },
+                )
+
+            # Check project-level skills (skills/ directory)
+            loader = SkillLoader("skills")
+            skill = loader.load_skill(skill_name)
+            if skill is not None:
+                return ToolExecutionResult(
+                    name="Skill",
+                    ok=True,
+                    content=skill.body,
+                    metadata={
+                        "action": "skill",
+                        "skill_name": skill_name,
+                        "source": "project",
+                        "should_query": True,
+                    },
+                )
+
+            return result
+
+        engine.agent._execute_skill = _skill_executor
+
+        # Build unified skill listing for system prompt
+        skill_prompt_parts: list[str] = []
+        mp_prompt = marketplace.format_for_prompt()
+        if mp_prompt:
+            skill_prompt_parts.append(mp_prompt)
+
+        ws_name = getattr(self.workshop, "name", "") if self.workshop else ""
+        if ws_name:
+            try:
+                from factory.skills.repo import SkillRepo
+
+                repo = SkillRepo()
+                installed = repo.list_installed(ws_name)
+                if installed:
+                    lines = ["## 已安装技能 (Workspace)", ""]
+                    for s in installed:
+                        lines.append(f"- **{s.name}**: {s.description}")
+                    skill_prompt_parts.append("\n".join(lines))
+            except Exception:
+                pass
+
+        skill_prompt = "\n\n".join(skill_prompt_parts)
         if skill_prompt and engine.agent.append_system_prompt:
             engine.agent.append_system_prompt = (
                 engine.agent.append_system_prompt + "\n\n" + skill_prompt
@@ -338,6 +452,7 @@ class NexusAgentRunner:
             session_id=result.session_id or "",
             turns=result.turns,
             cost_usd=result.total_cost_usd or 0.0,
+            model=getattr(self, "_resolved_model", ""),
             events=result.events if hasattr(result, 'events') else (),
         )
 

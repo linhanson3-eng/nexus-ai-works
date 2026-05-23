@@ -6,16 +6,21 @@ Designed to be zero-cost when not queried.
 
 from __future__ import annotations
 
+import logging
 import sqlite3
 from datetime import datetime, timezone
+import os
 from pathlib import Path
 
-DB_PATH = Path("~/.nexus/usage.db").expanduser()
+logger = logging.getLogger(__name__)
+
+def _get_db_path() -> Path:
+    return Path(os.environ.get("USAGE_DB_PATH", str(Path("~/.nexus/usage.db").expanduser()))).expanduser()
 
 
 def _get_conn() -> sqlite3.Connection:
-    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(str(DB_PATH))
+    _get_db_path().parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(str(_get_db_path()))
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA synchronous=NORMAL")
     conn.execute(
@@ -50,8 +55,8 @@ def record(user_id: str, event_type: str, event_detail: str = "", count: int = 1
         )
         conn.commit()
         conn.close()
-    except Exception:
-        pass  # Never crash on usage tracking failure
+    except Exception as e:
+        logger.warning("Usage record failed: %s", e)
 
 
 def get_user_stats(user_id: str, days: int = 30) -> dict[str, int]:

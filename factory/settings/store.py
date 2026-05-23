@@ -49,6 +49,12 @@ DEFAULT_PROVIDERS = {
         "api_key": "",
         "models": ["deepseek-chat", "deepseek-reasoner"],
     },
+    "openai": {
+        "provider_type": "openai",
+        "base_url": "https://api.openai.com/v1",
+        "api_key": "",
+        "models": ["gpt-5.4", "gpt-5.4-mini", "gpt-5.3-codex", "o4-mini"],
+    },
     "siliconflow": {
         "provider_type": "siliconflow",
         "base_url": "https://api.siliconflow.cn/v1",
@@ -103,16 +109,20 @@ class SettingsStore:
             except (json.JSONDecodeError, OSError):
                 self._data = {}
         if not self._data:
-            providers = deepcopy(DEFAULT_PROVIDERS)
-            _apply_env_api_keys(providers)
             self._data = {
-                "providers": providers,
+                "providers": deepcopy(DEFAULT_PROVIDERS),
                 "plugins": {},
                 "tools": {},
                 "search": deepcopy(DEFAULT_SEARCH),
             }
         else:
             self._decrypt_provider_keys()
+            # Merge in any new default providers not yet in saved data
+            for name, cfg in DEFAULT_PROVIDERS.items():
+                if name not in self._data.get("providers", {}):
+                    self._data.setdefault("providers", {})[name] = deepcopy(cfg)
+        # Always apply environment variable API keys (env takes priority over stored)
+        _apply_env_api_keys(self._data.get("providers", {}))
 
     def _save(self) -> None:
         SETTINGS_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -148,8 +158,14 @@ class SettingsStore:
 
     # ── providers ─────────────────────────────────────────
 
-    def list_providers(self) -> dict[str, dict]:
-        return deepcopy(self._data.get("providers", {}))
+    def list_providers(self, *, mask_keys: bool = False) -> dict[str, dict]:
+        result = deepcopy(self._data.get("providers", {}))
+        if mask_keys:
+            for p in result.values():
+                k = p.get("api_key", "")
+                if k and len(k) > 8:
+                    p["api_key"] = k[:4] + "..." + k[-4:]
+        return result
 
     def get_provider(self, name: str) -> dict | None:
         providers = self._data.get("providers", {})
@@ -216,9 +232,24 @@ class SettingsStore:
         except Exception as exc:
             return {"name": name, "models": provider.get("models", []), "updated": 0, "error": str(exc)}
 
-        # Filter out embedding, moderation models
-        exclude_keywords = ["embedding", "moderation", "whisper", "tts", "dall-e"]
+        # Filter out non-chat models: embedding, reranker, speech, OCR, image/video gen, translation
+        exclude_keywords = [
+            "embedding", "moderation", "whisper", "tts", "dall-e",
+            "reranker", "rerank", "speech", "asr", "sensevoice", "cosyvoice",
+            "ocr", "kolors", "wan", "image-edit", "image-turbo", "z-image",
+            "mt-", "bge-", "paddleocr", "captioner",
+        ]
         models = [m for m in models if not any(k in m.lower() for k in exclude_keywords)]
+
+        # Deduplicate Pro/ and LoRA/ variants: keep base model if both exist
+        seen_base: dict[str, str] = {}
+        for m in models:
+            if m.startswith("Pro/") or m.startswith("LoRA/"):
+                base = m.split("/", 1)[1] if "/" in m else m
+                seen_base.setdefault(base, m)  # keep first occurrence
+            else:
+                seen_base.setdefault(m, m)
+        models = list(dict.fromkeys(seen_base.values()))  # deduplicate preserving order
 
         # Update stored models
         provider["models"] = models

@@ -17,6 +17,8 @@ import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 
+import yaml
+
 logger = logging.getLogger(__name__)
 
 _INSTALLED_PLUGINS_JSON = Path.home() / ".claude" / "plugins" / "installed_plugins.json"
@@ -173,23 +175,20 @@ def _parse_skill_file(path: Path, source: str = "plugin") -> MarketplaceSkill | 
 
 
 def _parse_frontmatter(text: str) -> dict[str, str]:
-    """Extract YAML frontmatter from markdown text."""
+    """Extract YAML frontmatter from markdown text using yaml.safe_load."""
     if not text.startswith("---"):
         return {}
     end = text.find("---", 3)
     if end == -1:
         return {}
     fm_text = text[3:end].strip()
-    result: dict[str, str] = {}
-    for line in fm_text.split("\n"):
-        line = line.strip()
-        if ":" in line:
-            key, _, val = line.partition(":")
-            key = key.strip()
-            val = val.strip().strip('"').strip("'")
-            if key and val:
-                result[key] = val
-    return result
+    try:
+        parsed = yaml.safe_load(fm_text)
+        if isinstance(parsed, dict):
+            return {str(k): str(v) for k, v in parsed.items() if v is not None}
+    except Exception:
+        pass
+    return {}
 
 
 def _strip_frontmatter(text: str) -> str:

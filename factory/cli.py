@@ -23,6 +23,11 @@ async def cmd_serve(args):
 
 
 async def _serve(args):
+    import certifi
+    import os
+
+    os.environ.setdefault("SSL_CERT_FILE", certifi.where())
+
     from gateway.server import create_app, serve
 
     org = OrgEngine("config/org.yaml")
@@ -308,25 +313,30 @@ def cmd_module(args):
 
 
 def _save_workshop_to_config(org, name: str, workflow_name: str, agent_names: list[str]) -> None:
+    import fcntl
+
     config_path = Path("config/org.yaml")
-    with open(config_path) as f:
+    with open(config_path, "r+") as f:
+        fcntl.flock(f, fcntl.LOCK_EX)
         data = yaml.safe_load(f) or {}
-    existing = {d["name"] for d in data.get("departments", [])}
-    if name in existing:
-        return
-    entry = {
-        "name": name,
-        "type": "custom",
-        "workspace": f"workspaces/{name}",
-        "agents": [
-            {"name": aname, "template": aname, "model": ""}
-            for aname in agent_names
-        ],
-        "workflow": {"name": workflow_name},
-    }
-    data.setdefault("departments", []).append(entry)
-    with open(config_path, "w") as f:
+        existing = {d["name"] for d in data.get("departments", [])}
+        if name in existing:
+            return
+        entry = {
+            "name": name,
+            "type": "custom",
+            "workspace": f"workspaces/{name}",
+            "agents": [
+                {"name": aname, "template": aname, "model": ""}
+                for aname in agent_names
+            ],
+            "workflow": {"name": workflow_name},
+        }
+        data.setdefault("departments", []).append(entry)
+        f.seek(0)
+        f.truncate()
         yaml.dump(data, f, allow_unicode=True, default_flow_style=False)
+        fcntl.flock(f, fcntl.LOCK_UN)
 
 
 # ── Library commands ──

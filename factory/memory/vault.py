@@ -20,9 +20,11 @@ class VaultWriter:
         self.vault_path.mkdir(parents=True, exist_ok=True)
 
     def write_chunk(self, chunk: Chunk) -> Path:
-        agent_dir = self.vault_path / "agents" / chunk.source_id
+        src_id = _safe_path_segment(chunk.source_id)
+        cid = _safe_path_segment(chunk.id)
+        agent_dir = self.vault_path / "agents" / src_id
         agent_dir.mkdir(parents=True, exist_ok=True)
-        out_path = agent_dir / "chunks" / f"{chunk.id}.md"
+        out_path = agent_dir / "chunks" / f"{cid}.md"
         out_path.parent.mkdir(parents=True, exist_ok=True)
 
         tags_yml = "\n  - ".join(chunk.tags)
@@ -82,7 +84,11 @@ entities: {json.dumps(list(node.entities))}
 
 def _tree_dir(tree_id: str) -> str:
     if tree_id.startswith("src-"):
-        return f"agents/{tree_id[4:]}"
+        return f"agents/{_safe_path_segment(tree_id[4:])}"
     if tree_id.startswith("topic-"):
-        return f"workshops/{tree_id[6:]}"
-    return f"factory/{tree_id}"
+        return f"workshops/{_safe_path_segment(tree_id[6:])}"
+    return f"factory/{_safe_path_segment(tree_id)}"
+
+
+def _safe_path_segment(name: str) -> str:
+    return name.replace("/", "_").replace("\\", "_").replace("..", "_")
