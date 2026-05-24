@@ -178,7 +178,7 @@ export function Marketplace() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-black tracking-tight text-white">解决方案</h1>
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">解决方案</h1>
           <p className="text-muted text-sm mt-1">浏览、购买和安装解决方案包</p>
         </div>
 
@@ -187,15 +187,15 @@ export function Marketplace() {
           {user ? (
             <div className="flex items-center gap-3">
               {user.is_vip && (
-                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-accent/15 border border-accent/30 text-accent text-xs font-semibold">
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-primary/15 border border-primary/30 text-primary text-xs font-semibold">
                   <Crown className="w-3 h-3" />
                   VIP
                 </span>
               )}
-              <span className="text-sm text-white font-medium">{user.username}</span>
+              <span className="text-sm text-foreground font-medium">{user.username}</span>
               <button
                 onClick={handleLogout}
-                className="text-xs text-muted hover:text-warning transition-colors"
+                className="text-xs text-muted hover:text-destructive transition-colors"
               >
                 退出
               </button>
@@ -203,7 +203,7 @@ export function Marketplace() {
           ) : (
             <button
               onClick={() => setLoginOpen(true)}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-accent/10 text-accent border border-accent/20 rounded-xl text-sm hover:bg-accent/20 transition-colors"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-primary/10 text-primary border border-primary/20 rounded-xl text-sm hover:bg-primary/20 transition-colors"
             >
               <LogIn className="w-3.5 h-3.5" />
               登录
@@ -218,8 +218,8 @@ export function Marketplace() {
           onClick={() => setTab("browse")}
           className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
             tab === "browse"
-              ? "bg-accent/15 text-accent border border-accent/20"
-              : "text-muted hover:text-white"
+              ? "bg-primary/15 text-primary border border-primary/20"
+              : "text-muted hover:text-foreground"
           }`}
         >
           浏览
@@ -234,8 +234,8 @@ export function Marketplace() {
           }}
           className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
             tab === "my"
-              ? "bg-accent/15 text-accent border border-accent/20"
-              : "text-muted hover:text-white"
+              ? "bg-primary/15 text-primary border border-primary/20"
+              : "text-muted hover:text-foreground"
           }`}
         >
           我的
@@ -253,7 +253,7 @@ export function Marketplace() {
               placeholder="搜索方案..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 bg-card border border-border rounded-xl text-white placeholder-muted text-sm focus:outline-none focus:border-accent/40 transition-colors"
+              className="w-full pl-10 pr-4 py-2.5 bg-card border border-border rounded-xl text-foreground placeholder-muted text-sm focus:outline-none focus:border-primary/40 transition-colors"
             />
           </div>
 
@@ -265,8 +265,8 @@ export function Marketplace() {
                 onClick={() => setCategory(cat)}
                 className={`px-3.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                   category === cat
-                    ? "bg-accent text-black"
-                    : "bg-card border border-border text-muted hover:text-white hover:border-border-hover"
+                    ? "bg-accent text-primary-foreground"
+                    : "bg-card border border-border text-muted hover:text-foreground hover:border-border-hover"
                 }`}
               >
                 {cat}
@@ -280,7 +280,7 @@ export function Marketplace() {
               {Array.from({ length: 6 }).map((_, i) => (
                 <div
                   key={i}
-                  className="bg-card rounded-[20px] border border-border p-5 h-44 animate-pulse"
+                  className="bg-card rounded-xl border border-border p-5 h-44 animate-pulse"
                 />
               ))}
             </div>
@@ -290,7 +290,7 @@ export function Marketplace() {
                 <Package className="w-7 h-7 text-muted" />
               </div>
               <div className="text-center">
-                <p className="text-white font-semibold">暂无方案</p>
+                <p className="text-foreground font-semibold">暂无方案</p>
                 <p className="text-sm text-muted mt-1">
                   {search ? "没有匹配的搜索结果" : "该分类下暂无可用方案"}
                 </p>
@@ -302,24 +302,24 @@ export function Marketplace() {
                 <button
                   key={pkg.id}
                   onClick={() => openDetail(pkg)}
-                  className="bg-card rounded-[20px] border border-border p-5 text-left hover:bg-card-hover hover:border-border-hover transition-all group relative overflow-hidden"
+                  className="bg-card rounded-xl border border-border p-5 text-left hover:bg-accent hover:border-border-hover transition-all group relative overflow-hidden"
                 >
                   {/* Top accent bar */}
                   <div className="absolute top-0 left-0 w-full h-0.5 bg-gradient-to-r from-accent/40 via-accent/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
 
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center flex-shrink-0">
-                        <ShoppingBag className="w-5 h-5 text-accent" />
+                      <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+                        <ShoppingBag className="w-5 h-5 text-primary" />
                       </div>
                       <div className="min-w-0">
-                        <h3 className="font-semibold text-white text-sm truncate group-hover:text-accent transition-colors">
+                        <h3 className="font-semibold text-foreground text-sm truncate group-hover:text-primary transition-colors">
                           {pkg.name}
                         </h3>
                         <p className="text-xs text-muted">{pkg.author}</p>
                       </div>
                     </div>
-                    <span className="text-[10px] px-2 py-0.5 rounded-md bg-accent/10 text-accent font-medium flex-shrink-0">
+                    <span className="text-[10px] px-2 py-0.5 rounded-md bg-primary/10 text-primary font-medium flex-shrink-0">
                       v{pkg.version}
                     </span>
                   </div>
@@ -333,14 +333,14 @@ export function Marketplace() {
                       {pkg.tags.slice(0, 3).map((t) => (
                         <span
                           key={t}
-                          className="text-[10px] px-2 py-0.5 rounded-md bg-zinc-800 text-zinc-400"
+                          className="text-[10px] px-2 py-0.5 rounded-md bg-muted text-muted-foreground"
                         >
                           {t}
                         </span>
                       ))}
                     </div>
                     <div className="text-right">
-                      <div className="text-sm font-bold text-accent">
+                      <div className="text-sm font-bold text-primary">
                         {formatPrice(pkg.plan_monthly_price)}
                       </div>
                       <div className="text-[10px] text-muted">
@@ -363,7 +363,7 @@ export function Marketplace() {
               {Array.from({ length: 3 }).map((_, i) => (
                 <div
                   key={i}
-                  className="bg-card rounded-[20px] border border-border p-5 h-20 animate-pulse"
+                  className="bg-card rounded-xl border border-border p-5 h-20 animate-pulse"
                 />
               ))}
             </div>
@@ -373,7 +373,7 @@ export function Marketplace() {
                 <Download className="w-7 h-7 text-muted" />
               </div>
               <div className="text-center">
-                <p className="text-white font-semibold">暂无已购方案</p>
+                <p className="text-foreground font-semibold">暂无已购方案</p>
                 <p className="text-sm text-muted mt-1">前往浏览标签页发现方案</p>
               </div>
             </div>
@@ -384,24 +384,24 @@ export function Marketplace() {
                 return (
                   <div
                     key={sub.package_id}
-                    className={`bg-card rounded-[20px] border p-5 flex items-center justify-between transition-colors ${
-                      isExpired ? "border-warning/20 opacity-60" : "border-border hover:bg-card-hover"
+                    className={`bg-card rounded-xl border p-5 flex items-center justify-between transition-colors ${
+                      isExpired ? "border-destructive/20 opacity-60" : "border-border hover:bg-accent"
                     }`}
                   >
                     <div className="flex items-center gap-4">
                       <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
-                        isExpired ? "bg-warning/10" : "bg-accent/10"
+                        isExpired ? "bg-destructive/10" : "bg-primary/10"
                       }`}>
-                        <Package className={`w-5 h-5 ${isExpired ? "text-warning" : "text-accent"}`} />
+                        <Package className={`w-5 h-5 ${isExpired ? "text-destructive" : "text-primary"}`} />
                       </div>
                       <div>
                         <div className="flex items-center gap-2">
-                          <h3 className="font-semibold text-white text-sm">{sub.name}</h3>
-                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400">
+                          <h3 className="font-semibold text-foreground text-sm">{sub.name}</h3>
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
                             v{sub.version}
                           </span>
                           {isExpired && (
-                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-warning/10 text-warning font-medium">
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-destructive/10 text-destructive font-medium">
                               已过期
                             </span>
                           )}
@@ -440,7 +440,7 @@ export function Marketplace() {
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           {/* Backdrop */}
           <div
-            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            className="absolute inset-0 bg-background/80 backdrop-blur-sm"
             onClick={() => {
               setLoginOpen(false);
               setLoginError(null);
@@ -448,9 +448,9 @@ export function Marketplace() {
           />
 
           {/* Modal */}
-          <div className="relative bg-card border border-border rounded-[20px] p-6 w-full max-w-sm mx-4 shadow-2xl animate-in zoom-in">
+          <div className="relative bg-card border border-border rounded-xl p-6 w-full max-w-sm mx-4 shadow-lg animate-in zoom-in">
             <div className="flex items-center justify-between mb-5">
-              <h2 className="text-lg font-bold text-white">
+              <h2 className="text-lg font-bold text-foreground">
                 {loginMode === "login" ? "登录解决方案" : "注册账号"}
               </h2>
               <button
@@ -458,20 +458,20 @@ export function Marketplace() {
                   setLoginOpen(false);
                   setLoginError(null);
                 }}
-                className="w-7 h-7 rounded-lg flex items-center justify-center text-muted hover:text-white hover:bg-white/5 transition-colors"
+                className="w-7 h-7 rounded-lg flex items-center justify-center text-muted hover:text-foreground hover:bg-white/5 transition-colors"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
             {/* Tab switcher */}
-            <div className="flex gap-1 p-1 bg-surface rounded-lg mb-4">
+            <div className="flex gap-1 p-1 bg-background rounded-lg mb-4">
               <button
                 onClick={() => { setLoginMode("login"); setLoginError(null); }}
                 className={`flex-1 py-1.5 rounded-md text-sm font-medium transition-colors ${
                   loginMode === "login"
-                    ? "bg-accent/15 text-accent"
-                    : "text-muted hover:text-white"
+                    ? "bg-primary/15 text-primary"
+                    : "text-muted hover:text-foreground"
                 }`}
               >
                 登录
@@ -480,8 +480,8 @@ export function Marketplace() {
                 onClick={() => { setLoginMode("register"); setLoginError(null); }}
                 className={`flex-1 py-1.5 rounded-md text-sm font-medium transition-colors ${
                   loginMode === "register"
-                    ? "bg-accent/15 text-accent"
-                    : "text-muted hover:text-white"
+                    ? "bg-primary/15 text-primary"
+                    : "text-muted hover:text-foreground"
                 }`}
               >
                 注册
@@ -498,7 +498,7 @@ export function Marketplace() {
                     value={loginUser}
                     onChange={(e) => setLoginUser(e.target.value)}
                     placeholder="请输入用户名"
-                    className="w-full pl-10 pr-4 py-2.5 bg-surface border border-border rounded-xl text-white placeholder-muted text-sm focus:outline-none focus:border-accent/40 transition-colors"
+                    className="w-full pl-10 pr-4 py-2.5 bg-background border border-border rounded-xl text-foreground placeholder-muted text-sm focus:outline-none focus:border-primary/40 transition-colors"
                     onKeyDown={(e) => e.key === "Enter" && handleLogin()}
                   />
                 </div>
@@ -510,13 +510,13 @@ export function Marketplace() {
                   value={loginPass}
                   onChange={(e) => setLoginPass(e.target.value)}
                   placeholder="请输入密码"
-                  className="w-full px-4 py-2.5 bg-surface border border-border rounded-xl text-white placeholder-muted text-sm focus:outline-none focus:border-accent/40 transition-colors"
+                  className="w-full px-4 py-2.5 bg-background border border-border rounded-xl text-foreground placeholder-muted text-sm focus:outline-none focus:border-primary/40 transition-colors"
                   onKeyDown={(e) => e.key === "Enter" && handleLogin()}
                 />
               </div>
 
               {loginError && (
-                <p className="text-xs text-warning bg-warning/5 border border-warning/10 rounded-lg px-3 py-2">
+                <p className="text-xs text-destructive bg-destructive/5 border border-destructive/10 rounded-lg px-3 py-2">
                   {loginError}
                 </p>
               )}
@@ -524,7 +524,7 @@ export function Marketplace() {
               <button
                 onClick={handleLogin}
                 disabled={loginLoading || !loginUser.trim() || !loginPass.trim()}
-                className="w-full py-2.5 bg-accent text-black rounded-xl text-sm font-semibold hover:bg-accent/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                className="w-full py-2.5 bg-accent text-primary-foreground rounded-xl text-sm font-semibold hover:bg-primary/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 {loginLoading ? "请稍候..." : loginMode === "login" ? "登录" : "注册"}
               </button>
@@ -538,29 +538,29 @@ export function Marketplace() {
         <div className="fixed inset-0 z-50 flex items-start justify-center pt-[10vh]">
           {/* Backdrop */}
           <div
-            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            className="absolute inset-0 bg-background/80 backdrop-blur-sm"
             onClick={() => setDetailOpen(false)}
           />
 
           {/* Modal */}
-          <div className="relative bg-card border border-border rounded-[20px] w-full max-w-lg mx-4 shadow-2xl animate-in zoom-in max-h-[80vh] overflow-y-auto">
+          <div className="relative bg-card border border-border rounded-xl w-full max-w-lg mx-4 shadow-lg animate-in zoom-in max-h-[80vh] overflow-y-auto">
             {/* Gradient top bar */}
             <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-accent/60 via-accent/30 to-transparent" />
 
             <div className="p-6">
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-xl bg-accent/10 flex items-center justify-center flex-shrink-0">
-                    <ShoppingBag className="w-6 h-6 text-accent" />
+                  <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+                    <ShoppingBag className="w-6 h-6 text-primary" />
                   </div>
                   <div>
-                    <h2 className="text-xl font-bold text-white">{selected.name}</h2>
+                    <h2 className="text-xl font-bold text-foreground">{selected.name}</h2>
                     <p className="text-sm text-muted">{selected.author}</p>
                   </div>
                 </div>
                 <button
                   onClick={() => setDetailOpen(false)}
-                  className="w-7 h-7 rounded-lg flex items-center justify-center text-muted hover:text-white hover:bg-white/5 transition-colors flex-shrink-0"
+                  className="w-7 h-7 rounded-lg flex items-center justify-center text-muted hover:text-foreground hover:bg-white/5 transition-colors flex-shrink-0"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -568,16 +568,16 @@ export function Marketplace() {
 
               {/* Tags */}
               <div className="flex flex-wrap gap-1.5 mb-4">
-                <span className="text-[10px] px-2 py-0.5 rounded-md bg-accent/10 text-accent font-medium">
+                <span className="text-[10px] px-2 py-0.5 rounded-md bg-primary/10 text-primary font-medium">
                   {selected.category}
                 </span>
-                <span className="text-[10px] px-2 py-0.5 rounded-md bg-zinc-800 text-zinc-400">
+                <span className="text-[10px] px-2 py-0.5 rounded-md bg-muted text-muted-foreground">
                   v{selected.version}
                 </span>
                 {selected.tags.map((t) => (
                   <span
                     key={t}
-                    className="text-[10px] px-2 py-0.5 rounded-md bg-zinc-800 text-zinc-400"
+                    className="text-[10px] px-2 py-0.5 rounded-md bg-muted text-muted-foreground"
                   >
                     {t}
                   </span>
@@ -587,26 +587,26 @@ export function Marketplace() {
               {/* Description */}
               <div className="mb-5">
                 <h3 className="text-xs uppercase tracking-widest text-muted font-medium mb-2">方案详情</h3>
-                <p className="text-sm text-zinc-300 leading-relaxed whitespace-pre-wrap">
+                <p className="text-sm text-foreground/80 leading-relaxed whitespace-pre-wrap">
                   {selected.long_description || selected.description}
                 </p>
               </div>
 
               {/* Meta info */}
               <div className="grid grid-cols-2 gap-3 mb-5">
-                <div className="bg-surface rounded-xl p-3">
+                <div className="bg-background rounded-xl p-3">
                   <div className="flex items-center gap-1.5 text-xs text-muted mb-1">
                     <Download className="w-3.5 h-3.5" />
                     下载量
                   </div>
-                  <p className="text-sm font-semibold text-white">{selected.download_count.toLocaleString()}</p>
+                  <p className="text-sm font-semibold text-foreground">{selected.download_count.toLocaleString()}</p>
                 </div>
-                <div className="bg-surface rounded-xl p-3">
+                <div className="bg-background rounded-xl p-3">
                   <div className="flex items-center gap-1.5 text-xs text-muted mb-1">
                     <Package className="w-3.5 h-3.5" />
                     包大小
                   </div>
-                  <p className="text-sm font-semibold text-white">
+                  <p className="text-sm font-semibold text-foreground">
                     {selected.package_size > 1024 * 1024
                       ? `${(selected.package_size / (1024 * 1024)).toFixed(1)} MB`
                       : `${(selected.package_size / 1024).toFixed(0)} KB`}
@@ -615,26 +615,26 @@ export function Marketplace() {
               </div>
 
               {/* Pricing */}
-              <div className="bg-surface rounded-xl p-4 mb-5 border border-border">
+              <div className="bg-background rounded-xl p-4 mb-5 border border-border">
                 <h3 className="text-xs uppercase tracking-widest text-muted font-medium mb-3">价格方案</h3>
                 <div className="flex gap-3">
                   <div className="flex-1 bg-card rounded-xl p-3 border border-border">
                     <p className="text-[10px] uppercase tracking-wider text-muted mb-1">月付</p>
-                    <p className="text-lg font-bold text-accent">
+                    <p className="text-lg font-bold text-primary">
                       {selected.plan_monthly_price === 0 ? "免费" : `¥${selected.plan_monthly_price.toFixed(2)}`}
                     </p>
                     {selected.plan_monthly_price > 0 && (
                       <p className="text-[10px] text-muted mt-0.5">/月</p>
                     )}
                   </div>
-                  <div className="flex-1 bg-card rounded-xl p-3 border border-accent/20 relative overflow-hidden">
+                  <div className="flex-1 bg-card rounded-xl p-3 border border-primary/20 relative overflow-hidden">
                     <div className="absolute top-0 right-0">
-                      <div className="bg-accent text-black text-[9px] font-bold px-2 py-0.5 rounded-bl-lg">
+                      <div className="bg-accent text-primary-foreground text-[9px] font-bold px-2 py-0.5 rounded-bl-lg">
                         省{(selected.plan_monthly_price * 12 - selected.plan_yearly_price).toFixed(2)}
                       </div>
                     </div>
                     <p className="text-[10px] uppercase tracking-wider text-muted mb-1">年付</p>
-                    <p className="text-lg font-bold text-accent">
+                    <p className="text-lg font-bold text-primary">
                       {selected.plan_yearly_price === 0 ? "免费" : `¥${selected.plan_yearly_price.toFixed(2)}`}
                     </p>
                     {selected.plan_yearly_price > 0 && (
@@ -647,7 +647,7 @@ export function Marketplace() {
               {/* Action */}
               <button
                 onClick={() => handleInstall(selected)}
-                className="w-full py-3 bg-accent text-black rounded-xl text-sm font-semibold hover:bg-accent/90 transition-colors flex items-center justify-center gap-2"
+                className="w-full py-3 bg-accent text-primary-foreground rounded-xl text-sm font-semibold hover:bg-primary/90 transition-colors flex items-center justify-center gap-2"
               >
                 <Download className="w-4 h-4" />
                 {token ? "安装方案" : "登录后安装"}

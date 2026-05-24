@@ -51,7 +51,7 @@ export function PluginsTab({ toast }: { toast: ToastFn }) {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12 gap-2">
-        <Loader2 className="w-5 h-5 text-accent animate-spin" />
+        <Loader2 className="w-5 h-5 text-primary animate-spin" />
         <span className="text-sm text-muted">加载插件列表...</span>
       </div>
     );
@@ -60,9 +60,9 @@ export function PluginsTab({ toast }: { toast: ToastFn }) {
   if (error) {
     return (
       <div className="flex flex-col items-center gap-3 py-12">
-        <AlertTriangle className="w-8 h-8 text-warning" />
+        <AlertTriangle className="w-8 h-8 text-destructive" />
         <p className="text-sm text-muted">{error}</p>
-        <button onClick={load} className="flex items-center gap-2 px-4 py-2 bg-accent/10 text-accent border border-accent/20 rounded-xl text-sm hover:bg-accent/20 transition-colors">
+        <button onClick={load} className="flex items-center gap-2 px-4 py-2 bg-primary/10 text-primary border border-primary/20 rounded-xl text-sm hover:bg-primary/20 transition-colors">
           <RefreshCw className="w-3.5 h-3.5" /> 重试
         </button>
       </div>
@@ -89,20 +89,20 @@ export function PluginsTab({ toast }: { toast: ToastFn }) {
                 if (e.key === "Escape") { setNewPluginName(""); setAddingPlugin(false); }
               }}
               placeholder="插件名称..."
-              className="w-40 bg-transparent border border-border/60 rounded-lg px-3 py-2 text-sm text-white placeholder:text-muted/40 outline-none focus:border-accent/50"
+              className="w-40 bg-transparent border border-border/60 rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted/40 outline-none focus:border-primary/50"
             />
             <button onClick={() => {
               if (newPluginName.trim()) {
                 api.savePlugin(newPluginName.trim(), { enabled: true }).then(() => load()).catch(e2 => toast.error(e2.message));
                 setNewPluginName(""); setAddingPlugin(false);
               }
-            }} className="px-3 py-2 text-xs bg-accent/10 text-accent rounded-lg hover:bg-accent/20">确认</button>
-            <button onClick={() => { setNewPluginName(""); setAddingPlugin(false); }} className="px-3 py-2 text-xs text-muted/50 hover:text-white">取消</button>
+            }} className="px-3 py-2 text-xs bg-primary/10 text-primary rounded-lg hover:bg-primary/20">确认</button>
+            <button onClick={() => { setNewPluginName(""); setAddingPlugin(false); }} className="px-3 py-2 text-xs text-muted/50 hover:text-foreground">取消</button>
           </div>
         ) : (
           <button
             onClick={() => setAddingPlugin(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-accent/10 text-accent border border-accent/20 rounded-xl text-sm hover:bg-accent/20 transition-colors shrink-0"
+            className="flex items-center gap-2 px-4 py-2 bg-primary/10 text-primary border border-primary/20 rounded-xl text-sm hover:bg-primary/20 transition-colors shrink-0"
           >
             <Plus className="w-4 h-4" /> 安装插件
           </button>
@@ -118,13 +118,13 @@ export function PluginsTab({ toast }: { toast: ToastFn }) {
       ) : (
         <div className="space-y-2">
           {entries.map(p => (
-            <div key={p.name} className="flex items-center justify-between bg-surface border border-border rounded-xl px-4 py-3">
+            <div key={p.name} className="flex items-center justify-between bg-background border border-border rounded-xl px-4 py-3">
               <div className="flex items-center gap-3">
-                <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${p.healthy ? "bg-success/10" : "bg-warning/10"}`}>
-                  <Shield className={`w-4 h-4 ${p.healthy ? "text-success" : "text-warning"}`} />
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${p.healthy ? "bg-success/10" : "bg-destructive/10"}`}>
+                  <Shield className={`w-4 h-4 ${p.healthy ? "text-success" : "text-destructive"}`} />
                 </div>
                 <div>
-                  <span className="text-sm text-white font-medium">{p.name}</span>
+                  <span className="text-sm text-foreground font-medium">{p.name}</span>
                   <p className="text-xs text-muted mt-0.5">{p.healthy ? "运行中" : "未连接"}</p>
                 </div>
               </div>
@@ -137,7 +137,7 @@ export function PluginsTab({ toast }: { toast: ToastFn }) {
                 </button>
                 <button
                   onClick={() => setDeleteTarget(p.name)}
-                  className="text-muted hover:text-warning transition-colors"
+                  className="text-muted hover:text-destructive transition-colors"
                   title="卸载插件"
                 >
                   <Trash2 className="w-3.5 h-3.5" />

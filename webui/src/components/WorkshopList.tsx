@@ -4,6 +4,10 @@ import { api, getAuthHeaders } from "../lib/api";
 import { useToast } from "./Toast";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { AgentEditor } from "./AgentEditor";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import type { Workshop, WorkflowResult, AgentInfo } from "../lib/types";
 
 export function WorkshopList() {
@@ -188,12 +192,12 @@ export function WorkshopList() {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <div className="h-8 w-24 bg-card rounded animate-pulse" />
-            <div className="h-4 w-48 bg-card rounded animate-pulse mt-2" />
+            <Skeleton className="h-8 w-24" />
+            <Skeleton className="h-4 w-48 mt-2" />
           </div>
         </div>
         {[1, 2, 3].map(i => (
-          <div key={i} className="bg-card border border-border rounded-[20px] p-5 animate-pulse h-20" />
+          <Skeleton key={i} className="h-20 rounded-xl" />
         ))}
       </div>
     );
@@ -203,14 +207,14 @@ export function WorkshopList() {
   if (error) {
     return (
       <div className="space-y-6">
-        <div><h1 className="text-2xl font-black tracking-tight text-white">项目</h1></div>
+        <div><h1 className="text-2xl font-semibold tracking-tight text-foreground">项目</h1></div>
         <div className="flex flex-col items-center justify-center min-h-[300px] gap-4">
-          <AlertTriangle className="w-10 h-10 text-warning" />
-          <p className="text-white font-semibold">加载失败</p>
-          <p className="text-sm text-muted">{error}</p>
-          <button onClick={load} className="inline-flex items-center gap-2 px-4 py-2 bg-accent/10 text-accent border border-accent/20 rounded-xl text-sm hover:bg-accent/20 transition-colors">
+          <AlertTriangle className="w-10 h-10 text-destructive" />
+          <p className="text-foreground font-semibold">加载失败</p>
+          <p className="text-sm text-muted-foreground">{error}</p>
+          <Button variant="outline" size="sm" onClick={load}>
             <RefreshCw className="w-3.5 h-3.5" /> 重试
-          </button>
+          </Button>
         </div>
       </div>
     );
@@ -220,45 +224,41 @@ export function WorkshopList() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-black tracking-tight text-white">项目</h1>
-          <p className="text-muted text-sm mt-1">管理所有 AI 项目</p>
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">项目</h1>
+          <p className="text-muted-foreground text-sm mt-1">管理所有 AI 项目</p>
         </div>
         <div className="flex items-center gap-2">
           <input type="file" ref={fileInputRef} accept=".zip,.nexus"
             onChange={e => { const f = e.target.files?.[0]; if (f) importPackage(f); }}
             className="hidden" />
-          <button onClick={() => fileInputRef.current?.click()} disabled={importing}
-            className="flex items-center gap-2 px-4 py-2 bg-info/10 text-info border border-info/20 rounded-xl text-sm font-medium hover:bg-info/20 transition-colors disabled:opacity-30">
+          <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} disabled={importing}>
             {importing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
             导入模块
-          </button>
-          <button
-            onClick={() => setShowCreate(!showCreate)}
-            className="flex items-center gap-2 px-4 py-2 bg-accent/10 text-accent border border-accent/20 rounded-xl text-sm font-medium hover:bg-accent/20 transition-colors"
-          >
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => setShowCreate(!showCreate)}>
             <Plus className="w-4 h-4" /> 新建项目
-          </button>
+          </Button>
         </div>
       </div>
 
       {showCreate && (
-        <div className="bg-card border border-border rounded-[20px] p-5 flex flex-col gap-3 sm:flex-row">
-          <input
+        <div className="bg-card border border-border rounded-xl p-5 flex flex-col gap-3 sm:flex-row">
+          <Input
             value={name}
             onChange={e => setName(e.target.value)}
             onKeyDown={e => e.key === "Enter" && !creating && create()}
             placeholder="项目名称"
-            className="flex-1 bg-surface border border-border rounded-xl px-4 py-2 text-sm text-white placeholder:text-muted focus:outline-none focus:border-accent/30"
+            className="flex-1 rounded-xl"
             autoFocus
           />
           <select
             value={model}
             onChange={e => setModel(e.target.value)}
-            className="bg-surface border border-border rounded-xl px-4 py-2 text-sm text-white focus:outline-none focus:border-accent/30 min-w-[240px]"
+            className="bg-background border border-border rounded-xl px-4 py-2 text-sm text-foreground focus:outline-none focus:border-primary/30 min-w-[240px]"
           >
             <option value="">默认模型（可前往设置页配置）</option>
             {providerGroups.map(g => (
-              <optgroup key={g.name} label={`${g.name} ${g.hasKey ? '✓' : '(未配置 Key)'}`}>
+              <optgroup key={g.name} label={`${g.name} ${g.hasKey ? "\u2713" : "(未配置 Key)"}`}>
                 {g.models.map(m => (
                   <option key={`${g.name}/${m}`} value={`${g.name}/${m}`}>{m}</option>
                 ))}
@@ -267,22 +267,23 @@ export function WorkshopList() {
             <option value="__custom__">自定义输入...</option>
           </select>
           {model === "__custom__" && (
-            <input
+            <Input
               value=""
               onChange={e => setModel(e.target.value)}
               placeholder="输入模型名..."
-              className="flex-1 bg-surface border border-accent/30 rounded-xl px-4 py-2 text-sm text-white placeholder:text-muted focus:outline-none focus:border-accent/50"
+              className="flex-1 rounded-xl border-primary/30"
               autoFocus
             />
           )}
-          <button
+          <Button
+            size="sm"
             onClick={create}
             disabled={creating || !name.trim()}
-            className="px-5 py-2 bg-accent text-black rounded-xl text-sm font-semibold hover:bg-amber-400 transition-colors disabled:opacity-30 flex items-center gap-2 shrink-0"
+            className="shrink-0"
           >
             {creating && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
             创建
-          </button>
+          </Button>
         </div>
       )}
 
@@ -290,11 +291,11 @@ export function WorkshopList() {
       {!loading && workshops.length === 0 && (
         <div className="flex flex-col items-center justify-center min-h-[300px] gap-4">
           <div className="w-14 h-14 rounded-2xl bg-card border border-border flex items-center justify-center">
-            <Blocks className="w-7 h-7 text-muted" />
+            <Blocks className="w-7 h-7 text-muted-foreground" />
           </div>
           <div className="text-center">
-            <p className="text-white font-semibold">暂无项目</p>
-            <p className="text-sm text-muted mt-1">点击上方「新建项目」开始</p>
+            <p className="text-foreground font-semibold">暂无项目</p>
+            <p className="text-sm text-muted-foreground mt-1">点击上方「新建项目」开始</p>
           </div>
         </div>
       )}
@@ -308,24 +309,24 @@ export function WorkshopList() {
               setSelected(next);
               if (next) loadAgents(next.name);
             }}
-            className={`bg-card border rounded-[20px] p-5 cursor-pointer transition-all duration-200 hover:bg-card-hover ${
-              selected?.name === w.name ? "border-accent/40 ring-1 ring-accent/20" : "border-border"
+            className={`bg-card border rounded-xl p-5 cursor-pointer transition-all duration-200 hover:bg-accent ${
+              selected?.name === w.name ? "border-primary/40 ring-1 ring-primary/20" : "border-border"
             }`}
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className={`w-3 h-3 rounded-full ${w.workflow_name !== "simple" ? "bg-info" : "bg-muted"} ${w.has_kanban ? "shadow-[0_0_6px_rgba(6,182,212,0.4)]" : ""}`} />
-                <span className="font-semibold text-white">{w.name}</span>
-                <span className="text-[11px] text-muted bg-surface px-2 py-0.5 rounded-md">{w.workflow_name}</span>
+                <div className={`w-3 h-3 rounded-full ${w.workflow_name !== "simple" ? "bg-primary" : "bg-muted"} ${w.has_kanban ? "shadow-[0_0_6px_rgba(6,182,212,0.4)]" : ""}`} />
+                <span className="font-semibold text-foreground">{w.name}</span>
+                <Badge variant="secondary" className="text-[11px] rounded-md font-normal">{w.workflow_name}</Badge>
               </div>
               <div className="flex items-center gap-3">
-                <span className="text-sm text-muted">{w.agent_count} agents</span>
+                <span className="text-sm text-muted-foreground">{w.agent_count} agents</span>
                 <button onClick={e => { e.stopPropagation(); exportWorkspace(w.name); }} disabled={exporting === w.name}
-                  className="text-muted hover:text-info transition-colors" title="导出为 .nexus 包">
+                  className="text-muted-foreground hover:text-primary transition-colors" title="导出为 .nexus 包">
                   {exporting === w.name ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
                 </button>
                 <button onClick={e => { e.stopPropagation(); setRemoveTarget(w.name); }}
-                  className="text-muted/30 hover:text-warning transition-colors" title="卸载项目">
+                  className="text-muted-foreground/30 hover:text-destructive transition-colors" title="卸载项目">
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
               </div>
@@ -337,46 +338,46 @@ export function WorkshopList() {
                 {/* Agents */}
                 <div>
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] uppercase tracking-widest text-muted font-medium">Agents</span>
+                    <span className="text-xs uppercase tracking-widest text-muted-foreground font-medium">Agents</span>
                     <button onClick={(e) => { e.stopPropagation(); setEditingAgent(null); setShowAgentEditor(true); }}
-                      className="flex items-center gap-1 text-xs text-accent hover:text-white transition-colors">
+                      className="flex items-center gap-1 text-xs text-primary hover:text-foreground transition-colors">
                       <Plus className="w-3 h-3" /> 添加 Agent
                     </button>
                   </div>
                   {agentsLoading ? (
-                    <div className="mt-2 h-10 bg-surface rounded-xl animate-pulse" />
+                    <Skeleton className="mt-2 h-10 rounded-xl" />
                   ) : agents.length === 0 ? (
-                    <p className="text-xs text-muted mt-2">暂无 Agent，点击「添加 Agent」创建</p>
+                    <p className="text-xs text-muted-foreground mt-2">暂无 Agent，点击「添加 Agent」创建</p>
                   ) : (
                     <div className="mt-2 space-y-1.5">
                       {agents.map(a => (
-                        <div key={a.name} className="flex items-center justify-between p-2.5 bg-surface border border-border rounded-xl group">
+                        <div key={a.name} className="flex items-center justify-between p-2.5 bg-background border border-border rounded-xl group">
                           <div className="flex items-center gap-2.5 min-w-0">
-                            <div className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 ${a.is_super ? "bg-warning/10" : "bg-info/10"}`}>
-                              {a.is_super ? <Zap className="w-3 h-3 text-warning" /> : <Bot className="w-3 h-3 text-info" />}
+                            <div className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 ${a.is_super ? "bg-destructive/10" : "bg-primary/10"}`}>
+                              {a.is_super ? <Zap className="w-3 h-3 text-destructive" /> : <Bot className="w-3 h-3 text-primary" />}
                             </div>
                             <div className="min-w-0">
                               <div className="flex items-center gap-2">
-                                <span className="text-sm text-white font-medium">{a.name}</span>
-                                <span className={`text-[9px] px-1.5 py-0.5 rounded font-medium ${
-                                  a.is_super ? "bg-warning/10 text-warning" : "bg-info/10 text-info"
-                                }`}>{a.is_super ? "超级" : "普通"}</span>
+                                <span className="text-sm text-foreground font-medium">{a.name}</span>
+                                <Badge variant={a.is_super ? "destructive" : "secondary"} className="text-[9px] px-1.5 py-0.5 rounded font-medium">
+                                  {a.is_super ? "超级" : "普通"}
+                                </Badge>
                               </div>
-                              <div className="flex items-center gap-2 text-[10px] text-muted mt-0.5">
+                              <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
                                 <span>{a.model}</span>
                                 <span>·</span>
                                 <span>{a.tools_all ? "全工具" : `${a.tools.length} 工具`}</span>
-                                {a.permissions?.subagent_spawn && <span className="text-warning">· 可建子Agent</span>}
+                                {a.permissions?.subagent_spawn && <span className="text-destructive">· 可建子Agent</span>}
                               </div>
                             </div>
                           </div>
                           <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
                             <button onClick={(e) => { e.stopPropagation(); setEditingAgent(a); setShowAgentEditor(true); }}
-                              className="p-1.5 rounded-lg text-muted hover:text-white hover:bg-white/5 transition-colors">
+                              className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors">
                               <Settings className="w-3 h-3" />
                             </button>
                             <button onClick={(e) => { e.stopPropagation(); deleteAgent(a.name); }}
-                              className="p-1.5 rounded-lg text-muted/30 hover:text-warning transition-colors">
+                              className="p-1.5 rounded-lg text-muted-foreground/30 hover:text-destructive transition-colors">
                               <Trash2 className="w-3 h-3" />
                             </button>
                           </div>
@@ -388,12 +389,12 @@ export function WorkshopList() {
 
                 {w.kanban_stats && (
                   <div>
-                    <span className="text-[10px] uppercase tracking-widest text-muted font-medium">看板</span>
+                    <span className="text-xs uppercase tracking-widest text-muted-foreground font-medium">看板</span>
                     <div className="mt-2 flex gap-4">
                       {Object.entries(w.kanban_stats).map(([sname, count]) => (
                         <div key={sname} className="text-center">
-                          <div className="text-xl font-bold text-white">{count}</div>
-                          <div className="text-[10px] text-muted">{sname}</div>
+                          <div className="text-xl font-bold text-foreground">{count}</div>
+                          <div className="text-xs text-muted-foreground">{sname}</div>
                         </div>
                       ))}
                     </div>
@@ -402,35 +403,36 @@ export function WorkshopList() {
 
                 {/* Task runner */}
                 <div>
-                  <span className="text-[10px] uppercase tracking-widest text-muted font-medium">执行工作流</span>
+                  <span className="text-xs uppercase tracking-widest text-muted-foreground font-medium">执行工作流</span>
                   <div className="mt-2 flex gap-3">
-                    <input
+                    <Input
                       value={task}
                       onChange={e => setTask(e.target.value)}
                       onKeyDown={e => e.key === "Enter" && !running && task.trim() && run()}
                       placeholder="输入任务描述..."
                       disabled={running}
-                      className="flex-1 bg-surface border border-border rounded-xl px-4 py-2 text-sm text-white placeholder:text-muted focus:outline-none focus:border-accent/30 disabled:opacity-50"
+                      className="flex-1 rounded-xl"
                     />
-                    <button
+                    <Button
+                      variant="outline"
+                      size="sm"
                       onClick={run}
                       disabled={running || !task.trim()}
-                      className="flex items-center gap-2 px-4 py-2 bg-accent/10 text-accent border border-accent/20 rounded-xl text-sm hover:bg-accent/20 transition-colors disabled:opacity-30"
                     >
                       {running ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
                       执行
-                    </button>
+                    </Button>
                   </div>
                 </div>
 
                 {result && (
-                  <div className="bg-surface border border-border rounded-xl p-4 font-mono text-xs text-terminal overflow-auto max-h-64">
-                    <div className="text-accent mb-2">[{result.status}] {result.template_name}</div>
+                  <div className="bg-background border border-border rounded-xl p-4 font-mono text-xs text-terminal overflow-auto max-h-64">
+                    <div className="text-primary mb-2">[{result.status}] {result.template_name}</div>
                     {Object.values(result.stage_results).map((sr: unknown) => {
                       const s = sr as { stage_id: string; status: string; output: string };
                       return (
                         <div key={s.stage_id} className="ml-2 mb-1">
-                          <span className="text-info">[{s.status}]</span> {s.stage_id}: {s.output?.slice(0, 200)}
+                          <span className="text-primary">[{s.status}]</span> {s.stage_id}: {s.output?.slice(0, 200)}
                         </div>
                       );
                     })}

@@ -39,14 +39,14 @@ export function SkillsTab({ toast }: { toast: ToastFn }) {
 
   if (loading) return (
     <div className="flex items-center justify-center py-12 gap-2">
-      <Loader2 className="w-5 h-5 text-accent animate-spin" /><span className="text-sm text-muted">加载技能库...</span>
+      <Loader2 className="w-5 h-5 text-primary animate-spin" /><span className="text-sm text-muted">加载技能库...</span>
     </div>
   );
 
   if (error) return (
     <div className="flex flex-col items-center gap-3 py-12">
-      <AlertTriangle className="w-8 h-8 text-warning" /><p className="text-sm text-muted">{error}</p>
-      <button onClick={load} className="flex items-center gap-2 px-4 py-2 bg-accent/10 text-accent border border-accent/20 rounded-xl text-sm"><RefreshCw className="w-3.5 h-3.5" />重试</button>
+      <AlertTriangle className="w-8 h-8 text-destructive" /><p className="text-sm text-muted">{error}</p>
+      <button onClick={load} className="flex items-center gap-2 px-4 py-2 bg-primary/10 text-primary border border-primary/20 rounded-xl text-sm"><RefreshCw className="w-3.5 h-3.5" />重试</button>
     </div>
   );
 
@@ -55,7 +55,7 @@ export function SkillsTab({ toast }: { toast: ToastFn }) {
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted">从 Anthropic 市场同步 Skill 插件。Agent 通过 Skill 工具调用专业技能。</p>
         <button onClick={sync} disabled={syncing}
-          className="flex items-center gap-2 px-4 py-2 bg-accent/10 text-accent border border-accent/20 rounded-xl text-sm hover:bg-accent/20 transition-colors disabled:opacity-50 shrink-0">
+          className="flex items-center gap-2 px-4 py-2 bg-primary/10 text-primary border border-primary/20 rounded-xl text-sm hover:bg-primary/20 transition-colors disabled:opacity-50 shrink-0">
           <RefreshCw className={`w-4 h-4 ${syncing ? "animate-spin" : ""}`} />同步市场
         </button>
       </div>
@@ -71,15 +71,15 @@ export function SkillsTab({ toast }: { toast: ToastFn }) {
           {skills.map(s => (
             <div key={s.name}>
               <div onClick={() => toggleDetail(s.name)}
-                className={`flex items-center justify-between bg-surface border rounded-xl px-4 py-3 cursor-pointer transition-all hover:border-accent/20 ${expanded === s.name ? "border-accent/30" : "border-border"}`}>
+                className={`flex items-center justify-between bg-background border rounded-xl px-4 py-3 cursor-pointer transition-all hover:border-primary/20 ${expanded === s.name ? "border-primary/30" : "border-border"}`}>
                 <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-8 h-8 rounded-lg bg-accent/10 flex items-center justify-center shrink-0">
-                    <Zap className="w-4 h-4 text-accent" />
+                  <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                    <Zap className="w-4 h-4 text-primary" />
                   </div>
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className="text-sm text-white font-medium truncate">{s.name}</span>
-                      <span className={`text-[10px] px-1.5 py-0.5 rounded-full shrink-0 ${s.source === "plugin" ? "bg-info/10 text-info" : "bg-success/10 text-success"}`}>
+                      <span className="text-sm text-foreground font-medium truncate">{s.name}</span>
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded-full shrink-0 ${s.source === "plugin" ? "bg-primary/10 text-info" : "bg-success/10 text-success"}`}>
                         {s.source === "plugin" ? "市场" : "项目"}
                       </span>
                     </div>
@@ -90,21 +90,21 @@ export function SkillsTab({ toast }: { toast: ToastFn }) {
               </div>
 
               {expanded === s.name && (
-                <div className="bg-card border border-accent/20 border-t-0 rounded-b-xl px-5 py-4 space-y-3">
+                <div className="bg-card border border-primary/20 border-t-0 rounded-b-xl px-5 py-4 space-y-3">
                   {detailLoading ? (
-                    <div className="flex items-center gap-2 py-2"><Loader2 className="w-4 h-4 text-accent animate-spin" /><span className="text-xs text-muted">加载详情...</span></div>
+                    <div className="flex items-center gap-2 py-2"><Loader2 className="w-4 h-4 text-primary animate-spin" /><span className="text-xs text-muted">加载详情...</span></div>
                   ) : detail ? (
                     <>
                       <div className="grid grid-cols-2 gap-2 text-xs">
-                        <div><span className="text-muted">全名:</span> <span className="text-white">{detail.full_name}</span></div>
-                        <div><span className="text-muted">插件:</span> <span className="text-white">{detail.plugin}</span></div>
-                        <div><span className="text-muted">来源:</span> <span className="text-white">{detail.source === "plugin" ? "Anthropic 市场" : "项目本地"}</span></div>
-                        {detail.file_path && <div className="col-span-2"><span className="text-muted">路径:</span> <span className="text-white text-[10px] font-mono">{detail.file_path}</span></div>}
+                        <div><span className="text-muted">全名:</span> <span className="text-foreground">{detail.full_name}</span></div>
+                        <div><span className="text-muted">插件:</span> <span className="text-foreground">{detail.plugin}</span></div>
+                        <div><span className="text-muted">来源:</span> <span className="text-foreground">{detail.source === "plugin" ? "Anthropic 市场" : "项目本地"}</span></div>
+                        {detail.file_path && <div className="col-span-2"><span className="text-muted">路径:</span> <span className="text-foreground text-[10px] font-mono">{detail.file_path}</span></div>}
                       </div>
                       {detail.body && (
                         <div>
                           <span className="text-[10px] uppercase tracking-widest text-muted">内容</span>
-                          <pre className="mt-1 text-xs text-muted bg-surface rounded-xl p-3 max-h-48 overflow-y-auto whitespace-pre-wrap">{detail.body}</pre>
+                          <pre className="mt-1 text-xs text-muted bg-background rounded-xl p-3 max-h-48 overflow-y-auto whitespace-pre-wrap">{detail.body}</pre>
                         </div>
                       )}
                     </>

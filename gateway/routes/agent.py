@@ -74,6 +74,8 @@ async def agent_run_stream(body: AgentRunRequest, request: Request):
     if not ws.spec.agents:
         return JSONResponse(content={"detail": "No agents in workshop"}, status_code=400)
     agent_spec = ws.spec.agents[0]
+    request_id = getattr(request.state, "request_id", "")
+
     store = MemoryStore(":memory:")
     runner = NexusAgentRunner(agent_spec, ws, store)
     runner._request_id = request_id  # attach for log tracing
@@ -81,8 +83,6 @@ async def agent_run_stream(body: AgentRunRequest, request: Request):
         runner.set_model_override(body.model)
     if body.reasoning_effort:
         runner.set_reasoning_effort(body.reasoning_effort)
-
-    request_id = getattr(request.state, "request_id", "")
 
     async def event_stream():
         yield _sse("status", {"event": "started", "task": task[:200], "workshop": workshop_name, "request_id": request_id[:8]})

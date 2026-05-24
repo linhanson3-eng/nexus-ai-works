@@ -54,8 +54,8 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
   const handleSkip = () => onDone();
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="bg-card border border-border rounded-[24px] p-8 w-full max-w-md mx-4 shadow-2xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+      <div className="bg-card border border-border rounded-2xl p-8 w-full max-w-md mx-4 shadow-lg">
         {/* Step indicator */}
         <div className="flex items-center gap-1.5 mb-6">
           {steps.map((_, i) => (
@@ -69,25 +69,25 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
         </div>
 
         {/* Icon */}
-        <div className="w-14 h-14 rounded-2xl bg-accent/10 border border-accent/20 flex items-center justify-center mb-5">
-          {<current.icon className="w-7 h-7 text-accent" />}
+        <div className="w-14 h-14 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center mb-5">
+          {<current.icon className="w-7 h-7 text-primary" />}
         </div>
 
         {/* Content */}
-        <h2 className="text-xl font-bold text-white mb-2">{current.title}</h2>
+        <h2 className="text-xl font-bold text-foreground mb-2">{current.title}</h2>
         <p className="text-sm text-muted leading-relaxed mb-8">{current.description}</p>
 
         {/* Actions */}
         <div className="flex items-center gap-3">
           <button
             onClick={handleSkip}
-            className="text-sm text-muted hover:text-white transition-colors px-3 py-2"
+            className="text-sm text-muted hover:text-foreground transition-colors px-3 py-2"
           >
             跳过引导
           </button>
           <button
             onClick={handleNext}
-            className="flex-1 flex items-center justify-center gap-2 px-5 py-2.5 bg-accent text-black rounded-xl text-sm font-semibold hover:bg-amber-400 transition-colors"
+            className="flex-1 flex items-center justify-center gap-2 px-5 py-2.5 bg-accent text-primary-foreground rounded-xl text-sm font-semibold hover:bg-primary/80 transition-colors"
           >
             {isLast ? (
               <>

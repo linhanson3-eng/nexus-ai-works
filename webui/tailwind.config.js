@@ -1,24 +1,52 @@
 /** @type {import('tailwindcss').Config} */
 export default {
+  darkMode: "class",
   content: ["./index.html", "./src/**/*.{ts,tsx}"],
   theme: {
     extend: {
       colors: {
-        surface: "#02040a",
-        card: "#0d0d0d",
-        "card-hover": "#141416",
-        border: "rgba(255, 255, 255, 0.06)",
-        "border-hover": "rgba(255, 255, 255, 0.12)",
-        accent: "#f59e0b",
-        "accent-glow": "rgba(245, 158, 11, 0.3)",
-        success: "#10b981",
-        warning: "#f43f5e",
-        info: "#06b6d4",
-        terminal: "#4ade80",
-        muted: "#64748b",
+        background: "var(--background)",
+        foreground: "var(--foreground)",
+        card: {
+          DEFAULT: "var(--card)",
+          foreground: "var(--card-foreground)",
+        },
+        popover: {
+          DEFAULT: "var(--popover)",
+          foreground: "var(--popover-foreground)",
+        },
+        primary: {
+          DEFAULT: "var(--primary)",
+          foreground: "var(--primary-foreground)",
+        },
+        secondary: {
+          DEFAULT: "var(--secondary)",
+          foreground: "var(--secondary-foreground)",
+        },
+        muted: {
+          DEFAULT: "var(--muted)",
+          foreground: "var(--muted-foreground)",
+        },
+        accent: {
+          DEFAULT: "var(--accent)",
+          foreground: "var(--accent-foreground)",
+        },
+        destructive: {
+          DEFAULT: "var(--destructive)",
+          foreground: "var(--destructive-foreground)",
+        },
+        border: "var(--border)",
+        input: "var(--input)",
+        ring: "var(--ring)",
+        success: "var(--success)",
+        warning: "var(--warning)",
       },
       borderRadius: {
-        card: "20px",
+        card: "var(--radius-xl)",
+      },
+      fontFamily: {
+        sans: ['"Geist Variable"', '"Geist Sans"', "system-ui", "sans-serif"],
+        mono: ['"Geist Mono Variable"', '"Geist Mono"', '"JetBrains Mono"', "monospace"],
       },
     },
   },

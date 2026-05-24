@@ -4,6 +4,7 @@ import { api } from "../lib/api";
 import { useToast } from "./Toast";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { WorkflowEditor } from "./WorkflowEditor";
+import { Button } from "@/components/ui/button";
 import type { WorkflowInfo } from "../lib/types";
 
 export function WorkflowList() {
@@ -35,7 +36,7 @@ export function WorkflowList() {
 
   if (loading) return (
     <div className="flex items-center justify-center py-20 gap-2">
-      <Loader2 className="w-5 h-5 text-accent animate-spin" /><span className="text-sm text-muted">加载工作流...</span>
+      <Loader2 className="w-5 h-5 text-primary animate-spin" /><span className="text-sm text-muted-foreground">加载工作流...</span>
     </div>
   );
 
@@ -43,32 +44,31 @@ export function WorkflowList() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-black tracking-tight text-white">工作流</h1>
-          <p className="text-muted text-sm mt-1">可视化编排多 Agent 协作流程</p>
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">工作流</h1>
+          <p className="text-muted-foreground text-sm mt-1">可视化编排多 Agent 协作流程</p>
         </div>
-        <button onClick={() => { setEditTarget(null); setEditorOpen(true); }}
-          className="flex items-center gap-2 px-4 py-2 bg-accent/10 text-accent border border-accent/20 rounded-xl text-sm font-medium hover:bg-accent/20 transition-colors">
+        <Button variant="outline" size="sm" onClick={() => { setEditTarget(null); setEditorOpen(true); }}>
           <Plus className="w-4 h-4" /> 新建工作流
-        </button>
+        </Button>
       </div>
 
       {error && (
         <div className="flex flex-col items-center gap-3 py-12">
-          <AlertTriangle className="w-8 h-8 text-warning" />
-          <p className="text-sm text-muted">{error}</p>
-          <button onClick={load} className="inline-flex items-center gap-2 px-4 py-2 bg-accent/10 text-accent border border-accent/20 rounded-xl text-sm"><RefreshCw className="w-3.5 h-3.5" />重试</button>
+          <AlertTriangle className="w-8 h-8 text-destructive" />
+          <p className="text-sm text-muted-foreground">{error}</p>
+          <Button variant="outline" size="sm" onClick={load}><RefreshCw className="w-3.5 h-3.5" />重试</Button>
         </div>
       )}
 
       {!error && workflows.length === 0 && (
         <div className="flex flex-col items-center gap-3 py-20">
-          <GitBranch className="w-12 h-12 text-muted" />
-          <p className="text-white font-semibold">暂无工作流模板</p>
-          <p className="text-sm text-muted mt-1">创建第一个可视化工作流，编排多 Agent 协作</p>
-          <button onClick={() => { setEditTarget(null); setEditorOpen(true); }}
-            className="mt-4 inline-flex items-center gap-2 px-5 py-2.5 bg-accent text-black rounded-xl text-sm font-semibold hover:bg-amber-400 transition-colors">
+          <GitBranch className="w-12 h-12 text-muted-foreground" />
+          <p className="text-foreground font-semibold">暂无工作流模板</p>
+          <p className="text-sm text-muted-foreground mt-1">创建第一个可视化工作流，编排多 Agent 协作</p>
+          <Button onClick={() => { setEditTarget(null); setEditorOpen(true); }}
+            className="mt-4">
             <Plus className="w-4 h-4" /> 创建工作流
-          </button>
+          </Button>
         </div>
       )}
 
@@ -76,21 +76,21 @@ export function WorkflowList() {
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {workflows.map(w => (
             <div key={w.name} onClick={() => { setEditTarget(w.name); setEditorOpen(true); }}
-              className="bg-card border border-border rounded-[20px] p-5 hover:border-accent/20 cursor-pointer transition-all group">
+              className="bg-card border border-border rounded-xl p-5 hover:border-primary/20 cursor-pointer transition-all group">
               <div className="flex items-start justify-between mb-3">
-                <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center">
-                  <GitBranch className="w-5 h-5 text-accent" />
+                <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                  <GitBranch className="w-5 h-5 text-primary" />
                 </div>
                 <button onClick={e => { e.stopPropagation(); setDeleteTarget(w.name); }}
-                  className="text-muted hover:text-warning opacity-0 group-hover:opacity-100 transition-all">
+                  className="text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-all">
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
               </div>
-              <h3 className="text-white font-semibold text-sm">{w.name}</h3>
-              <p className="text-xs text-muted mt-1 line-clamp-2">{w.description || "无描述"}</p>
+              <h3 className="text-foreground font-semibold text-sm">{w.name}</h3>
+              <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{w.description || "无描述"}</p>
               <div className="flex items-center gap-3 mt-3 pt-3 border-t border-border">
-                <span className="text-[10px] text-muted flex items-center gap-1"><Zap className="w-3 h-3" />{w.node_count} 节点</span>
-                {w.workspace && <span className="text-[10px] text-muted">{w.workspace}</span>}
+                <span className="text-xs text-muted-foreground flex items-center gap-1"><Zap className="w-3 h-3" />{w.node_count} 节点</span>
+                {w.workspace && <span className="text-xs text-muted-foreground">{w.workspace}</span>}
               </div>
             </div>
           ))}
