@@ -17,3 +17,6 @@ webui/dist/
 ~/.nexus/
 ~/.factory/
 .coverage
+
+# Session files contain encrypted keys but should never be committed
+workspaces/

@@ -1,6 +1,6 @@
+from __future__ import annotations
 """Rate limiting for the Gateway API using slowapi."""
 
-from __future__ import annotations
 
 import os
 

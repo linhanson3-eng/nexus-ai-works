@@ -1,6 +1,6 @@
+from __future__ import annotations
 """Unit tests for LibraryStore."""
 
-from __future__ import annotations
 
 import tempfile
 from pathlib import Path

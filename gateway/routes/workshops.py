@@ -1,6 +1,6 @@
+from __future__ import annotations
 """Workshop CRUD, export/import, agent management, and execution endpoints."""
 
-from __future__ import annotations
 
 import os
 import tempfile
@@ -356,9 +356,13 @@ async def read_workshop_file(name: str, filename: str, request: Request):
     if ws is None:
         return JSONResponse(content={"detail": "Workshop not found"}, status_code=404)
     raw_path = os.path.join(str(ws.workspace), filename)
-    filepath = os.path.realpath(raw_path)
     workspace_root = os.path.realpath(str(ws.workspace))
-    if not filepath.startswith(workspace_root + os.sep) and filepath != workspace_root:
+    # Resolve workspace_root first to handle symlinks, then check with commonpath
+    filepath = os.path.realpath(os.path.abspath(raw_path))
+    try:
+        if os.path.commonpath([filepath, workspace_root]) != workspace_root:
+            return JSONResponse(content={"detail": "Forbidden"}, status_code=403)
+    except ValueError:
         return JSONResponse(content={"detail": "Forbidden"}, status_code=403)
     if not os.path.isfile(filepath):
         return JSONResponse(content={"detail": "File not found"}, status_code=404)

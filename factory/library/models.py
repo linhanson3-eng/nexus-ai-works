@@ -1,6 +1,6 @@
+from __future__ import annotations
 """Pydantic models for the local template library."""
 
-from __future__ import annotations
 
 from enum import Enum
 

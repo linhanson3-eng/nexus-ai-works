@@ -1,6 +1,6 @@
+from __future__ import annotations
 """Cross-workshop Chain CRUD and execution endpoints."""
 
-from __future__ import annotations
 
 import asyncio
 import json

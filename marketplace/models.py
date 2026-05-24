@@ -1,6 +1,5 @@
-"""Pydantic v2 models for the Solution Marketplace."""
-
 from __future__ import annotations
+"""Pydantic v2 models for the Solution Marketplace."""
 
 from enum import Enum
 

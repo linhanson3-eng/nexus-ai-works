@@ -1,6 +1,6 @@
+from __future__ import annotations
 """Channel adapter interface and global registry."""
 
-from __future__ import annotations
 
 import logging
 from abc import ABC, abstractmethod

@@ -1,6 +1,5 @@
-"""FastAPI application — main marketplace API routes."""
-
 from __future__ import annotations
+"""FastAPI application — main marketplace API routes."""
 
 import os
 from datetime import datetime, timezone
@@ -213,7 +212,7 @@ async def login(req: LoginRequest, request: Request):
         ).fetchone()
         user.is_vip = vip_row is not None
     finally:
-        conn.close()
+        pass  # cached connection via store._conn() — kept alive
 
     audit_record(
         AuditEvent.AUTH_LOGIN, "user.logged_in",
@@ -240,7 +239,7 @@ async def me(current_user: dict = Depends(get_current_user)):
         ).fetchone()
         is_vip = vip_row is not None
     finally:
-        conn.close()
+        pass  # cached connection via store._conn() — kept alive
 
     user = UserInfo(user_id=user_id, username=username, is_vip=is_vip)
     return JSONResponse(content=user.model_dump())

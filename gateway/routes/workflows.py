@@ -1,6 +1,6 @@
+from __future__ import annotations
 """Workflow CRUD and execution endpoints."""
 
-from __future__ import annotations
 
 import asyncio
 import json

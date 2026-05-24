@@ -1,6 +1,6 @@
+from __future__ import annotations
 """EvolutionHook — integrate GEPA evolution into AgentRunner execution."""
 
-from __future__ import annotations
 
 from dataclasses import replace
 

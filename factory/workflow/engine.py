@@ -1,10 +1,11 @@
+from __future__ import annotations
+
 """Workflow execution engine — DAG parallel execution with gate loops.
 
 Kahn topological sort → parallel execution of independent nodes →
 context passing → gate review with retry (max 3).
 """
 
-from __future__ import annotations
 
 import asyncio
 import logging
@@ -231,25 +232,35 @@ class WorkflowRunner:
 
     async def _run_with_agent(self, node_id: str, agent_name: str, agent: Any, prompt: str) -> NodeResult:
         from factory.memory.store import MemoryStore
-        from factory.runner import NexusAgentRunner
 
         store = self.store if self.store is not None else MemoryStore(":memory:")
 
+        # Use injected runner factory or default to NexusAgentRunner
+        runner_factory = getattr(self, "_runner_factory", None)
+        if runner_factory is None:
+            from factory.runner import NexusAgentRunner
+            runner_factory = NexusAgentRunner
+
         max_retries = 2
         for attempt in range(max_retries + 1):
-            runner = NexusAgentRunner(agent, self.workshop, store)
+            runner = runner_factory(agent, self.workshop, store)
             agent_result = await runner.run(prompt)
 
             if agent_result.error is None:
                 await self._notify(node_id, "passed", agent_result.content[:200])
                 return NodeResult(node_id=node_id, agent_name=agent_name, status=NodeStatus.PASSED, output=agent_result.content)
 
-            if attempt < max_retries and _is_transient_error(agent_result.error):
-                await asyncio.sleep(2 ** attempt)  # exponential backoff: 1s, 2s
+            error_kind = getattr(agent_result, "error_kind", None)
+            error_str = agent_result.error or ""
+            if error_kind and error_kind.value:
+                error_str = f"[{error_kind.value}] {error_str}"
+
+            if attempt < max_retries and _is_transient_error(error_str):
+                await asyncio.sleep(2 ** attempt)
                 continue
 
-            await self._notify(node_id, "failed", agent_result.error or "")
-            return NodeResult(node_id=node_id, agent_name=agent_name, status=NodeStatus.FAILED, error=agent_result.error or "")
+            await self._notify(node_id, "failed", error_str)
+            return NodeResult(node_id=node_id, agent_name=agent_name, status=NodeStatus.FAILED, error=error_str)
 
         # Unreachable — kept for type completeness
         await self._notify(node_id, "failed", "Max retries exceeded")

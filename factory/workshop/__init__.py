@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Workshop management — runtime lifecycle and inter-workshop bridge."""
 
 from factory.workshop.manager import WorkshopManager, WorkshopInfo

@@ -75,13 +75,13 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
 
         {/* Content */}
         <h2 className="text-xl font-bold text-foreground mb-2">{current.title}</h2>
-        <p className="text-sm text-muted leading-relaxed mb-8">{current.description}</p>
+        <p className="text-sm text-muted-foreground leading-relaxed mb-8">{current.description}</p>
 
         {/* Actions */}
         <div className="flex items-center gap-3">
           <button
             onClick={handleSkip}
-            className="text-sm text-muted hover:text-foreground transition-colors px-3 py-2"
+            className="text-sm text-muted-foreground hover:text-foreground transition-colors px-3 py-2"
           >
             跳过引导
           </button>

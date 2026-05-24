@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Memory V2 事实提取器 — LLM 驱动的语义记忆抽取。
 
 从对话中自动提取结构化事实，更新用户画像、项目背景、事件记录和反馈规则。
@@ -8,7 +10,6 @@
 - 合并优先：用户画像和项目背景采用合并更新，而非简单追加
 """
 
-from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field

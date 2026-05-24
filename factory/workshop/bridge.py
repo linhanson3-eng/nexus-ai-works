@@ -1,10 +1,11 @@
+from __future__ import annotations
+
 """Workshop Bridge — inter-workshop data sharing.
 
 Enables workshops to share products and memories with each other
 through the Warehouse (file-based) and Global Memory Tree (SQLite).
 """
 
-from __future__ import annotations
 
 from typing import Any
 

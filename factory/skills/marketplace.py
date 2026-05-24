@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Skill Marketplace — discovers SKILL.md files from installed plugins.
 
 Scans standard Claude Code plugin paths for SKILL.md files, parses
@@ -10,7 +12,6 @@ Discovery paths:
 3. Each plugin's SKILL.md files (recursive)
 """
 
-from __future__ import annotations
 
 import json
 import logging

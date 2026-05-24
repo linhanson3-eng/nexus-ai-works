@@ -1,6 +1,6 @@
+from __future__ import annotations
 """Tests for Memory V2 fact extractor."""
 
-from __future__ import annotations
 
 import tempfile
 from pathlib import Path

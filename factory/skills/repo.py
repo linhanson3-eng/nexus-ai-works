@@ -1,6 +1,6 @@
+from __future__ import annotations
 """Skill Repository -- workshop-level skill management."""
 
-from __future__ import annotations
 
 from pathlib import Path
 

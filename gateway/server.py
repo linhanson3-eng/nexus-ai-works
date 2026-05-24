@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """FastAPI Gateway — REST + WebSocket + SSE API for the Nexus AI Works platform.
 
 Provides endpoints for workshop management, workflow execution,
@@ -5,7 +7,6 @@ kanban board management, real-time WebSocket updates, and
 SSE streaming for agent execution.
 """
 
-from __future__ import annotations
 
 import logging
 import os
@@ -41,6 +42,8 @@ from gateway.routes.settings import router as settings_router
 from gateway.routes.ws import router as ws_router
 from gateway.routes.library import router as library_router
 from gateway.routes.market import router as market_router
+from gateway.routes.schedules import router as schedules_router
+from factory.scheduler.engine import ScheduleEngine
 
 
 # ── Graceful shutdown state ────────────────────────────────────
@@ -81,8 +84,14 @@ shutdown_state = _ShutdownState()
 async def _app_lifespan(app: FastAPI):
     """Startup / shutdown lifecycle for the FastAPI app."""
     logger.info("Gateway starting up")
+    schedule_engine = app.state.schedule_engine
+    schedule_engine.start()
+    logger.info("ScheduleEngine started")
+
     yield
+
     logger.info("Gateway shutting down — draining %d active requests", shutdown_state.pending_count)
+    schedule_engine.stop()
     shutdown_state.signal_shutdown()
     # Give in-flight requests a brief window to complete
     import asyncio
@@ -209,6 +218,7 @@ def create_app(org: "OrgEngine", kanban_store: "KanbanStore") -> FastAPI:
 
     settings_store = SettingsStore()
     chain_store = ChainStore()
+    schedule_engine = ScheduleEngine()
 
     app.state.org = org
     app.state.kanban_store = kanban_store
@@ -216,6 +226,7 @@ def create_app(org: "OrgEngine", kanban_store: "KanbanStore") -> FastAPI:
     app.state.session_manager = session_manager
     app.state.settings_store = settings_store
     app.state.chain_store = chain_store
+    app.state.schedule_engine = schedule_engine
 
     # --- Request tracing (outermost — wraps all other middleware) ---
     app.add_middleware(RequestTracingMiddleware)
@@ -234,18 +245,19 @@ def create_app(org: "OrgEngine", kanban_store: "KanbanStore") -> FastAPI:
     )
 
     # --- CSRF ---
+    # Only skip CSRF for endpoints that are inherently safe:
+    # - GET-only read paths (no state mutation)
+    # - SSE streaming (uses its own auth)
+    # - WebSocket upgrade (validated in ws handler)
+    # - Health checks (no auth needed)
     app.add_middleware(
         CSRFTokenMiddleware,
         skip_paths=(
             "/api/csrf-token",
             "/api/agent/run/stream",
-            "/api/workflows/",
-            "/api/chains/",
             "/ws/",
             "/health",
             "/api/market/health",
-            "/api/market/packages",
-            "/api/market/packages/",
         ),
     )
 
@@ -322,6 +334,7 @@ def create_app(org: "OrgEngine", kanban_store: "KanbanStore") -> FastAPI:
     app.include_router(ws_router)
     app.include_router(library_router)
     app.include_router(market_router)
+    app.include_router(schedules_router)
 
     return app
 

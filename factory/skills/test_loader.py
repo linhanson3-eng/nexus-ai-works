@@ -1,6 +1,6 @@
+from __future__ import annotations
 """Skill loader and repo tests."""
 
-from __future__ import annotations
 
 import tempfile
 from pathlib import Path

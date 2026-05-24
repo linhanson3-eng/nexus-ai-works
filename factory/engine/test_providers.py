@@ -1,6 +1,6 @@
+from __future__ import annotations
 """Tests for ProviderRegistry."""
 
-from __future__ import annotations
 
 
 import pytest

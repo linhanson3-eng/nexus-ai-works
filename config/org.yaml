@@ -2,22 +2,17 @@ channels:
 - enabled: true
   name: webui
 departments:
-- name: lab-status-nokb
+- name: a
   type: custom
-  workspace: /Users/linhan/ai-factory/workspaces/lab-status-nokb
-  agents:
-  - name: lab-status-nokb
-    mode: super
-    model: ''
-    tools: []
-    system_prompt: ''
-    guide_file: ''
-    skills: []
-    permissions:
-      file_write: true
-      shell_exec: false
-      subagent_spawn: false
+  workspace: /private/var/folders/rv/rmtc746518x2q067_1h5bzq80000gn/T/pytest-of-linhan/pytest-49/test_list_all3/a
+  agents: []
   workflow:
-    name: simple
+    name: default
+- name: b
+  type: custom
+  workspace: /private/var/folders/rv/rmtc746518x2q067_1h5bzq80000gn/T/pytest-of-linhan/pytest-49/test_list_all3/b
+  agents: []
+  workflow:
+    name: default
 warehouse:
   path: ''

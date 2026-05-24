@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Memory Tree 核心 — 三级树 + Bucket-Seal 级联压缩。
 
 参考 OpenHuman memory/tree/ 实现：
@@ -7,7 +9,6 @@
 - GlobalTree: 工厂级，daily → weekly → monthly
 """
 
-from __future__ import annotations
 
 import hashlib
 import logging

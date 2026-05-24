@@ -180,3 +180,44 @@ export interface UserInfo {
   username: string;
   is_vip: boolean;
 }
+
+// ── Scheduled Tasks ──
+
+export interface ScheduleTask {
+  id: string;
+  name: string;
+  prompt: string;
+  workshop: string;
+  frequency: "daily" | "workday" | "weekly" | "monthly";
+  time_str: string;
+  weekday: number | null;
+  monthday: number | null;
+  timezone: string;
+  cron_expr: string;
+  enabled: boolean;
+  model: string;
+  is_running: boolean;
+  last_run_at: string | null;
+  last_status: "success" | "failed" | "timeout" | null;
+  last_output: string | null;
+  next_run_at: string | null;
+  run_history: Array<{
+    time: string;
+    status: string;
+    duration: number;
+    output_summary: string;
+  }>;
+  consecutive_failures: number;
+  run_count: number;
+  created_at: string;
+}
+
+export interface ScheduleTemplate {
+  name: string;
+  icon: string;
+  description: string;
+  preview: string;
+  category: string;
+  default_frequency: string;
+  default_time: string;
+}

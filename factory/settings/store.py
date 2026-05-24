@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Settings persistence layer.
 
 Providers, web search, tool profiles, and plugin registrations are stored
@@ -5,7 +7,6 @@ in a JSON file at ~/.factory/settings.json so they survive
 project restarts without requiring a database migration.
 """
 
-from __future__ import annotations
 
 import json
 import logging
@@ -121,6 +122,7 @@ class SettingsStore:
             }
         else:
             self._decrypt_provider_keys()
+            self._decrypt_search_keys()
             # Merge in any new default providers not yet in saved data
             for name, cfg in DEFAULT_PROVIDERS.items():
                 if name not in self._data.get("providers", {}):
@@ -132,6 +134,7 @@ class SettingsStore:
         SETTINGS_PATH.parent.mkdir(parents=True, exist_ok=True)
         # Encrypt keys before persisting, decrypt back after for runtime use
         self._encrypt_provider_keys()
+        self._encrypt_search_keys()
         try:
             tmp = str(SETTINGS_PATH) + ".tmp"
             with open(tmp, "w") as f:
@@ -139,6 +142,7 @@ class SettingsStore:
             os.replace(tmp, str(SETTINGS_PATH))
         finally:
             self._decrypt_provider_keys()
+            self._decrypt_search_keys()
 
     def _encrypt_provider_keys(self) -> None:
         """Encrypt api_key fields before persisting to disk."""
@@ -160,6 +164,29 @@ class SettingsStore:
                 except Exception as exc:
                     logger.error("Failed to decrypt API key: %s", exc)
                     provider["api_key"] = ""
+
+    def _encrypt_search_keys(self) -> None:
+        """Encrypt search API keys before persisting."""
+        search = self._data.get("search", {})
+        for field in ("tavily_api_key", "brave_api_key"):
+            key = search.get(field, "")
+            if key and not key.startswith("$e$"):
+                try:
+                    search[field] = "$e$" + _encrypt(key)
+                except Exception as exc:
+                    logger.error("Failed to encrypt search key %s: %s", field, exc)
+
+    def _decrypt_search_keys(self) -> None:
+        """Decrypt search API keys after loading."""
+        search = self._data.get("search", {})
+        for field in ("tavily_api_key", "brave_api_key"):
+            key = search.get(field, "")
+            if key and key.startswith("$e$"):
+                try:
+                    search[field] = _decrypt(key[3:])
+                except Exception as exc:
+                    logger.error("Failed to decrypt search key %s: %s", field, exc)
+                    search[field] = key
 
     # ── providers ─────────────────────────────────────────
 
@@ -235,7 +262,10 @@ class SettingsStore:
                 models = [m["id"] for m in data if isinstance(m, dict) and "id" in m]
             else:
                 models = []
+        except (OSError, ValueError, KeyError) as exc:
+            return {"name": name, "models": provider.get("models", []), "updated": 0, "error": str(exc)}
         except Exception as exc:
+            logger.exception("Unexpected error syncing models for %s", name)
             return {"name": name, "models": provider.get("models", []), "updated": 0, "error": str(exc)}
 
         # Filter out non-chat models: embedding, reranker, speech, OCR, image/video gen, translation
@@ -247,15 +277,25 @@ class SettingsStore:
         ]
         models = [m for m in models if not any(k in m.lower() for k in exclude_keywords)]
 
-        # Deduplicate Pro/ and LoRA/ variants: keep base model if both exist
-        seen_base: dict[str, str] = {}
+        # Deduplicate Pro/ and LoRA/ variants: prefer base model, drop prefixes
+        seen: set[str] = set()
+        deduped: list[str] = []
+        prefixed: set[str] = set()
+        for m in models:
+            if m.startswith("Pro/") or m.startswith("LoRA/"):
+                prefixed.add(m)
+            else:
+                if m not in seen:
+                    seen.add(m)
+                    deduped.append(m)
+        # Add prefixed variants only if base model not present
         for m in models:
             if m.startswith("Pro/") or m.startswith("LoRA/"):
                 base = m.split("/", 1)[1] if "/" in m else m
-                seen_base.setdefault(base, m)  # keep first occurrence
-            else:
-                seen_base.setdefault(m, m)
-        models = list(dict.fromkeys(seen_base.values()))  # deduplicate preserving order
+                if base not in seen:
+                    seen.add(base)
+                    deduped.append(m)
+        models = deduped
 
         # Update stored models
         provider["models"] = models

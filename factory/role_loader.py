@@ -1,10 +1,11 @@
+from __future__ import annotations
+
 """角色配置加载器 — 从 config/roles/*.yaml 加载角色身份。
 
 角色配置提供 Agent 的身份提示词、默认预算和权限。
 模板通过 ``role:`` 字段引用角色，模板字段覆盖角色默认值。
 """
 
-from __future__ import annotations
 
 import logging
 from pathlib import Path
@@ -47,7 +48,7 @@ class RoleLoader:
             self._cache[name] = role
             return role
         except Exception as exc:
-            logger.warning("Failed to load role %s: %s", role_name, exc)
+            logger.warning("Failed to load role %s: %s", name, exc)
             return None
 
     def list_all(self) -> list[str]:

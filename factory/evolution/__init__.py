@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """GEPA self-evolution engine — agents learn from execution traces."""
 
 from factory.evolution.engine import EvolutionEngine

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Nexus Agent Engine — claw-code-agent integration layer.
 
 This is the ONLY package allowed to import from factory.vendor.claw_code_agent.

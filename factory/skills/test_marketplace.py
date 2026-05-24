@@ -1,6 +1,6 @@
+from __future__ import annotations
 """Tests for Skill Marketplace."""
 
-from __future__ import annotations
 
 from pathlib import Path
 

@@ -1,10 +1,11 @@
+from __future__ import annotations
+
 """HMAC request signing for local-cloud API communication.
 
 Shared secret stored at ~/.nexus/marketplace_shared_secret.
 Generated on first run. Migrates from old marketplace_secret path.
 """
 
-from __future__ import annotations
 
 import hashlib
 import hmac
@@ -43,5 +44,5 @@ def get_or_create_secret() -> str:
 def sign_request(method: str, path: str, body: str, timestamp: str) -> str:
     """Produce HMAC-SHA256 signature for a request."""
     secret = get_or_create_secret()
-    message = f"{method}\n{path}\n{body}\n{timestamp}".encode()
-    return hmac.new(secret.encode(), message, hashlib.sha256).hexdigest()
+    message = f"{method}\n{path}\n{body}\n{timestamp}".encode("utf-8")
+    return hmac.new(secret.encode("utf-8"), message, hashlib.sha256).hexdigest()

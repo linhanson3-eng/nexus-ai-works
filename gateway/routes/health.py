@@ -1,6 +1,6 @@
+from __future__ import annotations
 """Health check and CSRF token endpoints."""
 
-from __future__ import annotations
 
 import logging
 import os

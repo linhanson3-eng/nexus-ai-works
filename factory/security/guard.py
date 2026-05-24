@@ -1,10 +1,11 @@
+from __future__ import annotations
+
 """Security guard — shell whitelist, path traversal prevention, secret detection.
 
 Enforces the platform's security model: dead rules > LLM judgment.
 All agent tool calls pass through these checks before execution.
 """
 
-from __future__ import annotations
 
 import os
 import re
@@ -88,6 +89,7 @@ FORBIDDEN_PATHS: tuple[str, ...] = (
     "/etc/passwd", "/etc/shadow", "/etc/ssh",
     "~/.ssh", "~/.aws", "~/.claude",
     "/proc", "/sys", "/dev",
+    "~/ai-factory",
 )
 
 

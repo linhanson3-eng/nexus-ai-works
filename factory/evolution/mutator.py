@@ -1,6 +1,6 @@
+from __future__ import annotations
 """Mutator -- generates variations of candidate skills."""
 
-from __future__ import annotations
 
 import random
 

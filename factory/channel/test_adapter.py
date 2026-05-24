@@ -1,6 +1,6 @@
+from __future__ import annotations
 """Tests for channel adapter interface and registry."""
 
-from __future__ import annotations
 
 import pytest
 

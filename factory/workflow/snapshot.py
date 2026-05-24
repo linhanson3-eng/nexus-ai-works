@@ -1,9 +1,10 @@
+from __future__ import annotations
+
 """工作流执行快照 — 持久化运行状态，支持断点续跑。
 
 Storage: ~/.nexus/runs/{run_id}.json
 """
 
-from __future__ import annotations
 
 import json
 import logging

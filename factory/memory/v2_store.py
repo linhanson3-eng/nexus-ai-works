@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Memory V2 — 文件型语义记忆存储。
 
 与 SQLite Memory Tree 互补：
@@ -16,7 +18,6 @@
     └── feedback.md        # 用户纠正过的反馈
 """
 
-from __future__ import annotations
 
 import re
 from dataclasses import dataclass

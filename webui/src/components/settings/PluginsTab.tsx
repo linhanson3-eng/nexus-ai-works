@@ -52,7 +52,7 @@ export function PluginsTab({ toast }: { toast: ToastFn }) {
     return (
       <div className="flex items-center justify-center py-12 gap-2">
         <Loader2 className="w-5 h-5 text-primary animate-spin" />
-        <span className="text-sm text-muted">加载插件列表...</span>
+        <span className="text-sm text-muted-foreground">加载插件列表...</span>
       </div>
     );
   }
@@ -61,7 +61,7 @@ export function PluginsTab({ toast }: { toast: ToastFn }) {
     return (
       <div className="flex flex-col items-center gap-3 py-12">
         <AlertTriangle className="w-8 h-8 text-destructive" />
-        <p className="text-sm text-muted">{error}</p>
+        <p className="text-sm text-muted-foreground">{error}</p>
         <button onClick={load} className="flex items-center gap-2 px-4 py-2 bg-primary/10 text-primary border border-primary/20 rounded-xl text-sm hover:bg-primary/20 transition-colors">
           <RefreshCw className="w-3.5 h-3.5" /> 重试
         </button>
@@ -74,7 +74,7 @@ export function PluginsTab({ toast }: { toast: ToastFn }) {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <p className="text-sm text-muted">Channel 适配器和平台插件。让 Nexus AI Works 接入微信、飞书、钉钉等外部平台。</p>
+        <p className="text-sm text-muted-foreground">Channel 适配器和平台插件。让 Nexus AI Works 接入微信、飞书、钉钉等外部平台。</p>
         {addingPlugin ? (
           <div className="flex items-center gap-2 shrink-0">
             <input
@@ -89,7 +89,7 @@ export function PluginsTab({ toast }: { toast: ToastFn }) {
                 if (e.key === "Escape") { setNewPluginName(""); setAddingPlugin(false); }
               }}
               placeholder="插件名称..."
-              className="w-40 bg-transparent border border-border/60 rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted/40 outline-none focus:border-primary/50"
+              className="w-40 bg-transparent border border-border/60 rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/40 outline-none focus:border-primary/50"
             />
             <button onClick={() => {
               if (newPluginName.trim()) {
@@ -97,7 +97,7 @@ export function PluginsTab({ toast }: { toast: ToastFn }) {
                 setNewPluginName(""); setAddingPlugin(false);
               }
             }} className="px-3 py-2 text-xs bg-primary/10 text-primary rounded-lg hover:bg-primary/20">确认</button>
-            <button onClick={() => { setNewPluginName(""); setAddingPlugin(false); }} className="px-3 py-2 text-xs text-muted/50 hover:text-foreground">取消</button>
+            <button onClick={() => { setNewPluginName(""); setAddingPlugin(false); }} className="px-3 py-2 text-xs text-muted-foreground/50 hover:text-foreground">取消</button>
           </div>
         ) : (
           <button
@@ -111,9 +111,9 @@ export function PluginsTab({ toast }: { toast: ToastFn }) {
 
       {entries.length === 0 ? (
         <div className="flex flex-col items-center gap-3 py-12">
-          <Blocks className="w-10 h-10 text-muted" />
-          <p className="text-sm text-muted">尚未安装任何插件</p>
-          <p className="text-xs text-muted">安装插件以接入外部平台</p>
+          <Blocks className="w-10 h-10 text-muted-foreground" />
+          <p className="text-sm text-muted-foreground">尚未安装任何插件</p>
+          <p className="text-xs text-muted-foreground">安装插件以接入外部平台</p>
         </div>
       ) : (
         <div className="space-y-2">
@@ -125,19 +125,19 @@ export function PluginsTab({ toast }: { toast: ToastFn }) {
                 </div>
                 <div>
                   <span className="text-sm text-foreground font-medium">{p.name}</span>
-                  <p className="text-xs text-muted mt-0.5">{p.healthy ? "运行中" : "未连接"}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">{p.healthy ? "运行中" : "未连接"}</p>
                 </div>
               </div>
               <div className="flex items-center gap-3">
                 <button
                   onClick={() => toggle(p.name, !p.enabled)}
-                  className={`relative w-10 h-5 rounded-full transition-colors ${p.enabled ? "bg-success/30" : "bg-border"}`}
+                  className={`relative w-10 h-5 rounded-full transition-colors ${p.enabled ? "bg-success/30" : "bg-muted"}`}
                 >
-                  <div className={`absolute w-4 h-4 bg-white rounded-full top-0.5 transition-all ${p.enabled ? "left-5" : "left-0.5"}`} />
+                  <div className={`absolute w-4 h-4 bg-background rounded-full top-0.5 transition-all ${p.enabled ? "left-5" : "left-0.5"}`} />
                 </button>
                 <button
                   onClick={() => setDeleteTarget(p.name)}
-                  className="text-muted hover:text-destructive transition-colors"
+                  className="text-muted-foreground hover:text-destructive transition-colors"
                   title="卸载插件"
                 >
                   <Trash2 className="w-3.5 h-3.5" />

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback, type DragEvent } from "react";
+import { useState, useRef, useEffect, useLayoutEffect, useCallback, type DragEvent } from "react";
 import { Bot, RefreshCw, AlertTriangle } from "lucide-react";
 import { api, getAuthHeaders } from "../lib/api";
 import { useToast } from "./Toast";
@@ -54,29 +54,13 @@ type SSEEvent =
 
 export function ChatPanel() {
   const toast = useToast();
-  const [messages, setMessages] = useState<ChatMessageData[]>(() => {
-    try {
-      const saved = localStorage.getItem("nexus_messages");
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      }
-    } catch { /* localStorage corrupted */ }
-    return [
-      {
-        id: "welcome",
-        role: "assistant",
-        content: "你好，我是 Nexus 助手。告诉我你想做什么，我会调用工具来完成任务。",
-        timestamp: Date.now(),
-      },
-    ];
-  });
+  const [messages, setMessages] = useState<ChatMessageData[]>([]);
+  const [hydrated, setHydrated] = useState(false);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [workshops, setWorkshops] = useState<{ name: string }[]>([]);
   const [activeWs, setActiveWs] = useState("");
-  const [dragOver, setDragOver] = useState(false);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [sessionId, setSessionId] = useState("");
   const [thinking, setThinking] = useState(false);
@@ -86,6 +70,30 @@ export function ChatPanel() {
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
+
+  // Hydrate messages synchronously before first paint (eliminate flash)
+  useLayoutEffect(() => {
+    try {
+      const saved = localStorage.getItem("nexus_messages");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setMessages(parsed);
+          setHydrated(true);
+          return;
+        }
+      }
+    } catch { /* corrupted */ }
+    setMessages([
+      {
+        id: "welcome",
+        role: "assistant",
+        content: "你好，我是 Nexus 助手。告诉我你想做什么，我会调用工具来完成任务。",
+        timestamp: Date.now(),
+      },
+    ]);
+    setHydrated(true);
+  }, []);
 
   useEffect(() => {
     api.listWorkshops().then((data) => {
@@ -116,7 +124,19 @@ export function ChatPanel() {
     }).catch(() => {});
   }, []);
 
-  useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
+  const isFirstScroll = useRef(true);
+  useEffect(() => {
+    if (!hydrated) return;
+    const el = messagesEndRef.current;
+    if (!el) return;
+    if (isFirstScroll.current) {
+      // Instant scroll after hydration – no animation flash
+      el.scrollIntoView({ behavior: "instant" as ScrollBehavior });
+      isFirstScroll.current = false;
+    } else {
+      el.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [messages, hydrated]);
 
   // Persist messages
   useEffect(() => {
@@ -325,12 +345,10 @@ export function ChatPanel() {
 
   const handleDrag = (e: DragEvent) => {
     e.preventDefault();
-    setDragOver(e.type === "dragover" || e.type === "dragenter");
   };
 
   const handleDrop = (e: DragEvent) => {
     e.preventDefault();
-    setDragOver(false);
     handleFileSelect(e.dataTransfer.files);
   };
 
@@ -369,6 +387,15 @@ export function ChatPanel() {
 
       {/* Messages */}
       <div className="flex-1 min-h-0 overflow-auto py-4 space-y-4 px-1">
+        {!hydrated ? (
+          <div className="flex items-center justify-center h-full">
+            <div className="flex flex-col items-center gap-3 text-muted-foreground/40">
+              <div className="w-5 h-5 border-2 border-primary/20 border-t-primary/60 rounded-full animate-spin" />
+              <span className="text-xs">加载对话...</span>
+            </div>
+          </div>
+        ) : (
+          <>
         {messages.map((msg) => (
           <ChatMessage key={msg.id} msg={msg} thinking={thinking} />
         ))}
@@ -381,6 +408,8 @@ export function ChatPanel() {
               关闭
             </button>
           </div>
+        )}
+          </>
         )}
         <div ref={messagesEndRef} />
       </div>
@@ -403,6 +432,13 @@ export function ChatPanel() {
         onSend={send}
         onCancel={cancelRun}
         onFileSelect={handleFileSelect}
+        onSlashSend={(command: string) => {
+          setMessages((prev) => [
+            ...prev,
+            { id: genId(), role: "user", content: command, timestamp: Date.now(), attachments: [] },
+          ]);
+          runStream(command);
+        }}
       />
     </div>
   );

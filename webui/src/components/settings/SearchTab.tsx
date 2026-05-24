@@ -31,16 +31,16 @@ export function SearchTab({ toast }: { toast: ToastFn }) {
   if (loading) return (
     <div className="flex items-center justify-center py-12 gap-2">
       <Loader2 className="w-5 h-5 text-primary animate-spin" />
-      <span className="text-sm text-muted">加载搜索配置...</span>
+      <span className="text-sm text-muted-foreground">加载搜索配置...</span>
     </div>
   );
 
   return (
     <div className="space-y-4">
-      <p className="text-sm text-muted">配置 Web 搜索后端。Agent 通过 web_search 工具获取实时信息。</p>
+      <p className="text-sm text-muted-foreground">配置 Web 搜索后端。Agent 通过 web_search 工具获取实时信息。</p>
 
       <div>
-        <label className="text-[10px] uppercase tracking-widest text-muted">搜索后端</label>
+        <label className="text-[10px] uppercase tracking-widest text-muted-foreground">搜索后端</label>
         <select
           value={config.active_provider}
           onChange={e => setConfig(c => ({ ...c, active_provider: e.target.value }))}
@@ -56,7 +56,7 @@ export function SearchTab({ toast }: { toast: ToastFn }) {
         <div className="bg-background border border-border rounded-xl p-4 space-y-3">
           <div className="flex items-center gap-2"><Search className="w-4 h-4 text-primary" /><span className="text-sm font-semibold text-foreground">Tavily Search API</span></div>
           <div>
-            <label className="text-[10px] uppercase tracking-widest text-muted">API Key</label>
+            <label className="text-[10px] uppercase tracking-widest text-muted-foreground">API Key</label>
             <div className="flex gap-2 mt-1">
               <div className="relative flex-1">
                 <input
@@ -64,11 +64,11 @@ export function SearchTab({ toast }: { toast: ToastFn }) {
                   value={config.tavily_api_key}
                   onChange={e => setConfig(c => ({ ...c, tavily_api_key: e.target.value }))}
                   placeholder="tvly-..."
-                  className="w-full bg-card border border-border rounded-xl px-3 py-2 pr-10 text-sm text-foreground placeholder:text-muted focus:outline-none focus:border-primary/30 font-mono"
+                  className="w-full bg-card border border-border rounded-xl px-3 py-2 pr-10 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/30 font-mono"
                 />
                 <button
                   onClick={() => setShowKeys(k => ({ ...k, tavily: !k["tavily"] }))}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted hover:text-foreground"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                 >
                   {showKeys["tavily"] ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
@@ -82,7 +82,7 @@ export function SearchTab({ toast }: { toast: ToastFn }) {
         <div className="bg-background border border-border rounded-xl p-4 space-y-3">
           <div className="flex items-center gap-2"><Search className="w-4 h-4 text-info" /><span className="text-sm font-semibold text-foreground">Brave Search API</span></div>
           <div>
-            <label className="text-[10px] uppercase tracking-widest text-muted">API Key</label>
+            <label className="text-[10px] uppercase tracking-widest text-muted-foreground">API Key</label>
             <div className="flex gap-2 mt-1">
               <div className="relative flex-1">
                 <input
@@ -90,11 +90,11 @@ export function SearchTab({ toast }: { toast: ToastFn }) {
                   value={config.brave_api_key}
                   onChange={e => setConfig(c => ({ ...c, brave_api_key: e.target.value }))}
                   placeholder="BSA..."
-                  className="w-full bg-card border border-border rounded-xl px-3 py-2 pr-10 text-sm text-foreground placeholder:text-muted focus:outline-none focus:border-primary/30 font-mono"
+                  className="w-full bg-card border border-border rounded-xl px-3 py-2 pr-10 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/30 font-mono"
                 />
                 <button
                   onClick={() => setShowKeys(k => ({ ...k, brave: !k["brave"] }))}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted hover:text-foreground"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                 >
                   {showKeys["brave"] ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
@@ -108,12 +108,12 @@ export function SearchTab({ toast }: { toast: ToastFn }) {
         <div className="bg-background border border-border rounded-xl p-4 space-y-3">
           <div className="flex items-center gap-2"><Search className="w-4 h-4 text-destructive" /><span className="text-sm font-semibold text-foreground">SearXNG 自建实例</span></div>
           <div>
-            <label className="text-[10px] uppercase tracking-widest text-muted">Base URL</label>
+            <label className="text-[10px] uppercase tracking-widest text-muted-foreground">Base URL</label>
             <input
               value={config.searxng_base_url}
               onChange={e => setConfig(c => ({ ...c, searxng_base_url: e.target.value }))}
               placeholder="http://127.0.0.1:8080"
-              className="w-full bg-card border border-border rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted focus:outline-none focus:border-primary/30 mt-1"
+              className="w-full bg-card border border-border rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/30 mt-1"
             />
           </div>
         </div>
@@ -123,17 +123,17 @@ export function SearchTab({ toast }: { toast: ToastFn }) {
         <div className="flex items-center justify-between">
           <div>
             <span className="text-sm text-foreground font-medium">深度搜索</span>
-            <p className="text-xs text-muted mt-0.5">启用后，Agent 搜索时会同时抓取页面正文进行深度分析</p>
+            <p className="text-xs text-muted-foreground mt-0.5">启用后，Agent 搜索时会同时抓取页面正文进行深度分析</p>
           </div>
           <button
             onClick={() => setConfig(c => ({ ...c, deep_search_enabled: !c.deep_search_enabled }))}
-            className={`relative w-10 h-5 rounded-full transition-colors ${config.deep_search_enabled ? "bg-primary/40" : "bg-border"}`}
+            className={`relative w-10 h-5 rounded-full transition-colors ${config.deep_search_enabled ? "bg-primary/40" : "bg-muted"}`}
           >
-            <div className={`absolute w-4 h-4 bg-white rounded-full top-0.5 transition-all ${config.deep_search_enabled ? "left-5" : "left-0.5"}`} />
+            <div className={`absolute w-4 h-4 bg-background rounded-full top-0.5 transition-all ${config.deep_search_enabled ? "left-5" : "left-0.5"}`} />
           </button>
         </div>
         <div>
-          <label className="text-[10px] uppercase tracking-widest text-muted">单次搜索结果数</label>
+          <label className="text-[10px] uppercase tracking-widest text-muted-foreground">单次搜索结果数</label>
           <input
             type="number" min={1} max={20}
             value={config.max_results}

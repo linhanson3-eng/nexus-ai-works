@@ -1,10 +1,11 @@
+from __future__ import annotations
+
 """Tool mapping and security filtering for Nexus Agent Engine.
 
 Maps Nexus symbolic tool names to claw-code-agent tool names,
 and filters the tool registry based on AgentSpec.permissions and tools list.
 """
 
-from __future__ import annotations
 
 from typing import Any
 

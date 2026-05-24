@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Windmill integration layer (future).
 
 Windmill (https://github.com/windmill-labs/windmill) is an AGPL-licensed,

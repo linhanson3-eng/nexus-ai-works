@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Provider registry — pluggable model provider resolution.
 
 Resolves ``"provider/model-name"`` strings to (base_url, api_key) pairs.
@@ -11,7 +13,6 @@ Usage:
     # model → "claude-sonnet-4-6"
 """
 
-from __future__ import annotations
 
 from dataclasses import dataclass
 
@@ -73,8 +74,11 @@ class ProviderRegistry:
         Priority: env var > settings.json > built-in defaults.
         """
         from factory.settings.store import SettingsStore
+        return cls.from_store(SettingsStore())
 
-        store = SettingsStore()
+    @classmethod
+    def from_store(cls, store) -> ProviderRegistry:
+        """Load providers from an existing SettingsStore instance (avoids re-reading disk)."""
         stored = store.list_providers()
 
         registry = cls(_providers={})

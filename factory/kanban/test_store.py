@@ -1,6 +1,6 @@
+from __future__ import annotations
 """Kanban Store and Sync layer tests."""
 
-from __future__ import annotations
 
 import tempfile
 from pathlib import Path

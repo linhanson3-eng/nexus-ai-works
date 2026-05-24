@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Nexus Agent Tools — configurable tools for agent capabilities."""
 
 from factory.tools.deep_search import create_deep_search_tool, deep_search_handler

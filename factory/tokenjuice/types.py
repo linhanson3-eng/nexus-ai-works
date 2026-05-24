@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """TokenJuice 数据类型。
 
 参考 OpenHuman tokenjuice/types.rs。

@@ -1,6 +1,5 @@
-"""Server-side HMAC signature verification for marketplace API."""
-
 from __future__ import annotations
+"""Server-side HMAC signature verification for marketplace API."""
 
 import hashlib
 import hmac

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """TokenJuice 压缩管线测试。"""
 
 

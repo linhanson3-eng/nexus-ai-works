@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """TokenJuice 规则匹配分类。
 
 参考 OpenHuman tokenjuice/classify.rs。

@@ -1,9 +1,10 @@
+from __future__ import annotations
+
 """CLI command handlers for the Nexus AI Works platform.
 
 Each function is invoked from entrypoint.py based on the parsed subcommand.
 """
 
-from __future__ import annotations
 
 import asyncio
 from pathlib import Path

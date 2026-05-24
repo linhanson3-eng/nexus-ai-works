@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """LibraryStore — SQLite-indexed, YAML-backed local template library.
 
 Storage layout:
@@ -8,7 +10,6 @@ Storage layout:
     roles/              {name}.yaml
 """
 
-from __future__ import annotations
 
 import json
 import uuid

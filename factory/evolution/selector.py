@@ -1,6 +1,6 @@
+from __future__ import annotations
 """Selector -- Pareto-frontier skill selection."""
 
-from __future__ import annotations
 
 from factory.evolution.types import CandidateSkill, SkillScore
 

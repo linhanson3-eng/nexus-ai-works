@@ -1,6 +1,6 @@
+from __future__ import annotations
 """MCP Server Registry -- manages known MCP servers and marketplace discovery."""
 
-from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path

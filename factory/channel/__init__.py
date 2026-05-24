@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Channel plugin interface — multi-platform messaging adapters."""
 
 from factory.channel.adapter import (

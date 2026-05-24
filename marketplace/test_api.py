@@ -1,6 +1,5 @@
-"""Integration tests for marketplace API."""
 from __future__ import annotations
-
+"""Integration tests for marketplace API."""
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient

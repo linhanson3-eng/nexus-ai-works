@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Tests for API key encryption/decryption."""
 import secrets
 import pytest

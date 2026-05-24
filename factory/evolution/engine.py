@@ -1,6 +1,6 @@
+from __future__ import annotations
 """GEPA Evolution Engine — orchestrates the full evolution cycle."""
 
-from __future__ import annotations
 
 from pathlib import Path
 

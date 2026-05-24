@@ -1,10 +1,9 @@
+from __future__ import annotations
 """Authentication utilities for the Solution Marketplace.
 
 Token format: base64url(header).base64url(payload).base64url(signature)
 Signed with HMAC-SHA256.
 """
-
-from __future__ import annotations
 
 import base64
 import hashlib

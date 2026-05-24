@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { ThemeProvider } from "./components/ThemeProvider";
 import { ToastProvider } from "./components/Toast";
@@ -6,16 +6,10 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
 import { Layout } from "./components/Layout";
 import { AuthPage } from "./components/AuthPage";
 import { Settings } from "./components/Settings";
-import { ChatPanel } from "./components/ChatPanel";
-import { Dashboard } from "./components/Dashboard";
-import { WorkshopList } from "./components/WorkshopList";
-import { KanbanBoard } from "./components/KanbanBoard";
-import { WorkflowList } from "./components/WorkflowList";
-import { ModuleFactory } from "./components/ModuleFactory";
-import { Marketplace } from "./components/Marketplace";
 import { AuthProvider, useAuth } from "./lib/AuthContext";
 import { api } from "./lib/api";
 import { Onboarding } from "./components/Onboarding";
+import { PANEL_REGISTRY } from "./lib/panels";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth();
@@ -53,6 +47,27 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+const panelRoutes = Object.values(PANEL_REGISTRY).map((panel) => {
+  const PanelComponent = panel.element;
+  return (
+    <Route
+      key={panel.id}
+      path={panel.route.replace("/", "")}
+      element={
+        <ErrorBoundary>
+          <Suspense fallback={
+            <div className="flex items-center justify-center h-full min-h-[200px]">
+              <div className="w-6 h-6 border-2 border-accent/30 border-t-accent rounded-full animate-spin" />
+            </div>
+          }>
+            <PanelComponent />
+          </Suspense>
+        </ErrorBoundary>
+      }
+    />
+  );
+});
+
 function AppRoutes() {
   const [showOnboarding, setShowOnboarding] = useState(
     !localStorage.getItem("nexus_onboarding_done"),
@@ -71,14 +86,8 @@ function AppRoutes() {
         <Route path="/auth" element={<PublicRoute><AuthPage /></PublicRoute>} />
         <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
           <Route path="/" element={<Navigate to="/chat" replace />} />
-          <Route path="/chat" element={<ErrorBoundary><ChatPanel /></ErrorBoundary>} />
-          <Route path="/dashboard" element={<ErrorBoundary><Dashboard /></ErrorBoundary>} />
-          <Route path="/workshops" element={<ErrorBoundary><WorkshopList /></ErrorBoundary>} />
-          <Route path="/kanban" element={<ErrorBoundary><KanbanBoard /></ErrorBoundary>} />
-          <Route path="/workflows" element={<ErrorBoundary><WorkflowList /></ErrorBoundary>} />
-          <Route path="/factory" element={<ErrorBoundary><ModuleFactory /></ErrorBoundary>} />
+          {panelRoutes}
           <Route path="/settings" element={<ErrorBoundary><Settings /></ErrorBoundary>} />
-          <Route path="/market" element={<ErrorBoundary><Marketplace /></ErrorBoundary>} />
           <Route path="*" element={<Navigate to="/chat" replace />} />
         </Route>
       </Routes>

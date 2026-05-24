@@ -44,7 +44,7 @@ export function ToolCallCard({ tool }: { tool: ToolCall }) {
               <div className="text-[10px] text-muted-foreground mb-0.5">结果</div>
               <pre
                 className={`whitespace-pre-wrap text-[11px] bg-muted/30 rounded p-2 max-h-32 overflow-auto ${
-                  tool.status === "error" ? "text-destructive" : "text-green-500 dark:text-green-400"
+                  tool.status === "error" ? "text-destructive" : "text-success"
                 }`}
               >
                 {tool.result.slice(0, 2000)}

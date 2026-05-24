@@ -1,6 +1,6 @@
+from __future__ import annotations
 """Settings endpoints: providers, skills, tools, plugins, and search."""
 
-from __future__ import annotations
 
 from fastapi import APIRouter, Body, Depends, Request
 from fastapi.responses import JSONResponse

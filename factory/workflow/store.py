@@ -1,6 +1,6 @@
+from __future__ import annotations
 """Workflow template persistence — YAML files in ~/.nexus/workflows/."""
 
-from __future__ import annotations
 
 import logging
 from pathlib import Path

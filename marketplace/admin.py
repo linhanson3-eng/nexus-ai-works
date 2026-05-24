@@ -1,9 +1,8 @@
+from __future__ import annotations
 """Admin FastAPI app — package management and subscription activation.
 
 All routes require the admin token: Authorization: Bearer <admin-token>.
 """
-
-from __future__ import annotations
 
 import uuid
 from datetime import datetime, timezone

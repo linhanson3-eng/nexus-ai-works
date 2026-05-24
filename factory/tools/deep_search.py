@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Deep Search tool — 2-layer search + structured analysis.
 
 Layer 1: Multi-engine parallel search via SearchRuntime
@@ -7,7 +9,6 @@ Modes: summary (default), compare, fact_check.
 Registered as a configurable agent tool alongside web_search.
 """
 
-from __future__ import annotations
 
 import concurrent.futures
 import logging
@@ -150,6 +151,19 @@ def deep_search_handler(arguments: dict[str, Any], context: Any) -> str:
     return "\n".join(lines)
 
 
+def _is_private_host(hostname: str) -> bool:
+    """Check if a hostname resolves to a private/reserved IP address."""
+    import ipaddress, socket
+    try:
+        ip = ipaddress.ip_address(hostname)
+    except ValueError:
+        try:
+            ip = ipaddress.ip_address(socket.gethostbyname(hostname))
+        except (socket.gaierror, ValueError):
+            return True  # block unresolvable hosts to be safe
+    return ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_unspecified
+
+
 def _fetch_all(urls: list[str]) -> list[str]:
     """Fetch multiple URLs in parallel."""
     if not urls:
@@ -159,8 +173,13 @@ def _fetch_all(urls: list[str]) -> list[str]:
         parsed = urlparse(url)
         if parsed.scheme not in ("http", "https"):
             return ""
+        # Block SSRF: reject private/reserved IPs
+        hostname = (parsed.hostname or "").strip("[]")
+        if not hostname or _is_private_host(hostname):
+            logger.warning("deep_search blocked SSRF attempt: %s", url)
+            return ""
         try:
-            with httpx.Client(timeout=FETCH_TIMEOUT, follow_redirects=True) as client:
+            with httpx.Client(timeout=FETCH_TIMEOUT, follow_redirects=False) as client:
                 resp = client.get(url, headers={
                     "User-Agent": "Nexus-DeepSearch/1.0",
                     "Accept": "text/html,text/plain,*/*",
@@ -185,7 +204,7 @@ def _clean_html(html: str) -> str:
 
 def create_deep_search_tool() -> Any:
     """Create the deep_search AgentTool for registration."""
-    from factory.vendor.claw_code_agent.agent_tools import AgentTool
+    from factory.engine.bridge import AgentTool
 
     return AgentTool(
         name="deep_search",

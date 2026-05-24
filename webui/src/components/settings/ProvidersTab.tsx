@@ -134,7 +134,7 @@ export function ProvidersTab({ toast }: { toast: ToastFn }) {
     return (
       <div className="flex items-center justify-center py-12 gap-2">
         <Loader2 className="w-5 h-5 text-primary animate-spin" />
-        <span className="text-sm text-muted">加载中...</span>
+        <span className="text-sm text-muted-foreground">加载中...</span>
       </div>
     );
   }
@@ -143,7 +143,7 @@ export function ProvidersTab({ toast }: { toast: ToastFn }) {
     return (
       <div className="flex flex-col items-center gap-3 py-12">
         <AlertTriangle className="w-8 h-8 text-destructive" />
-        <p className="text-sm text-muted">{error}</p>
+        <p className="text-sm text-muted-foreground">{error}</p>
         <button onClick={load} className="flex items-center gap-2 px-4 py-2 bg-primary/10 text-primary border border-primary/20 rounded-xl text-sm hover:bg-primary/20 transition-colors">
           <RefreshCw className="w-3.5 h-3.5" /> 重试
         </button>
@@ -159,7 +159,7 @@ export function ProvidersTab({ toast }: { toast: ToastFn }) {
       <div className="bg-background border border-border rounded-xl p-4 space-y-3">
         <div className="flex items-center gap-2">
           <span className="text-sm font-medium text-foreground">默认模型</span>
-          <span className="text-[10px] text-muted">创建项目/Agent 未选模型时使用</span>
+          <span className="text-[10px] text-muted-foreground">创建项目/Agent 未选模型时使用</span>
         </div>
         <div className="flex items-center gap-3">
           <select
@@ -188,14 +188,14 @@ export function ProvidersTab({ toast }: { toast: ToastFn }) {
           {defaultModelLoading && <Loader2 className="w-4 h-4 text-primary animate-spin shrink-0" />}
           <button
             onClick={() => loadDefaultModel()}
-            className="shrink-0 p-2 text-muted hover:text-primary transition-colors rounded-lg hover:bg-white/5"
+            className="shrink-0 p-2 text-muted-foreground hover:text-primary transition-colors rounded-lg hover:bg-white/5"
             title="刷新"
           ><RefreshCw className="w-4 h-4" /></button>
         </div>
       </div>
 
       <div className="flex items-center justify-between">
-        <p className="text-sm text-muted">配置 LLM 提供商的 API Key，添加后即可在项目中使用对应模型。</p>
+        <p className="text-sm text-muted-foreground">配置 LLM 提供商的 API Key，添加后即可在项目中使用对应模型。</p>
         <button
           onClick={() => { setEditing("new"); setForm({ name: "", provider_type: "", base_url: "", api_key: "", show_key: false, models: [], new_model: "" }); setKeyModified(false); }}
           className="flex items-center gap-2 px-4 py-2 bg-primary/10 text-primary border border-primary/20 rounded-xl text-sm hover:bg-primary/20 transition-colors shrink-0"
@@ -223,16 +223,16 @@ export function ProvidersTab({ toast }: { toast: ToastFn }) {
                 {isNew && (
                   <>
                 <div>
-                  <label className="text-[10px] uppercase tracking-widest text-muted">名称</label>
+                  <label className="text-[10px] uppercase tracking-widest text-muted-foreground">名称</label>
                   <input
                     value={form.name}
                     onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
                     placeholder="my-provider"
-                    className="w-full bg-card border border-border rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted focus:outline-none focus:border-primary/30 mt-1"
+                    className="w-full bg-card border border-border rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/30 mt-1"
                   />
                 </div>
                 <div>
-                  <label className="text-[10px] uppercase tracking-widest text-muted">类型</label>
+                  <label className="text-[10px] uppercase tracking-widest text-muted-foreground">类型</label>
                   <select
                     value={form.provider_type}
                     onChange={e => setForm(f => ({ ...f, provider_type: e.target.value }))}
@@ -249,16 +249,16 @@ export function ProvidersTab({ toast }: { toast: ToastFn }) {
                   </>
                 )}
                 <div>
-                  <label className="text-[10px] uppercase tracking-widest text-muted">Base URL</label>
+                  <label className="text-[10px] uppercase tracking-widest text-muted-foreground">Base URL</label>
                   <input
                     value={form.base_url}
                     onChange={e => setForm(f => ({ ...f, base_url: e.target.value }))}
                     placeholder="https://api.example.com/v1"
-                    className="w-full bg-card border border-border rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted focus:outline-none focus:border-primary/30 mt-1"
+                    className="w-full bg-card border border-border rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/30 mt-1"
                   />
                 </div>
                 <div>
-                  <label className="text-[10px] uppercase tracking-widest text-muted">API Key</label>
+                  <label className="text-[10px] uppercase tracking-widest text-muted-foreground">API Key</label>
                   <div className="flex gap-2 mt-1">
                     <div className="relative flex-1">
                       <input
@@ -266,12 +266,12 @@ export function ProvidersTab({ toast }: { toast: ToastFn }) {
                         value={form.api_key}
                         onChange={e => { setForm(f => ({ ...f, api_key: e.target.value })); setKeyModified(true); }}
                         placeholder="sk-..."
-                        className="w-full bg-card border border-border rounded-xl px-3 py-2 pr-10 text-sm text-foreground placeholder:text-muted focus:outline-none focus:border-primary/30 font-mono"
+                        className="w-full bg-card border border-border rounded-xl px-3 py-2 pr-10 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/30 font-mono"
                       />
                       <button
                         type="button"
                         onClick={() => setForm(f => ({ ...f, show_key: !f.show_key }))}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 text-muted hover:text-foreground transition-colors"
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
                       >
                         {form.show_key ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                       </button>
@@ -280,7 +280,7 @@ export function ProvidersTab({ toast }: { toast: ToastFn }) {
                 </div>
                 <div>
                   <div className="flex items-center justify-between">
-                    <label className="text-[10px] uppercase tracking-widest text-muted">模型列表</label>
+                    <label className="text-[10px] uppercase tracking-widest text-muted-foreground">模型列表</label>
                     <button
                       type="button"
                       onClick={() => syncModels(editing || "")}
@@ -307,7 +307,7 @@ export function ProvidersTab({ toast }: { toast: ToastFn }) {
                                       return next;
                                     });
                                   }}
-                                  className="flex items-center gap-1 text-[10px] text-muted hover:text-foreground transition-colors w-full text-left py-0.5"
+                                  className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors w-full text-left py-0.5"
                                 >
                                   <span className="text-[10px]">{expanded ? '▼' : '▶'}</span>
                                   {cat} ×{items.length}
@@ -321,7 +321,7 @@ export function ProvidersTab({ toast }: { toast: ToastFn }) {
                                           {m.replace(/^Pro\//, '').replace(/^LoRA\//, '')}
                                           <button
                                             onClick={() => setForm(f => ({ ...f, models: f.models.filter((_, j) => j !== fi) }))}
-                                            className="text-muted hover:text-destructive transition-colors"
+                                            className="text-muted-foreground hover:text-destructive transition-colors"
                                           >&times;</button>
                                         </span>
                                       );
@@ -345,7 +345,7 @@ export function ProvidersTab({ toast }: { toast: ToastFn }) {
                         }
                       }}
                       placeholder="手动添加模型名..."
-                      className="flex-1 bg-card border border-border rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted focus:outline-none focus:border-primary/30"
+                      className="flex-1 bg-card border border-border rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/30"
                     />
                     <button
                       onClick={() => { if (form.new_model.trim()) setForm(f => ({ ...f, models: [...f.models, f.new_model.trim()], new_model: "" })); }}
@@ -357,7 +357,7 @@ export function ProvidersTab({ toast }: { toast: ToastFn }) {
                   <button onClick={save} disabled={saving} className="flex items-center gap-1.5 px-4 py-2 bg-accent text-primary-foreground rounded-xl text-sm font-semibold hover:bg-primary/80 transition-colors disabled:opacity-30">
                     {saving && <Loader2 className="w-3.5 h-3.5 animate-spin" />} 保存
                   </button>
-                  <button onClick={() => setEditing(null)} className="px-4 py-2 bg-background border border-border rounded-xl text-sm text-muted hover:text-foreground transition-colors">
+                  <button onClick={() => setEditing(null)} className="px-4 py-2 bg-background border border-border rounded-xl text-sm text-muted-foreground hover:text-foreground transition-colors">
                     取消
                   </button>
                 </div>
@@ -380,7 +380,7 @@ export function ProvidersTab({ toast }: { toast: ToastFn }) {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="text-sm text-foreground">{name}</span>
-                    <span className="text-[10px] text-muted">{p?.base_url || "未配置"}</span>
+                    <span className="text-[10px] text-muted-foreground">{p?.base_url || "未配置"}</span>
                   </div>
                   <div className="flex items-center gap-2">
                     {p?.models && p.models.length > 0 && (() => {
@@ -389,16 +389,16 @@ export function ProvidersTab({ toast }: { toast: ToastFn }) {
                       const showCount = p.models.length > 8 ? 5 : p.models.length;
                       return (
                         <div className="mt-1 space-y-1">
-                          <span className="text-[10px] text-muted">
+                          <span className="text-[10px] text-muted-foreground">
                             {p.models.length} 个模型
                             {catNames.map(c => ` · ${c}×${cats[c].length}`).join('')}
                           </span>
                           <div className="flex flex-wrap gap-1">
                             {p.models.slice(0, showCount).map(m => (
-                              <span key={m} className="text-[10px] px-1.5 py-0.5 bg-primary/5 text-muted border border-border rounded">{m.replace(/^Pro\//, '').replace(/^LoRA\//, '')}</span>
+                              <span key={m} className="text-[10px] px-1.5 py-0.5 bg-primary/5 text-muted-foreground border border-border rounded">{m.replace(/^Pro\//, '').replace(/^LoRA\//, '')}</span>
                             ))}
                             {p.models.length > showCount && (
-                              <span className="text-[10px] px-1.5 py-0.5 text-muted">+{p.models.length - showCount} ...</span>
+                              <span className="text-[10px] px-1.5 py-0.5 text-muted-foreground">+{p.models.length - showCount} ...</span>
                             )}
                           </div>
                         </div>
@@ -408,7 +408,7 @@ export function ProvidersTab({ toast }: { toast: ToastFn }) {
                       <button
                         onClick={e => { e.stopPropagation(); syncModels(name); }}
                         disabled={syncing === name}
-                        className="shrink-0 p-1 text-muted hover:text-primary transition-colors disabled:opacity-30"
+                        className="shrink-0 p-1 text-muted-foreground hover:text-primary transition-colors disabled:opacity-30"
                         title="从 API 同步模型列表"
                       >
                         <RefreshCw className={`w-3.5 h-3.5 ${syncing === name ? "animate-spin" : ""}`} />
@@ -424,7 +424,7 @@ export function ProvidersTab({ toast }: { toast: ToastFn }) {
                 {isExisting && !PRESET_PROVIDERS.includes(name) && (
                   <button
                     onClick={e => { e.stopPropagation(); setDeleteTarget(name); }}
-                    className="text-[10px] text-muted hover:text-destructive transition-colors"
+                    className="text-[10px] text-muted-foreground hover:text-destructive transition-colors"
                     title="删除"
                   >删除</button>
                 )}

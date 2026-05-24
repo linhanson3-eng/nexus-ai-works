@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Audit trail system — immutable event log for security-relevant actions.
 
 Records authentication attempts, permission changes, secret access,
@@ -5,7 +7,6 @@ configuration modifications, and data mutations to a structured,
 append-only SQLite log for compliance and forensic analysis.
 """
 
-from __future__ import annotations
 
 import sqlite3
 import logging

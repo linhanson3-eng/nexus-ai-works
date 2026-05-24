@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """TokenJuice — 工具输出压缩引擎。
 
 从 OpenHuman (Rust) 移植到 Python。5 步压缩管线。

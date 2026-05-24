@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Local template library — save, search, and reuse proven templates."""
 
 from factory.library.models import EntryType, InstallRequest, LibraryEntry, SaveRequest

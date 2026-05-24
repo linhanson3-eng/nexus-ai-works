@@ -1,6 +1,6 @@
+from __future__ import annotations
 """MCP Client -- wraps Python mcp SDK for tool discovery and invocation."""
 
-from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field

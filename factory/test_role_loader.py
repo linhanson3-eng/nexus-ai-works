@@ -1,6 +1,6 @@
+from __future__ import annotations
 """Tests for role config loader."""
 
-from __future__ import annotations
 
 import tempfile
 from pathlib import Path

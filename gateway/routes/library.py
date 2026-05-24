@@ -1,6 +1,6 @@
+from __future__ import annotations
 """Local template library API endpoints."""
 
-from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse

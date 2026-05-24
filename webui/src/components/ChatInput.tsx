@@ -1,6 +1,9 @@
-import { type FormEvent, type DragEvent, useRef, useState, useEffect, useCallback } from "react";
-import { Send, Square, Paperclip, ChevronDown, Brain, Search, Check } from "lucide-react";
+import { type FormEvent, useRef, useState, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
+import { Send, Square, Paperclip, ChevronDown, Search, Check, CornerDownRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { filterCommands, getCommandsByGroup, SLASH_COMMAND_GROUPS } from "../lib/slashCommands";
+import type { SlashCommand, SlashCommandGroup } from "../lib/slashCommands";
 
 interface Attachment {
   name: string;
@@ -46,6 +49,7 @@ interface ChatInputProps {
   onSend: () => void;
   onCancel: () => void;
   onFileSelect: (files: FileList | null) => void;
+  onSlashSend?: (command: string) => void;
 }
 
 function ModelCombobox({
@@ -103,7 +107,6 @@ function ModelCombobox({
 
       {open && (
         <div className="absolute bottom-full mb-1 left-0 w-64 bg-card border border-border rounded-lg shadow-lg z-50 overflow-hidden">
-          {/* Search */}
           <div className="flex items-center gap-1.5 px-3 py-2 border-b border-border">
             <Search className="w-3 h-3 text-muted-foreground/50 shrink-0" />
             <input
@@ -115,7 +118,6 @@ function ModelCombobox({
             />
           </div>
 
-          {/* Options */}
           <div className="max-h-60 overflow-auto py-1">
             <button
               type="button"
@@ -162,24 +164,104 @@ export function ChatInput({
   model, setModel, reasoningEffort, setReasoningEffort,
   chatProviderGroups, attachments, removeAttachment,
   onSend, onCancel, onFileSelect,
+  onSlashSend,
 }: ChatInputProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const navigate = useNavigate();
+
+  const [slashOpen, setSlashOpen] = useState(false);
+  const [slashQuery, setSlashQuery] = useState("");
+  const [slashNavIndex, setSlashNavIndex] = useState(0);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setInput(value);
+
+    if (value.startsWith("/") && !value.includes(" ")) {
+      setSlashOpen(true);
+      setSlashQuery(value);
+    } else if (slashOpen) {
+      setSlashOpen(false);
+      setSlashQuery("");
+    }
+  };
+
+  const executeSlashCommand = (cmd: SlashCommand) => {
+    setSlashOpen(false);
+    setSlashQuery("");
+
+    switch (cmd.action.type) {
+      case "navigate":
+        setInput("");
+        navigate(cmd.action.payload ?? "/");
+        break;
+      case "send":
+        setInput("");
+        onSlashSend?.(cmd.action.payload ?? cmd.name);
+        break;
+      case "local":
+        setInput("");
+        if (cmd.name === "/theme") {
+          document.dispatchEvent(new CustomEvent("nexus:cycle-theme"));
+        } else if (cmd.name === "/logout") {
+          document.dispatchEvent(new CustomEvent("nexus:logout"));
+        }
+        break;
+    }
+  };
+
+  const filteredCommands = slashOpen ? filterCommands(slashQuery) : [];
+  const groupedCommands = slashOpen ? getCommandsByGroup(filteredCommands) : new Map();
+  const flatSlashCommands = slashOpen ? filteredCommands : [];
+
+  // Reset nav index when commands change
+  useEffect(() => {
+    setSlashNavIndex(0);
+  }, [slashQuery, slashOpen]);
 
   const submit = (e?: FormEvent) => {
     e?.preventDefault();
+    if (slashOpen) return;
     const text = input.trim();
     if ((!text && !attachments.length) || loading) return;
     onSend();
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (slashOpen) {
+      if (e.key === "Escape") {
+        setSlashOpen(false);
+        setSlashQuery("");
+        setSlashNavIndex(0);
+        setInput("");
+        e.preventDefault();
+        return;
+      }
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setSlashNavIndex((prev) => Math.min(prev + 1, flatSlashCommands.length - 1));
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setSlashNavIndex((prev) => Math.max(prev - 1, 0));
+        return;
+      }
+      if (e.key === "Enter" && flatSlashCommands.length > 0) {
+        e.preventDefault();
+        executeSlashCommand(flatSlashCommands[slashNavIndex]);
+        return;
+      }
+      return;
+    }
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submit(); }
   };
 
   const showReasoning = supportsReasoning(model);
 
   return (
-    <div className="shrink-0 pt-3 border-t border-border">
+    <div className="shrink-0 pt-3 border-t border-border relative">
       {attachments.length > 0 && (
         <div className="flex gap-2 flex-wrap pb-2">
           {attachments.map((a, i) => (
@@ -189,9 +271,62 @@ export function ChatInput({
               ) : (
                 <div className="w-14 h-14 flex items-center justify-center text-[10px] text-muted-foreground px-1 text-center leading-tight">{a.name.slice(0, 20)}</div>
               )}
-              <button onClick={() => removeAttachment(i)} className="absolute -top-1 -right-1 w-4 h-4 bg-destructive text-destructive-foreground rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">×</button>
+              <button onClick={() => removeAttachment(i)} className="absolute -top-1 -right-1 w-4 h-4 bg-destructive text-destructive-foreground rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">&times;</button>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Slash Command Panel */}
+      {slashOpen && filteredCommands.length > 0 && (
+        <div className="absolute bottom-full left-0 right-0 mb-1 z-50">
+          <div className="bg-popover border border-border rounded-lg shadow-lg overflow-hidden max-h-72">
+            <div className="px-3 py-2 border-b border-border flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">命令</span>
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-mono">esc</span>
+              <span className="text-[10px] text-muted-foreground/50">关闭</span>
+            </div>
+            <div className="overflow-y-auto max-h-56">
+              {[...groupedCommands.entries()].map(([group, cmds]) => {
+                const groupMeta = SLASH_COMMAND_GROUPS[group as SlashCommandGroup];
+                return (
+                  <div key={group}>
+                    <div className="px-3 py-1.5 text-[10px] text-muted-foreground/50 uppercase tracking-wider">
+                      {groupMeta?.label ?? group}
+                    </div>
+                    {cmds.map((cmd) => {
+                        const globalIdx = flatSlashCommands.indexOf(cmd);
+                        return (
+                      <button
+                        key={cmd.name}
+                        onClick={() => executeSlashCommand(cmd)}
+                        className={`w-full flex items-center gap-2.5 px-4 py-1.5 text-sm transition-colors text-left ${
+                          globalIdx === slashNavIndex
+                            ? "bg-accent text-foreground"
+                            : "hover:bg-accent/50"
+                        }`}
+                      >
+                        <cmd.icon className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                        <span className="font-mono text-xs text-foreground font-medium">{cmd.name}</span>
+                        <span className="text-xs text-muted-foreground/70 truncate">{cmd.description}</span>
+                        <CornerDownRight className="w-3 h-3 text-muted-foreground/30 ml-auto shrink-0" />
+                      </button>
+                        );
+                    })}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {slashOpen && filteredCommands.length === 0 && slashQuery !== "/" && (
+        <div className="absolute bottom-full left-0 right-0 mb-1 z-50">
+          <div className="bg-popover border border-border rounded-lg shadow-lg p-6 text-center">
+            <p className="text-sm text-muted-foreground">未匹配到命令</p>
+            <p className="text-xs text-muted-foreground/50 mt-1">输入 / 查看所有可用命令</p>
+          </div>
         </div>
       )}
 
@@ -204,8 +339,9 @@ export function ChatInput({
           <Paperclip className="w-4 h-4" />
         </button>
 
-        <input value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={handleKeyDown}
-          placeholder={loading ? "Agent 正在工作中..." : "说你想做什么..."} disabled={loading}
+        <input ref={inputRef}
+          value={input} onChange={handleInputChange} onKeyDown={handleKeyDown}
+          placeholder={loading ? "Agent 正在工作中..." : "说你想做什么... 输入 / 查看命令"} disabled={loading}
           className="flex-1 bg-transparent border-none outline-none px-0 py-1 text-sm text-foreground placeholder:text-muted-foreground/50 disabled:opacity-50 min-w-0" />
 
         <div className="flex items-center gap-1.5 shrink-0">
@@ -224,17 +360,26 @@ export function ChatInput({
             value={model}
             onChange={(v) => { setModel(v); if (!supportsReasoning(v)) setReasoningEffort(""); }}
             groups={chatProviderGroups}
-            onSelectEnd={() => { /* model saved via ChatPanel's setModel callback */ }}
+            
           />
 
           {/* Reasoning */}
           {showReasoning && (
-            <div className="relative">
-              <select value={reasoningEffort} onChange={(e) => setReasoningEffort(e.target.value)}
-                className="appearance-none bg-primary/[0.06] border border-primary/[0.15] hover:border-primary/30 rounded-md pl-2 pr-4 py-1 text-[11px] text-primary/80 outline-none cursor-pointer transition-colors">
-                {REASONING_EFFORTS.map((e) => <option key={e} value={e}>{e ? REASONING_LABELS[e] : "关"}</option>)}
-              </select>
-              <Brain className="absolute right-0.5 top-1/2 -translate-y-1/2 w-2.5 h-2.5 text-primary/30 pointer-events-none" />
+            <div className="flex items-center bg-primary/[0.04] border border-primary/[0.15] rounded-md overflow-hidden">
+              {REASONING_EFFORTS.map((e) => (
+                <button
+                  key={e}
+                  type="button"
+                  onClick={() => setReasoningEffort(e)}
+                  className={`px-1.5 py-1 text-[11px] transition-colors border-r border-primary/[0.08] last:border-r-0 ${
+                    reasoningEffort === e
+                      ? "bg-primary/10 text-primary font-medium"
+                      : "text-primary/50 hover:text-primary/70 hover:bg-primary/[0.04]"
+                  }`}
+                >
+                  {e ? REASONING_LABELS[e] : "关"}
+                </button>
+              ))}
             </div>
           )}
 
@@ -244,7 +389,7 @@ export function ChatInput({
               <Square className="w-4 h-4" />
             </button>
           ) : (
-            <Button type="submit" variant="outline" size="icon" disabled={!input.trim() && !attachments.length} className="h-8 w-8">
+            <Button type="submit" variant="outline" size="icon" disabled={(!input.trim() && !attachments.length) || slashOpen} className="h-8 w-8">
               <Send className="w-3.5 h-3.5" />
             </Button>
           )}

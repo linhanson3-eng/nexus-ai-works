@@ -1,6 +1,6 @@
+from __future__ import annotations
 """Reflector — analyzes execution trajectories to extract reusable patterns."""
 
-from __future__ import annotations
 
 import re
 

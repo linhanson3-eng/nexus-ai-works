@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Tests for feature flag system."""
 import pytest
 from factory.features import is_feature_allowed, get_all_features, get_paid_features, FEATURES

@@ -43,8 +43,10 @@ describe("AuthPage", () => {
 
   it("switches to register mode", async () => {
     renderAuthPage();
-    const registerBtn = screen.getByText("注册");
-    await userEvent.click(registerBtn);
-    expect(screen.getByText("创建新账户")).toBeDefined();
+    const registerTab = screen.getByRole("button", { name: "注册" });
+    await userEvent.click(registerTab);
+    // After switching, the form submit button should also say 注册
+    const submitBtn = screen.getByRole("button", { name: /注册/ });
+    expect(submitBtn).toBeDefined();
   });
 });

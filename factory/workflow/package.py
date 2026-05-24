@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """.nexus package — pack/unpack workspace modules for import/export.
 
 A .nexus package is a directory containing:
@@ -9,7 +11,6 @@ A .nexus package is a directory containing:
   chain.yaml          # optional cross-workshop chain
 """
 
-from __future__ import annotations
 
 import shutil
 from dataclasses import dataclass, field

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """SQLite + FTS5 存储引擎。
 
 参考 OpenHuman memory/tree/types.rs 的数据模型：

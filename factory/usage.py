@@ -1,10 +1,11 @@
+from __future__ import annotations
+
 """Usage tracking — lightweight counters for billing and analytics.
 
 Uses a simple SQLite database at ~/.nexus/usage.db for persistence.
 Designed to be zero-cost when not queried.
 """
 
-from __future__ import annotations
 
 import logging
 import sqlite3
@@ -54,7 +55,6 @@ def record(user_id: str, event_type: str, event_detail: str = "", count: int = 1
             (user_id, event_type, event_detail, count, ts),
         )
         conn.commit()
-        conn.close()
     except Exception as e:
         logger.warning("Usage record failed: %s", e)
 

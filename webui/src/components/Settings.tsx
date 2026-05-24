@@ -28,7 +28,7 @@ export function Settings() {
         <p className="text-muted-foreground text-sm mt-1">LLM、技能、工具与插件管理</p>
       </div>
 
-      <div className="flex gap-1 bg-card border border-border rounded-xl p-1.5 w-fit">
+      <div className="flex gap-1 bg-card border border-border rounded-xl p-1.5 w-fit flex-wrap">
         {tabs.map(({ id, label, icon: Icon }) => (
           <button
             key={id}

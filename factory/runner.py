@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Nexus AgentRunner — claw-code-agent integration + memory + TokenJuice.
 
 Connects:
@@ -8,7 +10,6 @@ Connects:
 5. Post-execution: Bucket-Seal cascade, Obsidian vault write
 """
 
-from __future__ import annotations
 
 import asyncio
 import json
@@ -30,6 +31,7 @@ from factory.memory import MemoryStore, SourceTree, VaultWriter
 from factory.memory.tree import BucketSeal
 from factory.tokenjuice import compact_tool_output, load_rules
 from factory.kanban.sync import KanbanSync, TaskEvent
+from factory.security.guard import check_shell_command, detect_secrets, sanitize_path
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +48,7 @@ class ErrorKind(str, Enum):
     UNKNOWN = "unknown"
 
 
-@dataclass
+@dataclass(frozen=True)
 class TaskResult:
     """Result of one agent execution."""
 
@@ -79,16 +81,16 @@ class NexusAgentRunner:
         *,
         vault_path: str = "~/.nexus/vault",
         kanban_sync: KanbanSync | None = None,
-        model_api_key: str = "",
-        model_base_url: str = "",
     ):
         self.spec = agent_spec
         self.workshop = workshop
         self.store = store
         self.vault = VaultWriter(vault_path)
         self.kanban_sync = kanban_sync
-        self._model_api_key = model_api_key
-        self._model_base_url = model_base_url
+
+        # Shared SettingsStore for the lifetime of this runner
+        from factory.settings.store import SettingsStore
+        self._settings = SettingsStore()
 
         # Memory tree init
         self.source_tree = SourceTree(
@@ -109,7 +111,7 @@ class NexusAgentRunner:
         self._reasoning_effort = effort
     def _build_budget(self):
         """Build BudgetConfig with reasoning token limit based on effort."""
-        from factory.vendor.claw_code_agent.agent_types import BudgetConfig
+        from factory.engine.bridge import BudgetConfig
         effort = getattr(self, "_reasoning_effort", "")
         mapping = {"low": 1024, "medium": 4096, "high": 8192, "xhigh": 16384}
         max_reasoning = mapping.get(effort)
@@ -132,20 +134,16 @@ class NexusAgentRunner:
 
         # 1.5. User-configured default model preference (Settings → Preferences)
         try:
-            from factory.settings.store import SettingsStore
-            store = SettingsStore()
-            prefs = store._data.get("preferences", {})
+            prefs = self._settings._data.get("preferences", {})
             default_model = prefs.get("default_model", "")
             if default_model:
                 return default_model
-        except (ImportError, json.JSONDecodeError, OSError):
+        except (json.JSONDecodeError, OSError):
             pass
 
         # 2. First model from provider with an API key, then any provider
         try:
-            from factory.settings.store import SettingsStore
-            store = SettingsStore()
-            providers = store.list_providers()
+            providers = self._settings.list_providers()
             # Prefer providers with API keys configured
             keyed: list[tuple[str, dict]] = []
             unkeyed: list[tuple[str, dict]] = []
@@ -181,11 +179,9 @@ class NexusAgentRunner:
         allow_shell = getattr(permissions, "shell", None)
         allow_shell = getattr(allow_shell, "exec", True) if allow_shell else True
 
-        registry = ProviderRegistry.load_defaults()
+        registry = ProviderRegistry.from_store(self._settings)
         model_config = create_model_config(
             model=model,
-            base_url=self._model_base_url,
-            api_key=self._model_api_key,
             registry=registry,
         )
 
@@ -199,8 +195,7 @@ class NexusAgentRunner:
         )
 
         # Generate search manifest from settings so SearchRuntime discovers it
-        from factory.settings.store import SettingsStore
-        SettingsStore().write_search_manifest(engine_config.cwd)
+        self._settings.write_search_manifest(engine_config.cwd)
 
         # Create FRESH engine every time — never reuse shared instances
         agent = create_agent(model_config=model_config, engine_config=engine_config)
@@ -208,8 +203,14 @@ class NexusAgentRunner:
 
     # ── Main execution ──────────────────────────────────────────
 
-    async def run(self, task: str) -> TaskResult:
-        """Execute a task through the claw-code-agent loop."""
+    async def run(self, task: str, *, progress_queue=None) -> TaskResult:
+        """Execute a task through the claw-code-agent loop.
+
+        Args:
+            task: The task description.
+            progress_queue: Optional asyncio.Queue for real-time event streaming.
+        """
+        self._progress_queue = progress_queue
         task_id = f"task-{self.source_tree.tree_id}"
         request_id = getattr(self, "_request_id", "") or ""
         model = self._resolve_model()
@@ -319,7 +320,7 @@ class NexusAgentRunner:
         prompt: str,
     ) -> TaskResult:
         """Execute through claw-code-agent's LocalCodingAgent."""
-        from factory.vendor.claw_code_agent.agent_tools import default_tool_registry
+        from factory.engine.bridge import default_tool_registry
 
         # Build filtered tool registry
         spec_tools = getattr(self.spec, "tools", [])
@@ -356,7 +357,7 @@ class NexusAgentRunner:
         # Bundled skills → Marketplace plugins → Project skills → Slash commands
         from factory.skills.marketplace import SkillMarketplace
         from factory.skills.loader import SkillLoader
-        from factory.vendor.claw_code_agent.agent_types import ToolExecutionResult
+        from factory.engine.bridge import ToolExecutionResult
 
         marketplace = SkillMarketplace(workspace=engine._config.cwd if engine._config else None)
         marketplace.discover()
@@ -479,14 +480,49 @@ class NexusAgentRunner:
     # ── Memory recording ────────────────────────────────────────
 
     def record_chat(self, role: str, content: str, session_id: str) -> None:
+        # Detect secrets in content before storing
+        result = detect_secrets(content)
+        if result.has_secret:
+            logger.warning("Secret detected in %s message (session=%s): %s", role, session_id[:8], result.findings)
         chunk = self.source_tree.append_chat(role, content, session_id)
         self.vault.write_chunk(chunk)
 
+        # Push real-time event to SSE queue
+        q = getattr(self, "_progress_queue", None)
+        if q is not None and role == "assistant":
+            import asyncio as _aio
+            try:
+                loop = _aio.get_running_loop()
+                loop.call_soon_threadsafe(
+                    q.put_nowait,
+                    ("content_delta", {"text": content[:300]}),
+                )
+            except RuntimeError:
+                pass  # no running event loop
+
     def record_tool_call(self, tool_name: str, output: str, session_id: str) -> None:
+        # Note: this runs in a worker thread (via asyncio.to_thread), so
+        # synchronous compression does NOT block the event loop.
+        result = detect_secrets(output)
+        if result.has_secret:
+            logger.warning("Secret detected in tool output '%s' (session=%s): %s", tool_name, session_id[:8], result.findings)
         compressed = compact_tool_output(tool_name, stdout=output, rules=self.tj_rules)
         content = compressed.inline_text if not compressed.passthrough else output
         chunk = self.source_tree.append_tool_output(tool_name, content, session_id)
         self.vault.write_chunk(chunk)
+
+        # Push real-time event to SSE queue
+        q = getattr(self, "_progress_queue", None)
+        if q is not None:
+            import asyncio as _aio
+            try:
+                loop = _aio.get_running_loop()
+                loop.call_soon_threadsafe(
+                    q.put_nowait,
+                    ("tool_result", {"tool": tool_name, "content": content[:500]}),
+                )
+            except RuntimeError:
+                pass  # no running event loop
 
 
 # ── ToolInterceptor — hooks into claw-code-agent tool execution ─

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """MCP Client -- connect to MCP servers, discover tools, invoke them."""
 
 from factory.mcp.client import MCPClient, MCPServerConfig, MCPTool

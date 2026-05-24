@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """制品仓库 — OB 知识库读写接口。
 
 Agent 不直接写文件系统，所有产出物通过此接口写入制品仓库。

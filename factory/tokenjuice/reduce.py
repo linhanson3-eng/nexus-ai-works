@@ -1,10 +1,11 @@
+from __future__ import annotations
+
 """TokenJuice 5 步压缩管线。
 
 参考 OpenHuman tokenjuice/reduce.rs (928 行 Rust)。
 将冗长的工具输出压缩为紧凑的 inline text。
 """
 
-from __future__ import annotations
 
 import re
 

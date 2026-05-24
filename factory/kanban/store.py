@@ -1,9 +1,10 @@
+from __future__ import annotations
+
 """Kanban storage engine — SQLite-backed Board/List/Card management.
 
 Follows the same patterns as factory/memory/store.py.
 """
 
-from __future__ import annotations
 
 import logging
 import sqlite3
@@ -171,9 +172,27 @@ class KanbanStore:
             rows = self.conn.execute("SELECT * FROM kanban_boards ORDER BY created_at DESC").fetchall()
         return [dict(r) for r in rows]
 
+    def list_boards_with_counts(self, workshop_name: str = "") -> list[dict]:
+        """List boards with list/card counts in a SINGLE query (avoid N+1)."""
+        sql = """
+            SELECT b.*,
+                   COUNT(DISTINCT l.id) as list_count,
+                   COUNT(DISTINCT c.id) as card_count
+            FROM kanban_boards b
+            LEFT JOIN kanban_lists l ON l.board_id = b.id
+            LEFT JOIN kanban_cards c ON c.list_id = l.id
+        """
+        params: tuple = ()
+        if workshop_name:
+            sql += " WHERE b.workshop_name = ?"
+            params = (workshop_name,)
+        sql += " GROUP BY b.id ORDER BY b.created_at DESC"
+        rows = self.conn.execute(sql, params).fetchall()
+        return [dict(r) for r in rows]
+
     def get_board_by_name(self, name: str, workshop_name: str = "") -> dict | None:
         row = self.conn.execute(
-            "SELECT * FROM kanban_boards WHERE name = ? AND workshop_name = ?",
+            "SELECT * FROM kanban_boards WHERE LOWER(name) = LOWER(?) AND LOWER(workshop_name) = LOWER(?)",
             (name, workshop_name),
         ).fetchone()
         return dict(row) if row else None

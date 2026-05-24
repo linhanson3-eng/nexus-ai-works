@@ -1,10 +1,9 @@
+from __future__ import annotations
 #!/usr/bin/env python3
 """Nexus AI Works — CLI entry point.
 
 Parses arguments and delegates to command handlers in factory.cli.
 """
-
-from __future__ import annotations
 
 import argparse
 import asyncio

@@ -1,9 +1,10 @@
+from __future__ import annotations
+
 """Obsidian 兼容 Markdown 双写导出。
 
 SQLite 写入同时维护可读的 Obsidian vault。
 """
 
-from __future__ import annotations
 
 import json
 from pathlib import Path

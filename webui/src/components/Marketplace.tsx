@@ -179,7 +179,7 @@ export function Marketplace() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-foreground">解决方案</h1>
-          <p className="text-muted text-sm mt-1">浏览、购买和安装解决方案包</p>
+          <p className="text-muted-foreground text-sm mt-1">浏览、购买和安装解决方案包</p>
         </div>
 
         {/* Auth section */}
@@ -195,7 +195,7 @@ export function Marketplace() {
               <span className="text-sm text-foreground font-medium">{user.username}</span>
               <button
                 onClick={handleLogout}
-                className="text-xs text-muted hover:text-destructive transition-colors"
+                className="text-xs text-muted-foreground hover:text-destructive transition-colors"
               >
                 退出
               </button>
@@ -219,7 +219,7 @@ export function Marketplace() {
           className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
             tab === "browse"
               ? "bg-primary/15 text-primary border border-primary/20"
-              : "text-muted hover:text-foreground"
+              : "text-muted-foreground hover:text-foreground"
           }`}
         >
           浏览
@@ -235,7 +235,7 @@ export function Marketplace() {
           className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
             tab === "my"
               ? "bg-primary/15 text-primary border border-primary/20"
-              : "text-muted hover:text-foreground"
+              : "text-muted-foreground hover:text-foreground"
           }`}
         >
           我的
@@ -247,13 +247,13 @@ export function Marketplace() {
         <>
           {/* Search */}
           <div className="relative max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <input
               type="text"
               placeholder="搜索方案..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 bg-card border border-border rounded-xl text-foreground placeholder-muted text-sm focus:outline-none focus:border-primary/40 transition-colors"
+              className="w-full pl-10 pr-4 py-2.5 bg-card border border-border rounded-xl text-foreground placeholder:text-muted-foreground/40 text-sm focus:outline-none focus:border-primary/40 transition-colors"
             />
           </div>
 
@@ -266,7 +266,7 @@ export function Marketplace() {
                 className={`px-3.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                   category === cat
                     ? "bg-accent text-primary-foreground"
-                    : "bg-card border border-border text-muted hover:text-foreground hover:border-border-hover"
+                    : "bg-card border border-border text-muted-foreground hover:text-foreground hover:border-border-hover"
                 }`}
               >
                 {cat}
@@ -287,11 +287,11 @@ export function Marketplace() {
           ) : filteredPackages.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 gap-4">
               <div className="w-14 h-14 rounded-2xl bg-card border border-border flex items-center justify-center">
-                <Package className="w-7 h-7 text-muted" />
+                <Package className="w-7 h-7 text-muted-foreground" />
               </div>
               <div className="text-center">
                 <p className="text-foreground font-semibold">暂无方案</p>
-                <p className="text-sm text-muted mt-1">
+                <p className="text-sm text-muted-foreground mt-1">
                   {search ? "没有匹配的搜索结果" : "该分类下暂无可用方案"}
                 </p>
               </div>
@@ -316,7 +316,7 @@ export function Marketplace() {
                         <h3 className="font-semibold text-foreground text-sm truncate group-hover:text-primary transition-colors">
                           {pkg.name}
                         </h3>
-                        <p className="text-xs text-muted">{pkg.author}</p>
+                        <p className="text-xs text-muted-foreground">{pkg.author}</p>
                       </div>
                     </div>
                     <span className="text-[10px] px-2 py-0.5 rounded-md bg-primary/10 text-primary font-medium flex-shrink-0">
@@ -324,7 +324,7 @@ export function Marketplace() {
                     </span>
                   </div>
 
-                  <p className="text-sm text-muted line-clamp-2 mb-3 leading-relaxed">
+                  <p className="text-sm text-muted-foreground line-clamp-2 mb-3 leading-relaxed">
                     {pkg.description}
                   </p>
 
@@ -343,7 +343,7 @@ export function Marketplace() {
                       <div className="text-sm font-bold text-primary">
                         {formatPrice(pkg.plan_monthly_price)}
                       </div>
-                      <div className="text-[10px] text-muted">
+                      <div className="text-[10px] text-muted-foreground">
                         {pkg.plan_monthly_price > 0 ? "/月" : ""}
                       </div>
                     </div>
@@ -370,11 +370,11 @@ export function Marketplace() {
           ) : mySubs.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 gap-4">
               <div className="w-14 h-14 rounded-2xl bg-card border border-border flex items-center justify-center">
-                <Download className="w-7 h-7 text-muted" />
+                <Download className="w-7 h-7 text-muted-foreground" />
               </div>
               <div className="text-center">
                 <p className="text-foreground font-semibold">暂无已购方案</p>
-                <p className="text-sm text-muted mt-1">前往浏览标签页发现方案</p>
+                <p className="text-sm text-muted-foreground mt-1">前往浏览标签页发现方案</p>
               </div>
             </div>
           ) : (
@@ -407,11 +407,11 @@ export function Marketplace() {
                           )}
                         </div>
                         <div className="flex items-center gap-3 mt-1">
-                          <span className="text-xs text-muted flex items-center gap-1">
+                          <span className="text-xs text-muted-foreground flex items-center gap-1">
                             <Tag className="w-3 h-3" />
                             {sub.category}
                           </span>
-                          <span className="text-xs text-muted flex items-center gap-1">
+                          <span className="text-xs text-muted-foreground flex items-center gap-1">
                             <Shield className="w-3 h-3" />
                             {sub.plan_type === "monthly" ? "月付" : sub.plan_type === "yearly" ? "年付" : sub.plan_type}
                           </span>
@@ -419,11 +419,11 @@ export function Marketplace() {
                       </div>
                     </div>
                     <div className="text-right flex-shrink-0">
-                      <div className="flex items-center gap-1.5 text-xs text-muted">
+                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                         <Clock className="w-3 h-3" />
                         {formatExpiry(sub.expires_at)}
                       </div>
-                      <p className="text-[10px] text-muted mt-0.5">
+                      <p className="text-[10px] text-muted-foreground mt-0.5">
                         购买于 {formatDate(sub.created_at)}
                       </p>
                     </div>
@@ -458,7 +458,7 @@ export function Marketplace() {
                   setLoginOpen(false);
                   setLoginError(null);
                 }}
-                className="w-7 h-7 rounded-lg flex items-center justify-center text-muted hover:text-foreground hover:bg-white/5 transition-colors"
+                className="w-7 h-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-white/5 transition-colors"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -471,7 +471,7 @@ export function Marketplace() {
                 className={`flex-1 py-1.5 rounded-md text-sm font-medium transition-colors ${
                   loginMode === "login"
                     ? "bg-primary/15 text-primary"
-                    : "text-muted hover:text-foreground"
+                    : "text-muted-foreground hover:text-foreground"
                 }`}
               >
                 登录
@@ -481,7 +481,7 @@ export function Marketplace() {
                 className={`flex-1 py-1.5 rounded-md text-sm font-medium transition-colors ${
                   loginMode === "register"
                     ? "bg-primary/15 text-primary"
-                    : "text-muted hover:text-foreground"
+                    : "text-muted-foreground hover:text-foreground"
                 }`}
               >
                 注册
@@ -490,27 +490,27 @@ export function Marketplace() {
 
             <div className="space-y-3">
               <div>
-                <label className="block text-xs text-muted mb-1.5 font-medium">用户名</label>
+                <label className="block text-xs text-muted-foreground mb-1.5 font-medium">用户名</label>
                 <div className="relative">
-                  <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" />
+                  <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <input
                     type="text"
                     value={loginUser}
                     onChange={(e) => setLoginUser(e.target.value)}
                     placeholder="请输入用户名"
-                    className="w-full pl-10 pr-4 py-2.5 bg-background border border-border rounded-xl text-foreground placeholder-muted text-sm focus:outline-none focus:border-primary/40 transition-colors"
+                    className="w-full pl-10 pr-4 py-2.5 bg-background border border-border rounded-xl text-foreground placeholder:text-muted-foreground/40 text-sm focus:outline-none focus:border-primary/40 transition-colors"
                     onKeyDown={(e) => e.key === "Enter" && handleLogin()}
                   />
                 </div>
               </div>
               <div>
-                <label className="block text-xs text-muted mb-1.5 font-medium">密码</label>
+                <label className="block text-xs text-muted-foreground mb-1.5 font-medium">密码</label>
                 <input
                   type="password"
                   value={loginPass}
                   onChange={(e) => setLoginPass(e.target.value)}
                   placeholder="请输入密码"
-                  className="w-full px-4 py-2.5 bg-background border border-border rounded-xl text-foreground placeholder-muted text-sm focus:outline-none focus:border-primary/40 transition-colors"
+                  className="w-full px-4 py-2.5 bg-background border border-border rounded-xl text-foreground placeholder:text-muted-foreground/40 text-sm focus:outline-none focus:border-primary/40 transition-colors"
                   onKeyDown={(e) => e.key === "Enter" && handleLogin()}
                 />
               </div>
@@ -555,12 +555,12 @@ export function Marketplace() {
                   </div>
                   <div>
                     <h2 className="text-xl font-bold text-foreground">{selected.name}</h2>
-                    <p className="text-sm text-muted">{selected.author}</p>
+                    <p className="text-sm text-muted-foreground">{selected.author}</p>
                   </div>
                 </div>
                 <button
                   onClick={() => setDetailOpen(false)}
-                  className="w-7 h-7 rounded-lg flex items-center justify-center text-muted hover:text-foreground hover:bg-white/5 transition-colors flex-shrink-0"
+                  className="w-7 h-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-white/5 transition-colors flex-shrink-0"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -586,7 +586,7 @@ export function Marketplace() {
 
               {/* Description */}
               <div className="mb-5">
-                <h3 className="text-xs uppercase tracking-widest text-muted font-medium mb-2">方案详情</h3>
+                <h3 className="text-xs uppercase tracking-widest text-muted-foreground font-medium mb-2">方案详情</h3>
                 <p className="text-sm text-foreground/80 leading-relaxed whitespace-pre-wrap">
                   {selected.long_description || selected.description}
                 </p>
@@ -595,14 +595,14 @@ export function Marketplace() {
               {/* Meta info */}
               <div className="grid grid-cols-2 gap-3 mb-5">
                 <div className="bg-background rounded-xl p-3">
-                  <div className="flex items-center gap-1.5 text-xs text-muted mb-1">
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
                     <Download className="w-3.5 h-3.5" />
                     下载量
                   </div>
                   <p className="text-sm font-semibold text-foreground">{selected.download_count.toLocaleString()}</p>
                 </div>
                 <div className="bg-background rounded-xl p-3">
-                  <div className="flex items-center gap-1.5 text-xs text-muted mb-1">
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
                     <Package className="w-3.5 h-3.5" />
                     包大小
                   </div>
@@ -616,15 +616,15 @@ export function Marketplace() {
 
               {/* Pricing */}
               <div className="bg-background rounded-xl p-4 mb-5 border border-border">
-                <h3 className="text-xs uppercase tracking-widest text-muted font-medium mb-3">价格方案</h3>
+                <h3 className="text-xs uppercase tracking-widest text-muted-foreground font-medium mb-3">价格方案</h3>
                 <div className="flex gap-3">
                   <div className="flex-1 bg-card rounded-xl p-3 border border-border">
-                    <p className="text-[10px] uppercase tracking-wider text-muted mb-1">月付</p>
+                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">月付</p>
                     <p className="text-lg font-bold text-primary">
                       {selected.plan_monthly_price === 0 ? "免费" : `¥${selected.plan_monthly_price.toFixed(2)}`}
                     </p>
                     {selected.plan_monthly_price > 0 && (
-                      <p className="text-[10px] text-muted mt-0.5">/月</p>
+                      <p className="text-[10px] text-muted-foreground mt-0.5">/月</p>
                     )}
                   </div>
                   <div className="flex-1 bg-card rounded-xl p-3 border border-primary/20 relative overflow-hidden">
@@ -633,12 +633,12 @@ export function Marketplace() {
                         省{(selected.plan_monthly_price * 12 - selected.plan_yearly_price).toFixed(2)}
                       </div>
                     </div>
-                    <p className="text-[10px] uppercase tracking-wider text-muted mb-1">年付</p>
+                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">年付</p>
                     <p className="text-lg font-bold text-primary">
                       {selected.plan_yearly_price === 0 ? "免费" : `¥${selected.plan_yearly_price.toFixed(2)}`}
                     </p>
                     {selected.plan_yearly_price > 0 && (
-                      <p className="text-[10px] text-muted mt-0.5">/年</p>
+                      <p className="text-[10px] text-muted-foreground mt-0.5">/年</p>
                     )}
                   </div>
                 </div>
@@ -654,13 +654,13 @@ export function Marketplace() {
               </button>
 
               {!token && (
-                <p className="text-xs text-muted text-center mt-2">
+                <p className="text-xs text-muted-foreground text-center mt-2">
                   需要登录解决方案账号才能安装
                 </p>
               )}
 
               {/* Creation date */}
-              <p className="text-[10px] text-muted text-center mt-3">
+              <p className="text-[10px] text-muted-foreground text-center mt-3">
                 创建于 {formatDate(selected.created_at)} · 更新于 {formatDate(selected.updated_at)}
               </p>
             </div>

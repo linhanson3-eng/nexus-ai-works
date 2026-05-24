@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Skill management — progressive disclosure skill system + marketplace discovery."""
 
 from factory.skills.loader import SkillLoader, Skill, SkillIndex

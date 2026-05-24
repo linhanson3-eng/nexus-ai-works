@@ -1,10 +1,11 @@
+from __future__ import annotations
+
 """Safe environment variable parsing with type validation and defaults.
 
 All env-var reads in the codebase should go through these helpers
 to prevent crashes from misconfigured values (e.g. TIMEOUT=abc).
 """
 
-from __future__ import annotations
 
 import logging
 import os

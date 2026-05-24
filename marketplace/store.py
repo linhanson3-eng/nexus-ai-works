@@ -1,6 +1,5 @@
-"""SQLite data store for the Solution Marketplace."""
-
 from __future__ import annotations
+"""SQLite data store for the Solution Marketplace."""
 
 import json
 import uuid
@@ -65,11 +64,17 @@ class MarketplaceStore:
         conn.commit()
         conn.close()
 
+    _cached_conn: "sqlite3.Connection | None" = None
+
     def _conn(self) -> "sqlite3.Connection":
         import sqlite3
-
+        if self._cached_conn is not None:
+            return self._cached_conn
         conn = sqlite3.connect(str(self.db_path))
         conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA busy_timeout=5000")
+        self._cached_conn = conn
         return conn
 
     # ── Packages ──────────────────────────────────────────────────────
@@ -89,7 +94,7 @@ class MarketplaceStore:
                 ).fetchall()
             return [self._row_to_package(row) for row in rows]
         finally:
-            conn.close()
+            pass
 
     def get_package(self, package_id: str) -> MarketplacePackage | None:
         """Get a single package by ID."""
@@ -102,7 +107,7 @@ class MarketplaceStore:
                 return None
             return self._row_to_package(row)
         finally:
-            conn.close()
+            pass  # cached conn, keep alive
 
     def save_package(self, pkg: MarketplacePackage) -> None:
         """Insert or update a package."""
@@ -138,7 +143,7 @@ class MarketplaceStore:
             )
             conn.commit()
         finally:
-            conn.close()
+            pass  # cached conn, keep alive
 
     def delete_package(self, package_id: str) -> bool:
         """Delete a package. Returns True if it existed."""
@@ -148,7 +153,7 @@ class MarketplaceStore:
             conn.commit()
             return cursor.rowcount > 0
         finally:
-            conn.close()
+            pass  # cached conn, keep alive
 
     def increment_download(self, package_id: str) -> None:
         """Increment the download counter for a package."""
@@ -160,7 +165,7 @@ class MarketplaceStore:
             )
             conn.commit()
         finally:
-            conn.close()
+            pass  # cached conn, keep alive
 
     # ── Users ─────────────────────────────────────────────────────────
 
@@ -180,7 +185,7 @@ class MarketplaceStore:
                 return None
             return UserInfo(user_id=user_id, username=username)
         finally:
-            conn.close()
+            pass  # cached conn, keep alive
 
     def get_user(self, username: str) -> dict | None:
         """Get user row by username. Returns raw dict or None."""
@@ -193,7 +198,7 @@ class MarketplaceStore:
                 return None
             return dict(row)
         finally:
-            conn.close()
+            pass  # cached conn, keep alive
 
     # ── Subscriptions ─────────────────────────────────────────────────
 
@@ -207,7 +212,7 @@ class MarketplaceStore:
             ).fetchall()
             return [self._row_to_subscription(row) for row in rows]
         finally:
-            conn.close()
+            pass  # cached conn, keep alive
 
     def has_access(self, user_id: str, package_id: str) -> bool:
         """Check if a user has access to a package.
@@ -233,7 +238,7 @@ class MarketplaceStore:
             ).fetchone()
             return sub_row is not None
         finally:
-            conn.close()
+            pass  # cached conn, keep alive
 
     def activate_subscription(
         self,
@@ -281,7 +286,7 @@ class MarketplaceStore:
                 created_at=created_at,
             )
         finally:
-            conn.close()
+            pass  # cached conn, keep alive
 
     # ── Row deserialization ───────────────────────────────────────────
 

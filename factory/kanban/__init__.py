@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Kanban monitoring — lightweight SQLite-backed task board."""
 
 from factory.kanban.store import KanbanStore, KanbanBoard, KanbanList, KanbanCard

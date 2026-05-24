@@ -1,6 +1,6 @@
+from __future__ import annotations
 """Feature flag system — separates free/open-source features from paid/subscription features."""
 
-from __future__ import annotations
 
 from dataclasses import dataclass
 

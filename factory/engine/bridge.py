@@ -1,10 +1,11 @@
+from __future__ import annotations
+
 """Bridge layer — the ONLY module allowed to import from factory.vendor.claw_code_agent.
 
 All Nexus code goes through this bridge. To swap the agent engine,
 only this file needs to change.
 """
 
-from __future__ import annotations
 
 import asyncio as _asyncio
 from dataclasses import dataclass, field
@@ -20,7 +21,9 @@ from factory.vendor.claw_code_agent.agent_types import (
     AgentRuntimeConfig,
     BudgetConfig,
     ModelConfig,
+    ToolExecutionResult,
 )
+from factory.vendor.claw_code_agent.agent_tools import AgentTool, default_tool_registry
 
 
 # ── Nexus re-exports (thin wrappers) ───────────────────────────
@@ -178,15 +181,18 @@ class AgentLoopEngine:
         *,
         engine_config: EngineConfig | None = None,
     ):
+        import threading
         self._agent = agent
         self._config = engine_config
         self._last_session_id: str = ""
+        self._lock = threading.Lock()
 
     @property
     def agent(self) -> LocalCodingAgent:
-        if self._agent is None:
-            raise RuntimeError("Engine has been invalidated. Create a new engine.")
-        return self._agent
+        with self._lock:
+            if self._agent is None:
+                raise RuntimeError("Engine has been invalidated. Create a new engine.")
+            return self._agent
 
     @property
     def tool_registry(self) -> dict[str, Any]:
@@ -206,9 +212,11 @@ class AgentLoopEngine:
 
     async def run(self, prompt: str | list[dict]) -> AgentRunResult:
         """Execute a fresh agent run (synchronous agent, run in thread)."""
-        if self._agent is None:
-            raise RuntimeError("Engine has been invalidated. Create a new engine.")
-        result = await _asyncio.to_thread(self._agent.run, prompt)
+        with self._lock:
+            if self._agent is None:
+                raise RuntimeError("Engine has been invalidated. Create a new engine.")
+            agent = self._agent
+        result = await _asyncio.to_thread(agent.run, prompt)
         if result.session_id:
             self._last_session_id = result.session_id
         return result
@@ -241,5 +249,22 @@ class AgentLoopEngine:
 
     def invalidate(self) -> None:
         """Clear cached agent state (for model/config hot-reload)."""
-        self._agent = None
-        self._last_session_id = ""
+        with self._lock:
+            self._agent = None
+            self._last_session_id = ""
+
+
+# ── Re-exports for factory modules that must stay vendor-clean ──
+# Re-export vendor types for modules that need them
+def load_session(session_id: str, directory: str | Path) -> Any:
+    """Load a persisted agent session. Thin wrapper around vendor API."""
+    from factory.vendor.claw_code_agent.session_store import load_agent_session
+    return load_agent_session(session_id, directory=Path(directory))
+
+
+__all__ = [
+    "AgentLoopEngine", "AgentTool", "EngineConfig", "NexusPermissions",
+    "create_agent", "create_model_config", "load_session",
+    "BudgetConfig", "ModelConfig", "ToolExecutionResult",
+    "default_tool_registry",
+]

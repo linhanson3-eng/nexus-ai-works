@@ -1,9 +1,10 @@
+from __future__ import annotations
+
 """TokenJuice 规则加载 — 3 层覆盖：builtin → user → project。
 
 参考 OpenHuman tokenjuice/rules/loader.rs。
 """
 
-from __future__ import annotations
 
 import json
 import re

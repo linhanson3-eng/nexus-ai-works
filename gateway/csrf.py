@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """CSRF protection via double-submit cookie pattern.
 
 Sets a csrf_token cookie readable by JS. State-changing requests
@@ -5,7 +7,6 @@ Sets a csrf_token cookie readable by JS. State-changing requests
 matches the cookie value.
 """
 
-from __future__ import annotations
 
 import secrets
 

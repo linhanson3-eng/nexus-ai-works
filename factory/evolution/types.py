@@ -1,6 +1,6 @@
+from __future__ import annotations
 """GEPA evolution data types."""
 
-from __future__ import annotations
 
 from dataclasses import dataclass, field
 

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Cross-workshop chain execution — sequential pipeline across workshops.
 
 A Chain defines an ordered list of (workshop, workflow) steps.
@@ -5,7 +7,6 @@ ChainRunner executes them sequentially, feeding each step's products
 as context into the next step.
 """
 
-from __future__ import annotations
 
 import asyncio
 import logging

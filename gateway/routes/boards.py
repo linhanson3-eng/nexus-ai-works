@@ -1,6 +1,6 @@
+from __future__ import annotations
 """Kanban Board, List, and Card CRUD endpoints."""
 
-from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
@@ -46,7 +46,12 @@ async def create_board(request: Request):
 @router.get("/boards", dependencies=[Depends(require_auth)])
 async def list_boards(request: Request):
     workshop_name = request.query_params.get("workshop_name", "")
-    boards = _kanban_store(request).list_boards(workshop_name)
+    with_counts = request.query_params.get("with_counts", "true").lower() != "false"
+    store = _kanban_store(request)
+    if with_counts:
+        boards = store.list_boards_with_counts(workshop_name)
+    else:
+        boards = store.list_boards(workshop_name)
     return JSONResponse(content=boards)
 
 

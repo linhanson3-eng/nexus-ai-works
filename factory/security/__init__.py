@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Security module — safety guards for the Nexus AI Works platform."""
 
 from factory.security.guard import (

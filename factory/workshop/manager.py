@@ -1,6 +1,6 @@
+from __future__ import annotations
 """Workshop lifecycle manager — runtime create, list, get, delete workshops."""
 
-from __future__ import annotations
 
 import fcntl
 import logging
@@ -242,6 +242,14 @@ class WorkshopManager:
                 break
 
         self._persist_org()
+
+        # Invalidate AgentPool cache so next run picks up changes
+        try:
+            from factory.engine.pool import AgentPool
+            AgentPool().invalidate(workshop_name, agent_name)
+        except Exception:
+            pass
+
         return updated
 
     def remove_agent(self, workshop_name: str, agent_name: str) -> bool:
@@ -356,11 +364,28 @@ class WorkshopManager:
 
         Returns status dict with created resources.
         """
+        import re
         from factory.workflow.package import unpack_package
 
         data = unpack_package(pkg_dir)
-        manifest = data["manifest"]
-        name = custom_name or manifest["name"]
+
+        # Validate manifest
+        manifest = data.get("manifest")
+        if not isinstance(manifest, dict):
+            return None
+        name = custom_name or manifest.get("name", "")
+        if not name or not re.match(r'^[\w\-]{1,64}$', name):
+            return None
+
+        # Validate agents list
+        agents_data = data.get("agents")
+        if not isinstance(agents_data, list):
+            return None
+
+        # Validate workflows list
+        workflows_data = data.get("workflows")
+        if not isinstance(workflows_data, list):
+            return None
 
         # Check if already exists
         if self.get(name) is not None:
@@ -384,21 +409,21 @@ class WorkshopManager:
             workflow_name=data["workflows"][0]["name"] if data["workflows"] else "simple",
         )
 
-        # Apply full agent configs
+        # Apply full agent configs (sanitized) — use model_copy for immutability
+        ALLOWED_AGENT_FIELDS = {"mode", "model", "system_prompt", "tools", "skills"}
         for agent_data in data["agents"]:
             aname = agent_data.get("name", "")
+            aname = str(aname)[:64]
             if aname and aname in ws.agents:
                 spec = ws.agents[aname]
-                if "mode" in agent_data:
-                    spec.mode = agent_data["mode"]
-                if "model" in agent_data:
-                    spec.model = agent_data["model"]
-                if "system_prompt" in agent_data:
-                    spec.system_prompt = agent_data["system_prompt"]
-                if "tools" in agent_data:
-                    spec.tools = agent_data["tools"]
-                if "skills" in agent_data:
-                    spec.skills = agent_data.get("skills", [])
+                updates = {f: agent_data[f] for f in ALLOWED_AGENT_FIELDS if f in agent_data}
+                if updates:
+                    spec = spec.model_copy(update=updates)
+                    ws.agents[aname] = spec
+                # Permissions use a flat dict from import payload
+                # {file_write, shell_exec, subagent_spawn} → nested AgentPermissions model.
+                # model_copy can't handle this structural mismatch, so we set them directly
+                # on the already-copied spec.
                 if "permissions" in agent_data:
                     perm = agent_data["permissions"]
                     spec.permissions.filesystem.write = (
@@ -511,7 +536,7 @@ class WorkshopManager:
         return result
 
     def _persist_org(self) -> None:
-        """Write current org state back to org.yaml."""
+        """Write current org state back to org.yaml, preserving all existing keys."""
         import yaml as _yaml
         config_path = Path("config/org.yaml")
         if not config_path.exists():
@@ -520,6 +545,7 @@ class WorkshopManager:
             fcntl.flock(f, fcntl.LOCK_EX)
             try:
                 data = _yaml.safe_load(f) or {}
+                # Preserve all existing top-level keys (channels, warehouse, permissions, etc.)
                 depts: list[dict[str, Any]] = []
                 for ws in self.org.workshops:
                     depts.append({

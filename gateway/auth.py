@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """API authentication — API Key + JWT dependency injection for FastAPI.
 
 - Local CLI/Agent calls: API Key (x-api-key header)
@@ -5,7 +7,6 @@
 - First start auto-generates API Key to ~/.nexus/api_key
 """
 
-from __future__ import annotations
 
 import hmac
 import logging

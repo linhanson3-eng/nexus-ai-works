@@ -1,6 +1,6 @@
+from __future__ import annotations
 """RollbackManager — undo evolution actions safely."""
 
-from __future__ import annotations
 
 import shutil
 from pathlib import Path

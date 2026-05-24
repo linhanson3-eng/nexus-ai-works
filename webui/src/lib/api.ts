@@ -1,4 +1,4 @@
-import type { KanbanBoard, KanbanCard, KanbanList, MarketPackage, MarketSubscription, OrgStatus, SearchConfig, SkillDetail, UserInfo, WorkflowInfo, WorkflowResult, WorkflowTemplate, Workshop } from "./types";
+import type { KanbanBoard, KanbanCard, KanbanList, MarketPackage, MarketSubscription, OrgStatus, ScheduleTask, ScheduleTemplate, SearchConfig, SkillDetail, UserInfo, WorkflowInfo, WorkflowResult, WorkflowTemplate, Workshop } from "./types";
 
 const BASE = "/api";
 
@@ -217,4 +217,49 @@ export function connectWS(
     ws.onclose = null;
     ws.close();
   };
+}
+
+// ── Schedules ──
+
+export async function listSchedules(): Promise<ScheduleTask[]> {
+  return get<ScheduleTask[]>("/schedules");
+}
+
+export async function createSchedule(data: {
+  name?: string; prompt?: string; workshop?: string;
+  frequency?: string; time_str?: string; weekday?: number | null;
+  monthday?: number | null; timezone?: string; model?: string;
+}): Promise<ScheduleTask> {
+  return post<ScheduleTask>("/schedules", data);
+}
+
+export async function updateSchedule(taskId: string, data: Record<string, unknown>): Promise<ScheduleTask> {
+  return put<ScheduleTask>(`/schedules/${taskId}`, data);
+}
+
+export async function deleteSchedule(taskId: string): Promise<void> {
+  return del(`/schedules/${taskId}`);
+}
+
+export async function toggleSchedule(taskId: string): Promise<ScheduleTask> {
+  return post<ScheduleTask>(`/schedules/${taskId}/toggle`);
+}
+
+export async function runScheduleNow(taskId: string): Promise<{ status: string; task_id: string }> {
+  return post(`/schedules/${taskId}/run-now`);
+}
+
+export async function resumeSchedule(taskId: string): Promise<ScheduleTask> {
+  return post<ScheduleTask>(`/schedules/${taskId}/resume`);
+}
+
+export async function listScheduleTemplates(): Promise<ScheduleTemplate[]> {
+  return get<ScheduleTemplate[]>("/schedules/templates");
+}
+
+export async function parseScheduleInput(text: string): Promise<{
+  matched: boolean; template_name?: string; preview?: string;
+  prompt?: string; default_frequency?: string; default_time?: string;
+}> {
+  return post("/schedules/parse", { text });
 }

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Memory — 工厂记忆系统（双层架构）。
 
 Memory Tree (SQLite): 短期操作记忆

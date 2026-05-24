@@ -1,6 +1,6 @@
+from __future__ import annotations
 """Agent run and chat endpoints."""
 
-from __future__ import annotations
 
 import asyncio
 import json
@@ -16,6 +16,26 @@ from gateway.auth import require_auth
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api", tags=["agent"])
+
+# ── Rate limiter (in-memory, per-user) ──────────────────────
+import time as _time
+from collections import defaultdict
+
+_AGENT_RATE_LIMIT_WINDOW = 60       # seconds
+_AGENT_RATE_LIMIT_MAX = 10          # max requests per window per user
+_rate_buckets: dict[str, list[float]] = defaultdict(list)
+
+def _check_rate_limit(user_id: str) -> bool:
+    """Return True if the user is within rate limits."""
+    now = _time.time()
+    bucket = _rate_buckets[user_id]
+    # Expire old entries
+    cutoff = now - _AGENT_RATE_LIMIT_WINDOW
+    _rate_buckets[user_id] = [t for t in bucket if t > cutoff]
+    if len(_rate_buckets[user_id]) >= _AGENT_RATE_LIMIT_MAX:
+        return False
+    _rate_buckets[user_id].append(now)
+    return True
 
 from factory.env import env_int
 
@@ -60,6 +80,16 @@ async def agent_run_stream(body: AgentRunRequest, request: Request):
     if not task:
         return JSONResponse(content={"detail": "task is required"}, status_code=400)
 
+    # Rate limit check — identify user by token hash or API key prefix
+    user_id = (request.headers.get("Authorization", "") or request.headers.get("x-api-key", ""))[:32]
+    if not user_id:
+        user_id = request.client.host if request.client else "unknown"
+    if not _check_rate_limit(user_id):
+        return JSONResponse(
+            content={"detail": "请求太频繁，请稍后再试（每分钟最多 %d 次）" % _AGENT_RATE_LIMIT_MAX},
+            status_code=429,
+        )
+
     # Reject new agent runs during graceful shutdown
     if getattr(request.app.state, "shutdown", None) and request.app.state.shutdown.is_shutting_down:
         return JSONResponse(content={"detail": "Server is shutting down"}, status_code=503)
@@ -87,24 +117,39 @@ async def agent_run_stream(body: AgentRunRequest, request: Request):
     async def event_stream():
         yield _sse("status", {"event": "started", "task": task[:200], "workshop": workshop_name, "request_id": request_id[:8]})
 
-        agent_task = asyncio.create_task(
-            asyncio.wait_for(runner.run(task), timeout=REQUEST_TIMEOUT)
-        )
+        event_queue: asyncio.Queue = asyncio.Queue()
 
-        while True:
-            done, _ = await asyncio.wait([agent_task], timeout=15.0)
-            if agent_task in done:
-                break
-            yield ": heartbeat\n\n"
+        async def run_and_push():
+            try:
+                result = await asyncio.wait_for(
+                    runner.run(task, progress_queue=event_queue),
+                    timeout=REQUEST_TIMEOUT,
+                )
+                await event_queue.put(("__done__", result))
+            except Exception as exc:
+                await event_queue.put(("__error__", str(exc)))
+
+        run_task = asyncio.create_task(run_and_push())
 
         try:
-            result = await agent_task
+            while True:
+                try:
+                    kind, payload = await asyncio.wait_for(event_queue.get(), timeout=3.0)
+                except asyncio.TimeoutError:
+                    yield ": heartbeat\n\n"
+                    continue
+
+                if kind == "__done__":
+                    break
+                if kind == "__error__":
+                    yield _sse("error", {"message": payload})
+                    yield _sse("done", {})
+                    return
+                yield _sse(kind, payload)
+
+            result = await run_task
             if result.session_id:
                 _session_manager(request).set(workshop_name, result.session_id)
-
-            for evt in result.events:
-                yield _sse(evt.get("type", "event"), evt)
-                await asyncio.sleep(0.015)
 
             yield _sse("completed", {
                 "reply": result.content[:3000],
@@ -119,7 +164,8 @@ async def agent_run_stream(body: AgentRunRequest, request: Request):
         except Exception:
             logger.exception("Agent run SSE failed")
             yield _sse("error", {"message": "An internal error occurred. Please try again."})
-        yield _sse("done", {})
+        finally:
+            yield _sse("done", {})
 
     return StreamingResponse(
         event_stream(),
@@ -259,11 +305,11 @@ async def agent_chat(body: AgentChatRequest, request: Request):
 async def get_session(session_id: str, request: Request):
     """Load conversation history from a persisted session."""
     from pathlib import Path
-    from factory.vendor.claw_code_agent.session_store import load_agent_session
+    from factory.engine.bridge import load_session
 
     sessions_dir = Path(".port_sessions/agent")
     try:
-        stored = load_agent_session(session_id, directory=sessions_dir)
+        stored = load_session(session_id, directory=sessions_dir)
         messages = []
         for msg in stored.messages:
             role = msg.get("role", "")

@@ -1,10 +1,11 @@
+from __future__ import annotations
+
 """Skill.md progressive disclosure loader.
 
 Compatible with Hermes and Claude Code Skill.md format.
 Two-phase loading: list (index only) -> load (full content).
 """
 
-from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path

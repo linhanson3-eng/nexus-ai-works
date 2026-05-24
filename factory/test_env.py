@@ -1,6 +1,6 @@
+from __future__ import annotations
 """Tests for safe env-var parsing (factory/env.py)."""
 
-from __future__ import annotations
 
 import os
 

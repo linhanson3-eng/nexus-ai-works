@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """组织架构引擎。
 
 读 org.yaml → 创建工作区 → 分配 workspace → 实例化 Agent。

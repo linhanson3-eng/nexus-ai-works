@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Tests for audit trail system."""
 import secrets
 

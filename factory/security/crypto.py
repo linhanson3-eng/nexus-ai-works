@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """API key encryption — AES-256-GCM with a machine-local key.
 
 Keys are encrypted at rest in settings.json and only decrypted
@@ -7,7 +9,6 @@ Key derivation: HKDF-SHA256 from a random seed stored in
 ~/.nexus/.keyseed (per-machine, auto-generated on first use).
 """
 
-from __future__ import annotations
 
 import os
 import secrets
@@ -21,15 +22,23 @@ _cipher: object | None = None
 
 
 def _ensure_key() -> bytes:
-    """Get or create the machine-local encryption key seed."""
+    """Get or create the machine-local encryption key seed.
+
+    The stored seed is combined with a machine-specific salt (hostname hash),
+    so the file alone is useless if exfiltrated to another machine.
+    """
+    import hashlib, platform
     KEY_SEED_PATH.parent.mkdir(parents=True, exist_ok=True)
     if KEY_SEED_PATH.exists():
-        return urlsafe_b64decode(KEY_SEED_PATH.read_bytes())
+        stored_seed = urlsafe_b64decode(KEY_SEED_PATH.read_bytes())
+    else:
+        stored_seed = secrets.token_bytes(32)
+        KEY_SEED_PATH.write_bytes(urlsafe_b64encode(stored_seed))
+        os.chmod(KEY_SEED_PATH, 0o600)
 
-    seed = secrets.token_bytes(32)
-    KEY_SEED_PATH.write_bytes(urlsafe_b64encode(seed))
-    os.chmod(KEY_SEED_PATH, 0o600)
-    return seed
+    # Derive actual key by mixing seed with machine identity
+    machine_salt = hashlib.sha256(platform.node().encode()).digest()
+    return hashlib.pbkdf2_hmac("sha256", stored_seed, machine_salt, 100000, dklen=32)
 
 
 def _get_cipher():

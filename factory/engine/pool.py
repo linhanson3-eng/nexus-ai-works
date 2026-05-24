@@ -1,10 +1,11 @@
+from __future__ import annotations
+
 """Agent pool — concurrency control and lifecycle management.
 
 ThreadPoolExecutor for agent execution + asyncio.Semaphore
 for concurrency gating. Inspired by OneManAI's coo_runtime.py pattern.
 """
 
-from __future__ import annotations
 
 import asyncio
 import threading
@@ -15,7 +16,9 @@ from factory.engine.bridge import AgentLoopEngine, EngineConfig, create_agent
 
 # ── Global thread pool (shared across all workshops) ────────────
 
-_executor = ThreadPoolExecutor(max_workers=8, thread_name_prefix="nexus-agent-")
+from factory.env import env_int as _env_int
+_AGENT_POOL_SIZE = _env_int("NX_AGENT_POOL_SIZE", 8, min=1, max=64)
+_executor = ThreadPoolExecutor(max_workers=_AGENT_POOL_SIZE, thread_name_prefix="nexus-agent-")
 
 
 class AgentPool:

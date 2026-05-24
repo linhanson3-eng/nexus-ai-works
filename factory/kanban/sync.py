@@ -1,6 +1,6 @@
+from __future__ import annotations
 """Agent task — Kanban card auto-sync bridge."""
 
-from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Callable, Awaitable

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from factory.security.crypto import encrypt as _encrypt, decrypt as _decrypt
+
 import json
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -116,10 +118,16 @@ def load_agent_session(session_id: str, directory: Path | None = None) -> Stored
 
 
 def serialize_model_config(model_config: ModelConfig) -> JSONDict:
+    key = model_config.api_key or ""
+    if key and not key.startswith("$e$"):
+        try:
+            key = "$e$" + _encrypt(key)
+        except Exception:
+            pass  # fall back to plaintext if encryption fails
     return {
         'model': model_config.model,
         'base_url': model_config.base_url,
-        'api_key': model_config.api_key,
+        'api_key': key,
         'temperature': model_config.temperature,
         'timeout_seconds': model_config.timeout_seconds,
         'pricing': {
@@ -132,10 +140,16 @@ def serialize_model_config(model_config: ModelConfig) -> JSONDict:
 
 
 def deserialize_model_config(payload: JSONDict) -> ModelConfig:
+    key = str(payload.get('api_key', 'local-token'))
+    if key.startswith("$e$"):
+        try:
+            key = _decrypt(key[3:])
+        except Exception:
+            pass  # fall back to raw value if decryption fails
     return ModelConfig(
         model=str(payload['model']),
         base_url=str(payload.get('base_url', 'http://127.0.0.1:8000/v1')),
-        api_key=str(payload.get('api_key', 'local-token')),
+        api_key=key,
         temperature=float(payload.get('temperature', 0.0)),
         timeout_seconds=float(payload.get('timeout_seconds', 120.0)),
         pricing=_deserialize_pricing(payload.get('pricing')),

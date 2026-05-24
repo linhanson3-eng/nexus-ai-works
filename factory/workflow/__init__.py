@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Workflow engine — visual DAG-based multi-agent orchestration.
 
 WorkflowNode → WorkflowTemplate → WorkflowRunner (parallel DAG) → WorkflowStore (persistence).

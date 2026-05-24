@@ -1,6 +1,6 @@
+from __future__ import annotations
 """Tests for deep search tool."""
 
-from __future__ import annotations
 
 
 from factory.tools.deep_search import (
