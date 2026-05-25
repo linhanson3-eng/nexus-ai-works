@@ -13,6 +13,7 @@ export default defineConfig({
   server: {
     proxy: {
       "/api": "http://127.0.0.1:8600",
+      "/mcp": "http://127.0.0.1:8600",
       "/ws": { target: "ws://127.0.0.1:8600", ws: true },
     },
   },
