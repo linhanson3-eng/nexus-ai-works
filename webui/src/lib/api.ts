@@ -1,6 +1,7 @@
 import type { KanbanBoard, KanbanCard, KanbanList, MarketPackage, MarketSubscription, OrgStatus, ScheduleTask, ScheduleTemplate, SearchConfig, SkillDetail, UserInfo, WorkflowInfo, WorkflowResult, WorkflowTemplate, Workshop } from "./types";
 
 const BASE = "/api";
+const MCP_BASE = "/mcp";
 
 let _csrfToken: string | null = null;
 let _authToken: string | null = null;
@@ -262,4 +263,32 @@ export async function parseScheduleInput(text: string): Promise<{
   prompt?: string; default_frequency?: string; default_time?: string;
 }> {
   return post("/schedules/parse", { text });
+}
+
+// ── MCP Token ─────────────────────────────────────────────────────
+
+export interface MCPTokenResponse {
+  token: string
+  session_id: string
+  workshop_name: string
+  endpoint: string
+  header_format: string
+}
+
+export async function issueMCPToken(workshopName: string): Promise<MCPTokenResponse> {
+  const resp = await fetch(`${MCP_BASE}/token`, {
+    method: "POST",
+    headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
+    body: JSON.stringify({ workshop_name: workshopName }),
+  });
+  if (!resp.ok) throw new Error("Failed to generate MCP token");
+  return resp.json();
+}
+
+export async function revokeMCPToken(jti: string): Promise<void> {
+  const resp = await fetch(`${MCP_BASE}/token/${encodeURIComponent(jti)}`, {
+    method: "DELETE",
+    headers: { ...getAuthHeaders() },
+  });
+  if (!resp.ok) throw new Error("Failed to revoke MCP token");
 }

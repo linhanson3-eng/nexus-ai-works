@@ -1,13 +1,14 @@
 import { useState } from "react";
-import { Key, Puzzle, Wrench, Blocks, Search } from "lucide-react";
+import { Key, Puzzle, Wrench, Blocks, Search, Terminal } from "lucide-react";
 import { useToast } from "./Toast";
 import { ProvidersTab } from "./settings/ProvidersTab";
 import { SearchTab } from "./settings/SearchTab";
 import { SkillsTab } from "./settings/SkillsTab";
 import { ToolsTab } from "./settings/ToolsTab";
 import { PluginsTab } from "./settings/PluginsTab";
+import { MCPTab } from "./settings/MCPTab";
 
-type TabId = "providers" | "search" | "skills" | "tools" | "plugins";
+type TabId = "providers" | "search" | "skills" | "tools" | "plugins" | "mcp";
 
 const tabs: { id: TabId; label: string; icon: typeof Key }[] = [
   { id: "providers", label: "LLM Key", icon: Key },
@@ -15,6 +16,7 @@ const tabs: { id: TabId; label: string; icon: typeof Key }[] = [
   { id: "skills", label: "技能库", icon: Puzzle },
   { id: "tools", label: "工具箱", icon: Wrench },
   { id: "plugins", label: "插件", icon: Blocks },
+  { id: "mcp", label: "MCP 连接", icon: Terminal },
 ];
 
 export function Settings() {
@@ -51,6 +53,7 @@ export function Settings() {
         {tab === "skills" && <SkillsTab toast={toast} />}
         {tab === "tools" && <ToolsTab toast={toast} />}
         {tab === "plugins" && <PluginsTab toast={toast} />}
+        {tab === "mcp" && <MCPTab toast={toast} />}
       </div>
     </div>
   );
