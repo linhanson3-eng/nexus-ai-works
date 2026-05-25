@@ -144,6 +144,7 @@ async def agent_run_stream(body: AgentRunRequest, request: Request):
                     continue
 
                 if kind == "__done__":
+                    result = payload
                     break
                 if kind == "__error__":
                     yield _sse("error", {"message": payload})
@@ -151,7 +152,7 @@ async def agent_run_stream(body: AgentRunRequest, request: Request):
                     return
                 yield _sse(kind, payload)
 
-            result = await run_task
+            await run_task  # Ensure task is fully awaited (result already captured from queue)
             if result.session_id:
                 _session_manager(request).set(workshop_name, result.session_id)
 
