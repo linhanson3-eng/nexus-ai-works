@@ -7,6 +7,12 @@ only this file needs to change.
 """
 
 
+def _is_meta(msg: dict) -> bool:
+    """True if this is a system-reminder or context-injection message, not a real user task."""
+    content = str(msg.get("content", ""))
+    return content.startswith("<system-reminder") or content.startswith("# currentDate")
+
+
 import asyncio as _asyncio
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -251,13 +257,17 @@ class AgentLoopEngine:
         self,
         prompt: str,
         parent_session_id: str,
+        *,
+        keep_last_n: int = 6,
     ) -> AgentRunResult:
-        """Fork from a parent session — clone full history, new session ID.
+        """Fork from a parent session — clone focused history, new session ID.
 
-        Replicates vendor /branch command + Agor's query-builder fork:
+        Replicates vendor /branch + Agor's forkSession:
         1. Load parent session transcript
-        2. Save a copy with new session_id + branched_from metadata
-        3. Resume from the copy → new SDK session_id
+        2. Trim: keep system messages + first user task + last N messages
+           (with tool_calls pairing preserved — no orphaned tool messages)
+        3. Save copy with new session_id + branched_from metadata
+        4. Resume from the copy → new SDK session_id
         """
         import json as _json
         from uuid import uuid4
@@ -278,6 +288,39 @@ class AgentLoopEngine:
         if stored is None:
             return await self.run(prompt)
 
+        # Trim messages: preserve system prompt, first user task, and last N
+        # substantive messages. Walk backward from tail to include any assistant
+        # whose tool_calls are referenced by tool messages in the tail.
+        raw = list(stored.messages)
+        first_user = None
+        for i, m in enumerate(raw):
+            if m.get("role") == "user" and not _is_meta(m):
+                first_user = i
+                break
+
+        if first_user is not None and len(raw) > keep_last_n + first_user + 2:
+            # Head: all system messages + first real user task
+            head = [m for m in raw[:first_user] if m.get("role") == "system"]
+            head.append(raw[first_user])
+
+            # Tail: last N messages, extended backward for tool_calls pairing
+            tail_start = len(raw) - keep_last_n
+            # Walk back to include assistant messages whose tool_calls are
+            # needed by tool messages at the start of the tail
+            i = tail_start - 1
+            while i > first_user:
+                m = raw[i]
+                if m.get("role") == "assistant" and m.get("tool_calls"):
+                    i -= 1
+                    continue  # keep walking
+                break
+            # i+1 is the earliest assistant we need
+            real_start = max(first_user + 1, i + 1)
+            tail = raw[real_start:]
+            trimmed = head + tail
+        else:
+            trimmed = raw
+
         # Clone full session data to a new session file
         from dataclasses import asdict as _asdict
         session_dir = agent.runtime_config.session_directory
@@ -285,10 +328,10 @@ class AgentLoopEngine:
         new_session_id = uuid4().hex
         fork_path = session_dir / f'{new_session_id}.json'
 
-        # Use the full StoredAgentSession format, just swap session_id
         fork_data = _asdict(stored)
         fork_data['session_id'] = new_session_id
         fork_data['branched_from'] = parent_session_id
+        fork_data['messages'] = trimmed
         fork_path.write_text(_json.dumps(fork_data, indent=2), encoding='utf-8')
 
         # Resume from the forked copy → new SDK session_id
