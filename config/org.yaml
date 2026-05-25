@@ -2,15 +2,32 @@ channels:
 - enabled: true
   name: webui
 departments:
+- name: demo
+  type: custom
+  workspace: workspaces/demo
+  agents:
+  - name: demo
+    mode: super
+    model: ""
+    tools: []
+    system_prompt: 你是Nexus全能AI助手，简短直接回答问题。
+    guide_file: ""
+    skills: []
+    permissions:
+      file_write: true
+      shell_exec: false
+      subagent_spawn: false
+  workflow:
+    name: simple
 - name: a
   type: custom
-  workspace: /private/var/folders/rv/rmtc746518x2q067_1h5bzq80000gn/T/pytest-of-linhan/pytest-60/test_list_all3/a
+  workspace: workspaces/a
   agents: []
   workflow:
     name: default
 - name: b
   type: custom
-  workspace: /private/var/folders/rv/rmtc746518x2q067_1h5bzq80000gn/T/pytest-of-linhan/pytest-60/test_list_all3/b
+  workspace: workspaces/b
   agents: []
   workflow:
     name: default

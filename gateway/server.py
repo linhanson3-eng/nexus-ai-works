@@ -225,8 +225,12 @@ def create_app(org: "OrgEngine", kanban_store: "KanbanStore") -> FastAPI:
     app.state.kanban_store = kanban_store
     app.state.ws_manager = ws_manager
 
-    # Seed demo kanban on first launch (idempotent)
+    # Seed demo workshop + kanban on first launch (idempotent)
     try:
+        from factory.workshop.manager import WorkshopManager
+        mgr = WorkshopManager(org, kanban_store)
+        if not mgr.list_all():
+            mgr.create(name="demo", workspace="workspaces/demo", agent_names=["demo"], workflow_name="simple")
         kanban_store.seed_demo_board()
     except Exception:
         pass  # non-critical
@@ -265,6 +269,9 @@ def create_app(org: "OrgEngine", kanban_store: "KanbanStore") -> FastAPI:
             "/ws/",
             "/health",
             "/api/market/health",
+            "/mcp/health",
+            "/mcp/token",
+            "/mcp",
         ),
     )
 
