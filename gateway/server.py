@@ -43,6 +43,7 @@ from gateway.routes.ws import router as ws_router
 from gateway.routes.library import router as library_router
 from gateway.routes.market import router as market_router
 from gateway.routes.schedules import router as schedules_router
+from gateway.mcp.server import router as mcp_router
 from factory.scheduler.engine import ScheduleEngine
 
 
@@ -341,6 +342,7 @@ def create_app(org: "OrgEngine", kanban_store: "KanbanStore") -> FastAPI:
     app.include_router(library_router)
     app.include_router(market_router)
     app.include_router(schedules_router)
+    app.include_router(mcp_router)
 
     return app
 

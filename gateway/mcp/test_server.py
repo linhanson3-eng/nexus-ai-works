@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import time
 import pytest
 from gateway.mcp.auth import MCPTokenManager
@@ -69,3 +70,56 @@ class TestMCPTokenManager:
     def test_empty_secret_raises(self):
         with pytest.raises(RuntimeError, match="non-empty secret"):
             MCPTokenManager(secret="")
+
+
+class TestMCPRateLimiter:
+
+    def test_token_bucket_consumes_burst(self):
+        from gateway.mcp.server import TokenBucket
+
+        bucket = TokenBucket(rate=100.0, burst=5)
+        for _ in range(5):
+            assert asyncio.run(bucket.consume()) is True
+        assert asyncio.run(bucket.consume()) is False
+
+    async def test_concurrent_consumes_no_race(self):
+        from gateway.mcp.server import TokenBucket
+
+        bucket = TokenBucket(rate=1000.0, burst=200)
+        results = []
+
+        async def consumer():
+            for _ in range(100):
+                results.append(await bucket.consume())
+
+        await asyncio.gather(consumer(), consumer())
+        consumed = sum(1 for r in results if r)
+        assert consumed == 200  # 2 * 100, burst=200
+
+
+class TestMCPTools:
+
+    def test_tool_definitions_all_have_required_fields(self):
+        from gateway.mcp.tools import TOOL_DEFINITIONS
+
+        for tool in TOOL_DEFINITIONS:
+            assert "name" in tool
+            assert "description" in tool
+            assert "inputSchema" in tool
+            assert isinstance(tool["inputSchema"]["required"], list)
+
+    def test_execute_task_modes_are_valid(self):
+        from gateway.mcp.tools import TOOL_DEFINITIONS
+
+        for tool in TOOL_DEFINITIONS:
+            if tool["name"] == "nexus_execute_task":
+                modes = tool["inputSchema"]["properties"]["mode"]["enum"]
+                assert "continue" in modes
+                assert "fork" in modes
+                assert "spawn" in modes
+                assert "btw" in modes
+
+    def test_all_tools_count(self):
+        from gateway.mcp.tools import TOOL_DEFINITIONS
+
+        assert len(TOOL_DEFINITIONS) == 9
