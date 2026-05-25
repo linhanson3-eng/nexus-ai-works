@@ -488,8 +488,8 @@ class NexusAgentRunner:
     def record_chat(self, role: str, content: str, session_id: str) -> None:
         # Detect secrets in content before storing
         result = detect_secrets(content)
-        if result.has_secret:
-            logger.warning("Secret detected in %s message (session=%s): %s", role, session_id[:8], result.findings)
+        if result.found:
+            logger.warning("Secret detected in %s message (session=%s): %s", role, session_id[:8], result.secrets)
         chunk = self.source_tree.append_chat(role, content, session_id)
         self.vault.write_chunk(chunk)
 
@@ -510,8 +510,8 @@ class NexusAgentRunner:
         # Note: this runs in a worker thread (via asyncio.to_thread), so
         # synchronous compression does NOT block the event loop.
         result = detect_secrets(output)
-        if result.has_secret:
-            logger.warning("Secret detected in tool output '%s' (session=%s): %s", tool_name, session_id[:8], result.findings)
+        if result.found:
+            logger.warning("Secret detected in tool output '%s' (session=%s): %s", tool_name, session_id[:8], result.secrets)
         compressed = compact_tool_output(tool_name, stdout=output, rules=self.tj_rules)
         content = compressed.inline_text if not compressed.passthrough else output
         chunk = self.source_tree.append_tool_output(tool_name, content, session_id)
