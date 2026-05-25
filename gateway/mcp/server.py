@@ -32,7 +32,8 @@ def _get_token_manager() -> MCPTokenManager:
     if _token_manager is None:
         secret = os.environ.get("MCP_TOKEN_SECRET", "")
         if not secret:
-            secret = "nexus-mcp-dev-secret-" + str(id(_token_manager))
+            import secrets as _secrets
+            secret = "nexus-mcp-dev-secret-" + _secrets.token_hex(16)
             logger.warning("MCP_TOKEN_SECRET not set — using ephemeral dev secret")
         _token_manager = MCPTokenManager(secret=secret)
     return _token_manager
@@ -191,12 +192,14 @@ async def mcp_handler(request: Request):
             org = request.app.state.org
             kanban_store = request.app.state.kanban_store
             session_manager = request.app.state.session_manager
+            settings_store = getattr(request.app.state, 'settings_store', None)
 
             result = await execute_tool(
                 tool_name, arguments,
                 org=org, kanban_store=kanban_store,
                 session_manager=session_manager,
                 mcp_token_payload=payload,
+                settings_store=settings_store,
             )
 
             duration_ms = (time.monotonic() - start_time) * 1000

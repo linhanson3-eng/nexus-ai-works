@@ -247,6 +247,92 @@ class AgentLoopEngine:
             self._last_session_id = result.session_id
         return result
 
+    async def fork(
+        self,
+        prompt: str,
+        parent_session_id: str,
+    ) -> AgentRunResult:
+        """Fork from a parent session — clone full history, new session ID.
+
+        Replicates vendor /branch command + Agor's query-builder fork:
+        1. Load parent session transcript
+        2. Save a copy with new session_id + branched_from metadata
+        3. Resume from the copy → new SDK session_id
+        """
+        import json as _json
+        from uuid import uuid4
+
+        from factory.vendor.claw_code_agent.session_store import (
+            load_agent_session,
+        )
+
+        with self._lock:
+            if self._agent is None:
+                raise RuntimeError("Engine has been invalidated. Create a new engine.")
+            agent = self._agent
+
+        stored = load_agent_session(
+            parent_session_id,
+            directory=agent.runtime_config.session_directory,
+        )
+        if stored is None:
+            return await self.run(prompt)
+
+        # Clone full session data to a new session file
+        from dataclasses import asdict as _asdict
+        session_dir = agent.runtime_config.session_directory
+        session_dir.mkdir(parents=True, exist_ok=True)
+        new_session_id = uuid4().hex
+        fork_path = session_dir / f'{new_session_id}.json'
+
+        # Use the full StoredAgentSession format, just swap session_id
+        fork_data = _asdict(stored)
+        fork_data['session_id'] = new_session_id
+        fork_data['branched_from'] = parent_session_id
+        fork_path.write_text(_json.dumps(fork_data, indent=2), encoding='utf-8')
+
+        # Resume from the forked copy → new SDK session_id
+        forked_stored = load_agent_session(
+            new_session_id,
+            directory=agent.runtime_config.session_directory,
+        )
+        if forked_stored is None:
+            return await self.run(prompt)
+
+        result = await _asyncio.to_thread(agent.resume, prompt, forked_stored)
+        if result.session_id:
+            self._last_session_id = result.session_id
+        return result
+
+    async def spawn(
+        self,
+        prompt: str,
+    ) -> AgentRunResult:
+        """Spawn a fresh child session — no inheritance from parent.
+
+        Mirror of Agor's query-builder.ts spawn logic:
+        - Clean context, no parent history inherited
+        - Completely independent session
+        """
+        return await self.run(prompt)
+
+    def stop(self) -> None:
+        """Signal the engine to abort the current run (best-effort).
+
+        Calls the agent's interrupt mechanism if available.
+        Does NOT invalidate the engine — subsequent run/resume calls
+        will still work.  Use invalidate() for hot-reload.
+        """
+        with self._lock:
+            if self._agent is None:
+                return
+            agent = self._agent
+        try:
+            if hasattr(agent, 'interrupt'):
+                agent.interrupt()
+        except Exception:
+            pass
+
     def invalidate(self) -> None:
         """Clear cached agent state (for model/config hot-reload)."""
         with self._lock:

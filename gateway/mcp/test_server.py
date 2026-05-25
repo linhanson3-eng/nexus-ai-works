@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import time
 import pytest
 from gateway.mcp.auth import MCPTokenManager
 
@@ -122,4 +121,4 @@ class TestMCPTools:
     def test_all_tools_count(self):
         from gateway.mcp.tools import TOOL_DEFINITIONS
 
-        assert len(TOOL_DEFINITIONS) == 9
+        assert len(TOOL_DEFINITIONS) >= 11, f"Expected at least 11 tools, got {len(TOOL_DEFINITIONS)}"

@@ -85,11 +85,13 @@ class NexusAgentRunner:
         vault_path: str = "~/.nexus/vault",
         kanban_sync: KanbanSync | None = None,
         settings_store: Any = None,
+        org: Any = None,
     ):
         self.spec = agent_spec
         self.workshop = workshop
         self.store = store
         self.vault = VaultWriter(vault_path)
+        self._org = org
         self.kanban_sync = kanban_sync
 
         # Reuse shared SettingsStore when available (avoid disk read + decrypt per request)
@@ -123,8 +125,6 @@ class NexusAgentRunner:
         mapping = {"low": 1024, "medium": 4096, "high": 8192, "xhigh": 16384}
         max_reasoning = mapping.get(effort)
         return BudgetConfig(max_reasoning_tokens=max_reasoning) if max_reasoning else None
-
-    # ── Engine lifecycle ────────────────────────────────────────
 
     def _resolve_model(self) -> str:
         """Return the model string for this agent, falling back to the first available provider model."""
@@ -208,11 +208,13 @@ class NexusAgentRunner:
             if not manifest_path.exists():
                 self._settings.write_search_manifest(engine_config.cwd)
 
-            agent = create_agent(model_config=model_config, engine_config=engine_config)
-            _ENGINE_CACHE[cache_key] = (agent, engine_config)
+            # Register nexus platform tools directly (no HTTP MCP — vendor only supports stdio)
 
-        cached_agent, engine_config = _ENGINE_CACHE[cache_key]
-        return AgentLoopEngine(cached_agent, engine_config=engine_config)
+            agent = create_agent(model_config=model_config, engine_config=engine_config)
+            engine = AgentLoopEngine(agent, engine_config=engine_config)
+            _ENGINE_CACHE[cache_key] = (engine,)
+
+        return _ENGINE_CACHE[cache_key][0]
 
     # ── Main execution ──────────────────────────────────────────
 
@@ -376,6 +378,16 @@ class NexusAgentRunner:
         if "deep_search" in allowed:
             from factory.tools.deep_search import create_deep_search_tool
             engine.agent.tool_registry["deep_search"] = create_deep_search_tool()
+
+        # Register nexus platform tools (spawn/fork/list/read/write)
+        from factory.engine.nexus_tools import register_nexus_tools
+        register_nexus_tools(
+            engine,
+            org=self._org,
+            kanban_store=self.kanban_sync.store if self.kanban_sync else None,
+            session_manager=None,
+            settings_store=self._settings,
+        )
 
         # ── Unified skill system (claude-code-agent compatible) ──
         # Bundled skills → Marketplace plugins → Project skills → Slash commands

@@ -165,6 +165,31 @@ TOOL_DEFINITIONS: list[dict[str, Any]] = [
             "required": ["workshop", "workflow_name", "task"],
         },
     },
+
+    # ── 会话控制 ──
+    {
+        "name": "nexus_stop_session",
+        "description": "停止正在执行的会话。Agent 发现子任务跑偏或质量不达标时，主动停止该会话",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "session_id": {"type": "string", "description": "要停止的会话 ID"},
+                "reason": {"type": "string", "description": "停止原因"},
+            },
+            "required": ["session_id"],
+        },
+    },
+    {
+        "name": "nexus_list_sessions",
+        "description": "列出当前工作区的所有会话（含父子关系），用于了解 fork/spawn 树结构",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "workshop": {"type": "string", "description": "工作区名称"},
+            },
+            "required": ["workshop"],
+        },
+    },
 ]
 
 
@@ -181,6 +206,7 @@ async def execute_tool(
     kanban_store: Any,
     session_manager: Any,
     mcp_token_payload: dict[str, Any],
+    settings_store: Any = None,
 ) -> dict[str, Any]:
     """Execute a tool call and return MCP-compatible result."""
     from factory.workshop.manager import WorkshopManager
@@ -292,32 +318,86 @@ async def execute_tool(
             return _err("工作区没有 Agent")
 
         agent_spec = ws.spec.agents[0]
-        from factory.memory import MemoryStore
-        from factory.runner import NexusAgentRunner
 
-        store = MemoryStore(":memory:")
-        runner = NexusAgentRunner(agent_spec, ws, store)
-        if model:
-            runner.set_model_override(model)
+        from factory.engine.bridge import (
+            AgentLoopEngine,
+            EngineConfig,
+            create_agent,
+            create_model_config,
+        )
+        from factory.engine.providers import ProviderRegistry
 
-        prefixed_task = task
-        if mode == "fork":
-            prefixed_task = f"[FORK from session {parent_id}]\n\n探索替代方案: {task}"
+        # Resolve model + api_key via provider registry (same as runner)
+        effective_model = model or getattr(agent_spec, 'model', '') or "deepseek/deepseek-v4-pro"
+        if settings_store is not None:
+            registry = ProviderRegistry.from_store(settings_store)
+        else:
+            from factory.settings import SettingsStore
+            registry = ProviderRegistry.from_store(SettingsStore())
+
+        model_cfg = create_model_config(effective_model, registry=registry)
+        engine_cfg = EngineConfig(
+            cwd=ws.workspace,
+            max_turns=getattr(agent_spec, 'max_turns', 30),
+            session_directory=str(ws.workspace / ".sessions"),
+        )
+        agent = create_agent(model_cfg, engine_cfg)
+        engine = AgentLoopEngine(agent, engine_config=engine_cfg)
+
+        if mode == "fork" and parent_id:
+            # Real fork: clone parent's full conversation history, new session ID
+            result = await engine.fork(task, parent_id)
         elif mode == "spawn":
-            prefixed_task = f"[SPAWN sub-session, parent={parent_id}]\n\n子任务: {task}"
-        elif mode == "btw":
-            prefixed_task = f"[BTW inquiry to session {parent_id}]\n\n旁路询问: {task}"
+            # Real spawn: clean context, no parent history inheritance
+            result = await engine.spawn(task)
+        elif mode == "btw" and parent_id:
+            # Btw: fork variant — ephemeral by-call, auto-callback result to parent
+            result = await engine.fork(task, parent_id)
+        elif mode == "continue" and parent_id:
+            # Resume existing session
+            result = await engine.resume(task, parent_id)
+        else:
+            result = await engine.run(task)
 
-        result = await runner.run(prefixed_task)
-        text = result.content[:5000] or "(empty response)"
+        # Extract fields from AgentRunResult (matches runner.py's conversion)
+        output_text = getattr(result, 'final_output', '') or ''
+        session_id_out = result.session_id or ""
+        stop_reason = getattr(result, 'stop_reason', '') or ''
+        is_error = stop_reason and stop_reason not in ("end_turn", "stop", "max_tokens")
+        turns_val = getattr(result, 'turns', 0)
+        cost_val = getattr(result, 'total_cost_usd', 0.0) or 0.0
+        tc = getattr(result, 'tool_calls', None)
+        tools_list = tc if isinstance(tc, list) else []
+
+        # Record to SessionTree
+        from factory.workflow.session_tree import SessionNode, SessionType, SessionStatus, SessionTree
+
+        st = SessionTree(workshop_name=workshop_name)
+        node = SessionNode(
+            session_id=session_id_out,
+            parent_id=parent_id,
+            session_type=SessionType(mode if mode != "continue" else "root"),
+            workshop_name=workshop_name,
+            task=task,
+            status=SessionStatus.FAILED if is_error else SessionStatus.COMPLETED,
+            agent_name=agent_spec.name,
+            model=effective_model,
+            output=output_text[:5000],
+            error=stop_reason if is_error else "",
+            turns=turns_val,
+            cost_usd=cost_val,
+            tools_used=tools_list,
+        )
+        st.add(node)
 
         output = {
-            "session_id": result.session_id,
+            "session_id": session_id_out,
             "mode": mode,
-            "output": text,
-            "turns": result.turns,
-            "tools_used": result.tools_used,
-            "model": result.model,
+            "output": output_text[:5000],
+            "turns": turns_val,
+            "tools_used": tools_list,
+            "model": effective_model,
+            "error": stop_reason if is_error else None,
         }
         return {"content": [{"type": "text", "text": json.dumps(output, ensure_ascii=False, indent=2)}]}
 
@@ -336,5 +416,48 @@ async def execute_tool(
         runner = WorkflowRunner(ws)
         result = await runner.run(tmpl, task)
         return {"content": [{"type": "text", "text": result.final_output or str(result.node_results)}]}
+
+    # ── 会话控制 ──
+
+    if tool_name == "nexus_stop_session":
+        target_id = arguments["session_id"]
+        reason = arguments.get("reason", "手动停止")
+
+        st = SessionTree(workshop_name=workshop_name)
+        node = st.get(target_id)
+        if node is None:
+            return _err(f"会话 {target_id} 不存在")
+
+        # Mark session as failed in the tree
+        node.status = SessionStatus.FAILED
+        node.error = reason
+        st._save()
+
+        return {"content": [{"type": "text", "text": json.dumps({
+            "session_id": target_id,
+            "status": "stopped",
+            "reason": reason,
+        }, ensure_ascii=False)}]}
+
+    if tool_name == "nexus_list_sessions":
+        ws = mgr.get(workshop_name)
+        if ws is None:
+            return _err(f"工作区 {workshop_name} 不存在")
+
+        from factory.workflow.session_tree import SessionTree
+        st = SessionTree(workshop_name=workshop_name)
+        nodes = st.all_nodes()
+        result_list = []
+        for n in nodes:
+            result_list.append({
+                "session_id": n.session_id,
+                "parent_id": n.parent_id,
+                "type": n.session_type.value if n.session_type else "root",
+                "task": n.task[:120],
+                "status": n.status.value if n.status else "unknown",
+                "agent": n.agent_name,
+                "turns": n.turns,
+            })
+        return {"content": [{"type": "text", "text": json.dumps(result_list, ensure_ascii=False, indent=2)}]}
 
     return _err(f"Unknown tool: {tool_name}")

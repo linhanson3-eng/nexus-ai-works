@@ -117,7 +117,8 @@ async def agent_run_stream(body: AgentRunRequest, request: Request):
         from factory.kanban.sync import KanbanSync
         kanban_sync = KanbanSync(request.app.state.kanban_store, workshop_name)
     runner = NexusAgentRunner(agent_spec, ws, store, kanban_sync=kanban_sync,
-                              settings_store=request.app.state.settings_store)
+                              settings_store=request.app.state.settings_store,
+                              org=org)
     runner._request_id = request_id  # attach for log tracing
     if body.model:
         runner.set_model_override(body.model)
