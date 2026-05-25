@@ -34,7 +34,7 @@ class SkillRepo:
         import sqlite3
 
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
-        conn = sqlite3.connect(str(self.db_path), check_same_thread=False)
+        conn = sqlite3.connect(str(self.db_path), check_same_thread=False, timeout=30)
         conn.row_factory = sqlite3.Row
         conn.executescript(SKILL_REPO_SQL)
         conn.commit()
@@ -43,7 +43,7 @@ class SkillRepo:
     def _conn(self) -> "sqlite3.Connection":
         import sqlite3
 
-        conn = sqlite3.connect(str(self.db_path), check_same_thread=False)
+        conn = sqlite3.connect(str(self.db_path), check_same_thread=False, timeout=30)
         conn.row_factory = sqlite3.Row
         return conn
 

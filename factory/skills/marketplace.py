@@ -15,6 +15,7 @@ Discovery paths:
 
 import json
 import logging
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -23,6 +24,9 @@ import yaml
 logger = logging.getLogger(__name__)
 
 _INSTALLED_PLUGINS_JSON = Path.home() / ".claude" / "plugins" / "installed_plugins.json"
+
+_CACHE_TTL = 60
+_discover_cache: dict[str, tuple[float, dict]] = {}
 
 
 @dataclass
@@ -63,7 +67,18 @@ class SkillMarketplace:
         self._workspace = Path(workspace) if workspace else None
 
     def discover(self) -> int:
-        """Scan all sources for SKILL.md files. Returns count loaded."""
+        """Scan all sources for SKILL.md files. Returns count loaded.
+
+        Results cached per workspace for _CACHE_TTL seconds.
+        """
+        cache_key = str(self._workspace) if self._workspace else "__global__"
+        now = time.monotonic()
+        if cache_key in _discover_cache:
+            cached_at, cached_skills = _discover_cache[cache_key]
+            if now - cached_at < _CACHE_TTL:
+                self._skills = cached_skills
+                return len(self._skills)
+
         self._skills.clear()
 
         # 1. Installed plugins (~/.claude/plugins/installed_plugins.json)
@@ -82,7 +97,8 @@ class SkillMarketplace:
             if plugins_dir.exists():
                 self._scan_dir(plugins_dir, "workspace")
 
-        logger.info(f"SkillMarketplace discovered {len(self._skills)} skills")
+        _discover_cache[cache_key] = (now, dict(self._skills))
+        logger.info(f"SkillMarketplace discovered {len(self._skills)} skills (cached)")
         return len(self._skills)
 
     def _scan_dir(self, root: Path, source: str) -> None:

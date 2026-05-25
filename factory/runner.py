@@ -35,6 +35,9 @@ from factory.security.guard import check_shell_command, detect_secrets, sanitize
 
 logger = logging.getLogger(__name__)
 
+# Agent engine cache: avoids 16+ runtime filesystem scans per request
+_ENGINE_CACHE: dict[tuple, tuple] = {}
+
 
 class ErrorKind(str, Enum):
     """Structured error classification for agent task failures."""
@@ -81,6 +84,7 @@ class NexusAgentRunner:
         *,
         vault_path: str = "~/.nexus/vault",
         kanban_sync: KanbanSync | None = None,
+        settings_store: Any = None,
     ):
         self.spec = agent_spec
         self.workshop = workshop
@@ -88,9 +92,12 @@ class NexusAgentRunner:
         self.vault = VaultWriter(vault_path)
         self.kanban_sync = kanban_sync
 
-        # Shared SettingsStore for the lifetime of this runner
-        from factory.settings.store import SettingsStore
-        self._settings = SettingsStore()
+        # Reuse shared SettingsStore when available (avoid disk read + decrypt per request)
+        if settings_store is not None:
+            self._settings = settings_store
+        else:
+            from factory.settings.store import SettingsStore
+            self._settings = SettingsStore()
 
         # Memory tree init
         self.source_tree = SourceTree(
@@ -164,7 +171,7 @@ class NexusAgentRunner:
         return ""
 
     def _get_engine(self) -> AgentLoopEngine:
-        """Create a fresh engine for each request to avoid shared state."""
+        """Get or create a cached engine to avoid 16 runtime scans per request."""
         model = self._resolve_model()
         self._resolved_model = model
 
@@ -185,30 +192,37 @@ class NexusAgentRunner:
             registry=registry,
         )
 
-        engine_config = EngineConfig(
-            cwd=Path(workspace_path).expanduser().resolve(),
-            max_turns=30,
-            allow_file_write=allow_write,
-            allow_shell_commands=allow_shell,
-            system_prompt="你是Nexus全能助手，简短直接回答问题。",
-            budget=self._build_budget(),
-        )
+        cache_key = (workspace_path, model)
+        if cache_key not in _ENGINE_CACHE:
+            engine_config = EngineConfig(
+                cwd=Path(workspace_path).expanduser().resolve(),
+                max_turns=30,
+                allow_file_write=allow_write,
+                allow_shell_commands=allow_shell,
+                system_prompt="你是Nexus全能助手，简短直接回答问题。",
+                budget=self._build_budget(),
+            )
 
-        # Generate search manifest from settings so SearchRuntime discovers it
-        self._settings.write_search_manifest(engine_config.cwd)
+            # Generate search manifest once (not every request)
+            manifest_path = engine_config.cwd / ".claw-search.json"
+            if not manifest_path.exists():
+                self._settings.write_search_manifest(engine_config.cwd)
 
-        # Create FRESH engine every time — never reuse shared instances
-        agent = create_agent(model_config=model_config, engine_config=engine_config)
-        return AgentLoopEngine(agent, engine_config=engine_config)
+            agent = create_agent(model_config=model_config, engine_config=engine_config)
+            _ENGINE_CACHE[cache_key] = (agent, engine_config)
+
+        cached_agent, engine_config = _ENGINE_CACHE[cache_key]
+        return AgentLoopEngine(cached_agent, engine_config=engine_config)
 
     # ── Main execution ──────────────────────────────────────────
 
-    async def run(self, task: str, *, progress_queue=None) -> TaskResult:
+    async def run(self, task: str, *, progress_queue=None, session_id: str = "") -> TaskResult:
         """Execute a task through the claw-code-agent loop.
 
         Args:
             task: The task description.
             progress_queue: Optional asyncio.Queue for real-time event streaming.
+            session_id: If provided, resume from existing session (multi-turn).
         """
         self._progress_queue = progress_queue
         task_id = f"task-{self.source_tree.tree_id}"
@@ -216,51 +230,50 @@ class NexusAgentRunner:
         model = self._resolve_model()
         ws = getattr(self.workshop, "name", "") if self.workshop else ""
         logger.info(
-            "Agent run start — agent=%s workshop=%s model=%s task=[%s] rid=%s",
-            self.spec.name, ws, model, task[:120], request_id[:8],
+            "Agent run start — agent=%s workshop=%s model=%s task=[%s] rid=%s resume=%s",
+            self.spec.name, ws, model, task[:120], request_id[:8], bool(session_id),
         )
 
-        # Notify kanban
+        # Notify kanban (fire-and-forget, don't block agent start)
         if self.kanban_sync:
-            await self.kanban_sync.on_task_event(TaskEvent(
+            asyncio.create_task(self.kanban_sync.on_task_event(TaskEvent(
                 agent_name=self.spec.name,
                 task_id=task_id,
                 event_type="task_started",
                 title=task[:200],
                 detail=task,
-            ))
+            )))
 
-        # 1. Assemble context from memory
-        relevant_memories = self.source_tree.query(task, limit=5)
-        context = _build_context(task, relevant_memories)
+        # Build prompt — skip custom context when resuming (session has full history)
+        engine = self._get_engine()
 
-        # 2. Build system prompt
-        system_prompt = getattr(self.spec, "system_prompt", "") or ""
+        if session_id:
+            # Resume: session already has system prompt + full conversation history
+            prompt = task
+        else:
+            # Fresh run: build prompt with system_prompt + guide + context
+            system_prompt = getattr(self.spec, "system_prompt", "") or ""
+            guide_content = ""
+            guide_file = getattr(self.spec, "guide_file", "")
+            if guide_file:
+                ws_dir = Path(getattr(self.workshop, "workspace", ".") or ".")
+                guide_path = ws_dir / guide_file
+                if guide_path.exists():
+                    guide_content = await asyncio.to_thread(
+                        guide_path.read_text, "utf-8"
+                    )
+            prompt = f"任务：{task}"
+            if guide_content:
+                prompt = f"## 引导指令\n\n{guide_content}\n\n---\n\n{prompt}"
+            if system_prompt:
+                prompt = f"{system_prompt}\n\n{prompt}"
 
-        # Load guide file if configured
-        guide_content = ""
-        guide_file = getattr(self.spec, "guide_file", "")
-        if guide_file:
-            ws_dir = Path(getattr(self.workshop, "workspace", ".") or ".")
-            guide_path = ws_dir / guide_file
-            if guide_path.exists():
-                guide_content = await asyncio.to_thread(
-                    guide_path.read_text, "utf-8"
-                )
-
-        prompt = f"{context}\n\n---\n\n任务：{task}"
-        if guide_content:
-            prompt = f"## 引导指令\n\n{guide_content}\n\n---\n\n{prompt}"
-        if system_prompt:
-            prompt = f"{system_prompt}\n\n{prompt}"
-
-        # 3. Execute via claw-code-agent
+        # Execute via claw-code-agent
         from factory.env import env_int
         AGENT_TOTAL_TIMEOUT = env_int("AGENT_TOTAL_TIMEOUT", 600, min=10, max=7200)
         try:
-            engine = self._get_engine()
             result = await asyncio.wait_for(
-                self._run_agent_loop(engine, prompt),
+                self._run_agent_loop(engine, prompt, session_id),
                 timeout=AGENT_TOTAL_TIMEOUT,
             )
         except asyncio.TimeoutError:
@@ -324,8 +337,13 @@ class NexusAgentRunner:
         self,
         engine: AgentLoopEngine,
         prompt: str,
+        session_id: str = "",
     ) -> TaskResult:
-        """Execute through claw-code-agent's LocalCodingAgent."""
+        """Execute through claw-code-agent's LocalCodingAgent.
+
+        If session_id is provided, resumes from persisted session (multi-turn).
+        Otherwise starts a fresh run.
+        """
         from factory.engine.bridge import default_tool_registry
 
         # Build filtered tool registry
@@ -444,8 +462,11 @@ class NexusAgentRunner:
         elif skill_prompt:
             engine.agent.append_system_prompt = skill_prompt
 
-        # Execute
-        result = await engine.run(prompt)
+        # Execute — resume if session_id provided, otherwise fresh run
+        if session_id:
+            result = await engine.resume(prompt, session_id)
+        else:
+            result = await engine.run(prompt)
 
         # Extract tool calls for tracking
         tool_events = _extract_tool_events(result.transcript) if hasattr(result, 'transcript') else []
@@ -550,11 +571,17 @@ class ToolInterceptor:
 
 # ── Helpers ─────────────────────────────────────────────────────
 
-def _build_context(task: str, memories: list[dict]) -> str:
+def _build_context(task: str, memories: list[dict], recent: list[dict] | None = None) -> str:
     parts = []
+    if recent:
+        parts.append("## 最近的对话记录\n")
+        for m in recent:
+            role = "用户" if m.get("owner", "").startswith("user") else "助手"
+            parts.append(f"- [{role}]: {m.get('content', '')[:300]}")
+        parts.append("")
     if memories:
         parts.append("## 相关历史记录\n")
-        for m in memories[:5]:
+        for m in memories[:3]:
             parts.append(f"- {m.get('content', '')[:200]}")
         parts.append("")
     return "\n".join(parts)

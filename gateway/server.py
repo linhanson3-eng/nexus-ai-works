@@ -234,6 +234,7 @@ def create_app(org: "OrgEngine", kanban_store: "KanbanStore") -> FastAPI:
         kanban_store.seed_demo_board()
     except Exception:
         pass  # non-critical
+    app.state.memory_stores: dict[str, MemoryStore] = {}
     app.state.session_manager = session_manager
     app.state.settings_store = settings_store
     app.state.chain_store = chain_store

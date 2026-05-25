@@ -21,7 +21,7 @@ def _get_db_path() -> Path:
 
 def _get_conn() -> sqlite3.Connection:
     _get_db_path().parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(str(_get_db_path()))
+    conn = sqlite3.connect(str(_get_db_path()), timeout=30)
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA synchronous=NORMAL")
     conn.execute(

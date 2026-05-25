@@ -2,17 +2,22 @@ channels:
 - enabled: true
   name: webui
 departments:
-- name: a
+- name: demo
   type: custom
-  workspace: /private/var/folders/rv/rmtc746518x2q067_1h5bzq80000gn/T/pytest-of-linhan/pytest-6/test_list_all3/a
-  agents: []
+  workspace: /Users/linhan/ai-factory/workspaces/demo
+  agents:
+  - name: demo
+    mode: super
+    model: deepseek/deepseek-v4-pro
+    tools: []
+    system_prompt: 你是一个 AI 助手。
+    guide_file: ''
+    skills: []
+    permissions:
+      file_write: true
+      shell_exec: false
+      subagent_spawn: false
   workflow:
-    name: default
-- name: b
-  type: custom
-  workspace: /private/var/folders/rv/rmtc746518x2q067_1h5bzq80000gn/T/pytest-of-linhan/pytest-6/test_list_all3/b
-  agents: []
-  workflow:
-    name: default
+    name: simple
 warehouse:
   path: ''

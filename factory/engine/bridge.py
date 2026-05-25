@@ -35,7 +35,7 @@ class EngineConfig:
 
     cwd: Path = field(default_factory=Path.cwd)
     max_turns: int = 30
-    command_timeout_seconds: float = 120.0
+    command_timeout_seconds: float = 30.0
     max_output_chars: int = 16000
     allow_file_write: bool = True
     allow_shell_commands: bool = True

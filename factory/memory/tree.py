@@ -200,6 +200,15 @@ class TopicTree(MemoryTree):
             metadata={"entity": entity},
         )
 
+    def get_recent(self, limit: int = 10) -> list[dict]:
+        """Return most recent chunks by timestamp (for conversation continuity)."""
+        rows = self.store.conn.execute(
+            "SELECT content, source_kind, owner FROM chunks "
+            "WHERE tree_id = ? ORDER BY timestamp DESC LIMIT ?",
+            (self.tree_id, limit),
+        ).fetchall()
+        return [{"content": r[0], "kind": r[1], "owner": r[2]} for r in reversed(rows)]
+
     def query_entity(self, entity: str, query: str, limit: int = 20) -> list[dict]:
         return self.store.search(f"{entity} {query}", limit)
 

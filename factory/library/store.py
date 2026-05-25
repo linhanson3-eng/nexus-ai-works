@@ -73,7 +73,7 @@ class LibraryStore:
         self._root.mkdir(parents=True, exist_ok=True)
         for sub in ("workflows", "agents", "roles"):
             (self._root / sub).mkdir(exist_ok=True)
-        conn = sqlite3.connect(str(self._db_path), check_same_thread=False)
+        conn = sqlite3.connect(str(self._db_path), check_same_thread=False, timeout=30)
         conn.row_factory = sqlite3.Row
         conn.executescript(LIBRARY_SQL)
         conn.commit()
@@ -82,7 +82,7 @@ class LibraryStore:
     def _conn(self):
         import sqlite3
 
-        conn = sqlite3.connect(str(self._db_path), check_same_thread=False)
+        conn = sqlite3.connect(str(self._db_path), check_same_thread=False, timeout=30)
         conn.row_factory = sqlite3.Row
         return conn
 

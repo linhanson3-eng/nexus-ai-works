@@ -11,6 +11,7 @@ Registered as a configurable agent tool alongside web_search.
 
 
 import concurrent.futures
+import functools
 import logging
 import re
 from typing import Any
@@ -151,8 +152,9 @@ def deep_search_handler(arguments: dict[str, Any], context: Any) -> str:
     return "\n".join(lines)
 
 
+@functools.lru_cache(maxsize=256)
 def _is_private_host(hostname: str) -> bool:
-    """Check if a hostname resolves to a private/reserved IP address."""
+    """Check if a hostname resolves to a private/reserved IP address. Cached."""
     import ipaddress, socket
     try:
         ip = ipaddress.ip_address(hostname)
@@ -209,6 +211,7 @@ def create_deep_search_tool() -> Any:
     return AgentTool(
         name="deep_search",
         description=(
+            "⚠️ 较慢（每次抓取多个完整网页）。简单查询（天气、事实、快速搜索）请优先用 web_search。"
             "Deep web search with content extraction and structured analysis. "
             "Performs a real web search, fetches full page content for each result, "
             "and provides a mode-based analysis framework. "

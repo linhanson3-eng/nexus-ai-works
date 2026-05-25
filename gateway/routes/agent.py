@@ -107,17 +107,28 @@ async def agent_run_stream(body: AgentRunRequest, request: Request):
     agent_spec = ws.spec.agents[0]
     request_id = getattr(request.state, "request_id", "")
 
-    store = MemoryStore(":memory:")
+    # Reuse shared memory store per workshop (avoids SQLite schema init on every request)
+    memory_stores = request.app.state.memory_stores
+    if workshop_name not in memory_stores:
+        memory_stores[workshop_name] = MemoryStore(f"file:mem-{workshop_name}?mode=memory&cache=shared")
+    store = memory_stores[workshop_name]
     kanban_sync = None
     if hasattr(request.app.state, 'kanban_store'):
         from factory.kanban.sync import KanbanSync
         kanban_sync = KanbanSync(request.app.state.kanban_store, workshop_name)
-    runner = NexusAgentRunner(agent_spec, ws, store, kanban_sync=kanban_sync)
+    runner = NexusAgentRunner(agent_spec, ws, store, kanban_sync=kanban_sync,
+                              settings_store=request.app.state.settings_store)
     runner._request_id = request_id  # attach for log tracing
     if body.model:
         runner.set_model_override(body.model)
     if body.reasoning_effort:
         runner.set_reasoning_effort(body.reasoning_effort)
+
+    # Record user message in persistent memory for multi-turn context
+    runner.record_chat("user", task, "")
+
+    # Resume from previous session if available (multi-turn conversation)
+    session_id = _session_manager(request).get(workshop_name) if workshop_name else ""
 
     async def event_stream():
         yield _sse("status", {"event": "started", "task": task[:200], "workshop": workshop_name, "request_id": request_id[:8]})
@@ -127,7 +138,7 @@ async def agent_run_stream(body: AgentRunRequest, request: Request):
         async def run_and_push():
             try:
                 result = await asyncio.wait_for(
-                    runner.run(task, progress_queue=event_queue),
+                    runner.run(task, progress_queue=event_queue, session_id=session_id),
                     timeout=REQUEST_TIMEOUT,
                 )
                 await event_queue.put(("__done__", result))
@@ -156,6 +167,9 @@ async def agent_run_stream(body: AgentRunRequest, request: Request):
             await run_task  # Ensure task is fully awaited (result already captured from queue)
             if result.session_id:
                 _session_manager(request).set(workshop_name, result.session_id)
+            # Record assistant response for multi-turn memory
+            if result.content:
+                runner.record_chat("assistant", result.content[:3000], result.session_id or "")
 
             yield _sse("completed", {
                 "reply": result.content[:3000],

@@ -42,7 +42,7 @@ function parseCardMeta(card: KanbanCard): KanbanCard {
 
 // ── Agent Card ─────────────────────────────────────────────────
 
-function AgentCard({ card, onReRun, onView, isReRunning }: { card: KanbanCard; onReRun: (card: KanbanCard) => void; onView: (card: KanbanCard) => void; isReRunning?: boolean }) {
+function AgentCard({ card, onReRun, onView, onDelete, isReRunning }: { card: KanbanCard; onReRun: (card: KanbanCard) => void; onView: (card: KanbanCard) => void; onDelete: (id: string) => void; isReRunning?: boolean }) {
   const c = parseCardMeta(card);
   const color = agentColor(c.source_agent);
   const statusIcon = c.task_status === "in_progress"
@@ -86,6 +86,8 @@ function AgentCard({ card, onReRun, onView, isReRunning }: { card: KanbanCard; o
         {c.tools_used && c.tools_used.length > 0 && (
           <span className="flex items-center gap-0.5"><Wrench className="w-2.5 h-2.5" />{c.tools_used.length}</span>
         )}
+        <button onClick={e => { e.stopPropagation(); onDelete(c.id); }}
+          className="opacity-0 group-hover:opacity-100 text-muted-foreground/40 hover:text-destructive transition-colors">×</button>
         <button onClick={e => { e.stopPropagation(); onReRun(c); }} disabled={isReRunning}
           className="ml-auto flex items-center gap-0.5 text-primary/70 hover:text-primary transition-colors disabled:opacity-40">
           <RefreshCw className={`w-2.5 h-2.5 ${isReRunning ? 'animate-spin' : ''}`} />{isReRunning ? '执行中' : '重跑'}
@@ -145,7 +147,7 @@ function Column({ list, cards, onAddManual, onDelCard, onEditCard, onReRun, onVi
       </div>
       <div className="flex-1 px-2 pb-2 space-y-2 overflow-auto max-h-[calc(100vh-280px)]">
         {/* Agent cards (non-draggable) */}
-        {agentCards.map(c => <AgentCard key={c.id} card={c} onReRun={onReRun} onView={onView} isReRunning={executingCard === c.id} />)}
+        {agentCards.map(c => <AgentCard key={c.id} card={c} onReRun={onReRun} onView={onView} onDelete={onDelCard} isReRunning={executingCard === c.id} />)}
 
         {/* Manual cards (draggable) */}
         <SortableContext items={manualIds} strategy={verticalListSortingStrategy}>
