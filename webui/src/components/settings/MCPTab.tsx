@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Copy, Check, Trash2, RefreshCw } from "lucide-react";
-import { issueMCPToken, revokeMCPToken, listWorkshops, type MCPTokenResponse } from "../../lib/api";
+import { api, issueMCPToken, revokeMCPToken, type MCPTokenResponse } from "../../lib/api";
 
 interface MCPTabProps {
   toast: { show: (message: string, type?: "success" | "error") => void };
@@ -14,7 +14,7 @@ export function MCPTab({ toast }: MCPTabProps) {
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    listWorkshops().then(setWorkshops).catch(() => {});
+    api.listWorkshops().then(setWorkshops).catch(() => {});
   }, []);
 
   async function handleGenerate() {
