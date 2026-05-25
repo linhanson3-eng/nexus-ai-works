@@ -11,6 +11,14 @@ from pathlib import Path
 from typing import Any
 
 
+def _safe_path(workspace_root: Path, relative: str) -> Path | None:
+    """Resolve relative path inside workspace. Returns None if path escapes."""
+    resolved = (workspace_root / relative).resolve()
+    if not resolved.is_relative_to(workspace_root.resolve()):
+        return None
+    return resolved
+
+
 TOOL_DEFINITIONS: list[dict[str, Any]] = [
 
     # ── Tool discovery ──
@@ -230,7 +238,9 @@ async def execute_tool(
         ws = mgr.get(workshop_name)
         if ws is None:
             return _err(f"工作区 {workshop_name} 不存在")
-        file_path = ws.workspace / arguments["path"]
+        file_path = _safe_path(ws.workspace, arguments["path"])
+        if file_path is None:
+            return _err(f"路径越界: {arguments['path']}")
         try:
             content = file_path.read_text("utf-8")
             return {"content": [{"type": "text", "text": content}]}
@@ -243,7 +253,9 @@ async def execute_tool(
         ws = mgr.get(workshop_name)
         if ws is None:
             return _err(f"工作区 {workshop_name} 不存在")
-        file_path = ws.workspace / arguments["path"]
+        file_path = _safe_path(ws.workspace, arguments["path"])
+        if file_path is None:
+            return _err(f"路径越界: {arguments['path']}")
         file_path.parent.mkdir(parents=True, exist_ok=True)
         file_path.write_text(arguments["content"], "utf-8")
         return {"content": [{"type": "text", "text": f"已写入: {arguments['path']}"}]}
@@ -252,7 +264,9 @@ async def execute_tool(
         ws = mgr.get(workshop_name)
         if ws is None:
             return _err(f"工作区 {workshop_name} 不存在")
-        subpath = ws.workspace / (arguments.get("path", "") or ".")
+        subpath = _safe_path(ws.workspace, arguments.get("path", "") or ".")
+        if subpath is None:
+            return _err(f"路径越界: {arguments.get('path', '.')}")
         if not subpath.exists():
             return _err(f"路径不存在: {arguments.get('path', '.')}")
         entries = []
