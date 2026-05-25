@@ -66,6 +66,7 @@ def _session_manager(request: Request):
 
 
 def _sse(event: str, data: dict) -> str:
+    data["type"] = event
     return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
 
 
