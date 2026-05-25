@@ -366,12 +366,12 @@ class KanbanStore:
         else:
             board_id = board["id"]
         todo = self.conn.execute(
-            "SELECT id FROM kanban_lists WHERE board_id = ? AND name = 'To Do' LIMIT 1",
+            "SELECT id FROM kanban_lists WHERE board_id = ? AND name = '执行中' LIMIT 1",
             (board_id,),
         ).fetchone()
         if todo:
             return todo["id"]
-        return self.create_list(board_id, "To Do").id
+        return self.create_list(board_id, "执行中").id
 
     def _row_to_card(self, row: dict) -> KanbanCard:
         """Convert a SQLite row dict to a KanbanCard."""
@@ -400,6 +400,48 @@ class KanbanStore:
             (board_id, status),
         ).fetchall()
         return [dict(r) for r in rows]
+
+
+    def seed_demo_board(self, workshop_name: str = "示例项目") -> KanbanBoard:
+        """Create a demo board with sample cards in all 4 columns.
+        
+        Called on first launch so users see a populated board immediately.
+        Idempotent — does nothing if the workshop already has a board.
+        """
+        existing = self.conn.execute(
+            "SELECT id FROM kanban_boards WHERE workshop_name = ? LIMIT 1",
+            (workshop_name,),
+        ).fetchone()
+        if existing:
+            return KanbanBoard(id=existing["id"], name=workshop_name)
+
+        board = self.create_board(workshop_name, workshop_name, "示例看板 — Agent 执行自动生成卡片")
+        
+        cols = {}
+        for name in ["执行中", "已完成", "需关注", "已暂停"]:
+            cols[name] = self.create_list(board.id, name).id
+
+        # Sample cards
+        samples = [
+            ("执行中", "🤖 竞品分析报告", "agent: 分析员 · 正在执行...", "in_progress", "分析员"),
+            ("已完成", "🤖 每日新闻摘要", "Gemma 3 发布；OpenAI 收购...", "done", "信息员"),
+            ("已完成", "🤖 代码审查：PR #42", "通过 · 2 个建议已自动修复", "done", "审查员"),
+            ("需关注", "🤖 服务健康检查", "连接超时：api.example.com 不可达", "blocked", "监控员"),
+            ("已暂停", "⏸ 股票价格监控", "用户手动暂停 · 下次运行：未安排", "paused", "监控员"),
+        ]
+
+        import json
+        for col_name, title, desc, status, agent in samples:
+            self.conn.execute(
+                "INSERT INTO kanban_cards (id, list_id, title, description, position, labels_json, "
+                "assignee, due_date, task_status, source_agent, source_task_id, created_at, updated_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (_short_id(), cols[col_name], title, desc, 0,
+                 json.dumps(["demo"]), "", None, status, agent, _short_id(), _utc_now(), _utc_now()),
+            )
+        self.commit()
+        logger.info("Demo kanban seeded for workshop: %s", workshop_name)
+        return board
 
     def get_board_full(self, board_id: str) -> dict:
         """Return the full board with all lists and cards (like 4gaBoards GET /api/boards/:id)."""

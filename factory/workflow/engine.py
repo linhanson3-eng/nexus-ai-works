@@ -201,6 +201,11 @@ class WorkflowRunner:
 
     async def _execute_node_impl(self, node_id: str, task: str) -> NodeResult:
         node = self._node_map[node_id]
+        node_type = getattr(node, 'node_type', 'agent') or 'agent'
+
+        # Condition node: agent evaluates condition, output used for routing
+        # Transform node: agent runs code/transformation
+        # Both fall through to the same agent execution path for now
 
         # Mock for testing
         if node_id in self._mock_outputs:
@@ -342,7 +347,13 @@ class WorkflowRunner:
         )
 
     def _build_prompt(self, node: WorkflowNode, task: str) -> str:
-        parts: list[str] = [f"任务：{task}"]
+        node_type = getattr(node, 'node_type', 'agent') or 'agent'
+        if node_type == 'condition':
+            parts: list[str] = [f"判断以下条件是否成立，只回答「通过」或「不通过」：\n{node.prompt}"]
+        elif node_type == 'transform':
+            parts: list[str] = [f"执行以下代码或数据转换：\n{node.prompt}"]
+        else:
+            parts: list[str] = [f"任务：{task}"]
         if node.depends_on:
             parts.append("\n## 上游阶段产出\n")
             for dep_id in node.depends_on:

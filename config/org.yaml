@@ -4,13 +4,13 @@ channels:
 departments:
 - name: a
   type: custom
-  workspace: /private/var/folders/rv/rmtc746518x2q067_1h5bzq80000gn/T/pytest-of-linhan/pytest-49/test_list_all3/a
+  workspace: /private/var/folders/rv/rmtc746518x2q067_1h5bzq80000gn/T/pytest-of-linhan/pytest-60/test_list_all3/a
   agents: []
   workflow:
     name: default
 - name: b
   type: custom
-  workspace: /private/var/folders/rv/rmtc746518x2q067_1h5bzq80000gn/T/pytest-of-linhan/pytest-49/test_list_all3/b
+  workspace: /private/var/folders/rv/rmtc746518x2q067_1h5bzq80000gn/T/pytest-of-linhan/pytest-60/test_list_all3/b
   agents: []
   workflow:
     name: default

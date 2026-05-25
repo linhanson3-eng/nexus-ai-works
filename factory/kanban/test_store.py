@@ -29,7 +29,7 @@ def _create_default_board(store):
     return store.create_board("Test Board", "test-workshop", "A test board")
 
 
-def _create_default_list(store, board_id, name="To Do"):
+def _create_default_list(store, board_id, name="执行中"):
     return store.create_list(board_id, name)
 
 
@@ -313,7 +313,7 @@ class TestKanbanSync:
         lists = sync_store.get_lists(board_id)
         assert len(lists) == 4
         list_names = {l["name"] for l in lists}
-        assert list_names == {"To Do", "In Progress", "Done", "Blocked"}
+        assert list_names == {"执行中", "已完成", "需关注", "已暂停"}
 
     def test_ensure_board_returns_existing(self, sync_store):
         existing = sync_store.create_board("workshop-a", "workshop-a")
@@ -345,7 +345,7 @@ class TestKanbanSync:
     async def test_on_task_event_updates_card(self, sync_store):
         sync = KanbanSync(sync_store, "workshop-a")
         await sync.ensure_board()
-        list_id = await sync._ensure_list("To Do")
+        list_id = await sync._ensure_list("执行中")
         sync_store.create_card(
             list_id, "Old", source_agent="builder", source_task_id="task-1",
         )
@@ -361,10 +361,10 @@ class TestKanbanSync:
     async def test_on_task_event_maps_status(self, sync_store):
         sync = KanbanSync(sync_store, "workshop-a")
         cases = [
-            ("task_started", "To Do"),
-            ("task_progress", "In Progress"),
-            ("task_completed", "Done"),
-            ("task_failed", "Blocked"),
+            ("task_started", "执行中"),
+            ("task_progress", "执行中"),
+            ("task_completed", "已完成"),
+            ("task_failed", "需关注"),
         ]
         for event_type, expected_list in cases:
             event = TaskEvent(
@@ -389,7 +389,7 @@ class TestKanbanSync:
         assert card is not None
         fetched = sync_store.get_card(card.id)
         list_row = sync_store.get_list(fetched["list_id"])
-        assert list_row["name"] == "To Do"
+        assert list_row["name"] == "执行中"
 
     @pytest.mark.asyncio
     async def test_listener_notification(self, sync_store):

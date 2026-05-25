@@ -36,6 +36,14 @@ export interface KanbanCard {
   task_status: "todo" | "in_progress" | "done" | "blocked";
   source_agent: string;
   source_task_id: string;
+  /** Parsed execution metadata from description */
+  output_summary?: string;
+  turns?: number;
+  cost_usd?: number;
+  tools_used?: string[];
+  model?: string;
+  /** Whether this is an agent-generated card (has source_agent) */
+  is_agent: boolean;
 }
 
 export interface WorkflowTemplate {
@@ -48,11 +56,16 @@ export interface WorkflowTemplate {
 export interface WorkflowNode {
   id: string;
   label: string;
+  node_type: "agent" | "condition" | "transform";
   agent_name: string;
   prompt: string;
   depends_on: string[];
   expected_output: string;
   gate?: { type: string };
+  timeout_seconds: number;
+  notes: string;
+  retry_on_fail: boolean;
+  continue_on_fail: boolean;
 }
 
 export interface WorkflowInfo {

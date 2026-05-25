@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { Clock, Plus, Play, Pause, RotateCcw, ChevronDown, ChevronUp, Search, X, Check, ArrowLeft } from "lucide-react";
+import confetti from "canvas-confetti";
 import {
   listSchedules, createSchedule, updateSchedule, deleteSchedule,
   toggleSchedule, runScheduleNow, resumeSchedule,
@@ -108,7 +109,9 @@ export function ScheduledTasks() {
         await updateSchedule(editingTask.id, body);
       } else {
         const created = await createSchedule(body as Parameters<typeof createSchedule>[0]);
-        // Offer try-now for new tasks
+        confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
+        setTimeout(() => confetti({ particleCount: 50, spread: 90, origin: { y: 0.5 } }), 500);
+        setTimeout(() => confetti({ particleCount: 40, spread: 100, origin: { y: 0.7 } }), 1000);
         setEditingTask(created);
       }
       await load();

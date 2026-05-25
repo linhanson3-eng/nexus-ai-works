@@ -223,6 +223,12 @@ def create_app(org: "OrgEngine", kanban_store: "KanbanStore") -> FastAPI:
     app.state.org = org
     app.state.kanban_store = kanban_store
     app.state.ws_manager = ws_manager
+
+    # Seed demo kanban on first launch (idempotent)
+    try:
+        kanban_store.seed_demo_board()
+    except Exception:
+        pass  # non-critical
     app.state.session_manager = session_manager
     app.state.settings_store = settings_store
     app.state.chain_store = chain_store

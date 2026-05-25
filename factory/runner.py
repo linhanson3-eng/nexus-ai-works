@@ -227,6 +227,7 @@ class NexusAgentRunner:
                 task_id=task_id,
                 event_type="task_started",
                 title=task[:200],
+                detail=task,
             ))
 
         # 1. Assemble context from memory
@@ -303,7 +304,12 @@ class NexusAgentRunner:
                 task_id=task_id,
                 event_type="task_completed" if not result.error else "task_failed",
                 title=task[:200],
-                detail=result.error or result.content[:200],
+                detail=result.error or result.content,
+                output_full=result.content if not result.error else "",
+                turns=result.turns,
+                cost_usd=result.cost_usd,
+                tools_used=result.tools_used,
+                model=getattr(result, 'model', ''),
             ))
 
         logger.info(

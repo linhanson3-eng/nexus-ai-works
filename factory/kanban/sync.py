@@ -16,6 +16,11 @@ class TaskEvent:
     title: str = ""
     detail: str = ""
     timestamp: str = ""
+    output_full: str = ""
+    turns: int = 0
+    cost_usd: float = 0.0
+    tools_used: list[str] | None = None
+    model: str = ""
 
 
 class KanbanSync:
@@ -26,21 +31,23 @@ class KanbanSync:
     """
 
     STATUS_TO_LIST: dict[str, str] = {
-        "todo": "To Do",
-        "task_started": "To Do",
-        "in_progress": "In Progress",
-        "task_progress": "In Progress",
-        "done": "Done",
-        "task_completed": "Done",
-        "blocked": "Blocked",
-        "task_failed": "Blocked",
+        "todo": "执行中",
+        "task_started": "执行中",
+        "in_progress": "执行中",
+        "task_progress": "执行中",
+        "done": "已完成",
+        "task_completed": "已完成",
+        "blocked": "需关注",
+        "task_failed": "需关注",
+        "paused": "已暂停",
+        "task_paused": "已暂停",
     }
 
     LIST_TO_STATUS: dict[str, str] = {
-        "To Do": "todo",
-        "In Progress": "in_progress",
-        "Done": "done",
-        "Blocked": "blocked",
+        "执行中": "in_progress",
+        "已完成": "done",
+        "需关注": "blocked",
+        "已暂停": "paused",
     }
 
     def __init__(
@@ -66,7 +73,7 @@ class KanbanSync:
         )
         self.board_id = board_obj.id
         # Create default lists
-        for list_name in ["To Do", "In Progress", "Done", "Blocked"]:
+        for list_name in ["执行中", "已完成", "需关注", "已暂停"]:
             lst = self.store.create_list(self.board_id, list_name)
             self._list_ids[list_name] = lst.id
         return self.board_id
@@ -87,13 +94,34 @@ class KanbanSync:
     async def on_task_event(self, event: TaskEvent) -> KanbanCard | None:
         """Main entry point. Creates or updates a kanban card from a task event."""
         await self.ensure_board()
-        list_name = self.STATUS_TO_LIST.get(event.event_type, "To Do")
+        list_name = self.STATUS_TO_LIST.get(event.event_type, "执行中")
         status = self.LIST_TO_STATUS.get(list_name, "todo")
         list_id = await self._ensure_list(list_name)
+
+        # Build description from execution metadata
+        import json
+        desc_parts = []
+        if event.output_full:
+            desc_parts.append(event.output_full)
+        elif event.detail:
+            desc_parts.append(event.detail)
+        if event.turns or event.cost_usd or event.tools_used:
+            meta = {
+                "turns": event.turns,
+                "cost_usd": event.cost_usd,
+                "tools_used": event.tools_used or [],
+                "model": event.model,
+            }
+            desc_parts.append("__META__" + json.dumps(meta, ensure_ascii=False))
+        description = "\n".join(desc_parts) if desc_parts else ""
+
         card = self.store.upsert_card_from_task(
             agent_name=event.agent_name, task_id=event.task_id,
             title=event.title[:200], status=status, list_id=list_id,
         )
+        # Update description with full output + metadata
+        if description:
+            self.store.update_card(card.id, description=description)
         await self._notify(event)
         return card
 
