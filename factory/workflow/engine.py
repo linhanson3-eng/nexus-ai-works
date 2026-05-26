@@ -395,7 +395,7 @@ class WorkflowRunner:
 
         # Simple heuristic: if output contains failure signals, retry upstream
         output_lower = result.output.lower()
-        fail_signals = ["不通过", "fail", "需要修改", "reject", "问题", "error"]
+        fail_signals = ["不通过", "fail", "需要修改", "reject"]
         if any(s in output_lower for s in fail_signals):
             target_id = node.depends_on[-1] if node.depends_on else node.id
             try:

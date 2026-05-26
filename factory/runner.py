@@ -196,9 +196,13 @@ class NexusAgentRunner:
 
         cache_key = (workspace_path, model)
         if cache_key not in _ENGINE_CACHE:
+            max_turns = getattr(self.spec, "budget", None)
+            max_turns = getattr(max_turns, "max_session_turns", None) if max_turns else None
+            if not max_turns:
+                max_turns = 30
             engine_config = EngineConfig(
                 cwd=Path(workspace_path).expanduser().resolve(),
-                max_turns=30,
+                max_turns=max_turns,
                 allow_file_write=allow_write,
                 allow_shell_commands=allow_shell,
                 system_prompt="你是Nexus全能助手，简短直接回答问题。",
