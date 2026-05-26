@@ -558,4 +558,266 @@ class TestMarketResearch:
         assert loaded.max_total_seconds == 3600
 
 
+class TestCodeAudit:
+    """代码审计 — auditor → fix → confirm(gate) 闭环."""
+
+    @staticmethod
+    def _load_template():
+        import yaml
+        path = Path(__file__).resolve().parent.parent.parent / "config" / "workflows" / "code-audit.yaml"
+        data = yaml.safe_load(path.read_text("utf-8"))
+        return WorkflowTemplate.from_dict(data)
+
+    def test_load_and_structure(self):
+        """3 nodes: auditor + fix + confirm."""
+        tmpl = self._load_template()
+        assert tmpl.name == "code-audit"
+        assert len(tmpl.nodes) == 3
+        assert tmpl.max_total_seconds == 1800
+
+    def test_linear_dag(self):
+        """auditor → fix → confirm."""
+        tmpl = self._load_template()
+        auditor = next(n for n in tmpl.nodes if n.id == "auditor")
+        assert auditor.depends_on == []
+        fix = next(n for n in tmpl.nodes if n.id == "fix")
+        assert fix.depends_on == ["auditor"]
+        confirm = next(n for n in tmpl.nodes if n.id == "confirm")
+        assert confirm.depends_on == ["fix"]
+
+    def test_gate_on_confirm(self):
+        """confirm has gate: review."""
+        tmpl = self._load_template()
+        confirm = next(n for n in tmpl.nodes if n.id == "confirm")
+        assert confirm.gate == {"type": "review"}
+
+    def test_audit_dimensions_in_prompt(self):
+        """Auditor prompt covers all 4 dimensions."""
+        tmpl = self._load_template()
+        auditor = next(n for n in tmpl.nodes if n.id == "auditor")
+        prompt = auditor.prompt or ""
+        for dim in ("安全", "静默失败", "性能陷阱", "合规"):
+            assert dim in prompt, f"Missing dimension: {dim}"
+
+    def test_mock_execution(self, workshop, tmp_path, monkeypatch):
+        """Full pipeline with mock outputs."""
+        monkeypatch.setenv("SNAPSHOT_DIR", str(tmp_path / "runs"))
+        tmpl = self._load_template()
+        mock = {
+            nid: {"status": "passed", "output": f"Mock output from {nid}"}
+            for nid in ("auditor", "fix", "confirm")
+        }
+        runner = WorkflowRunner(workshop, mock_outputs=mock)
+        import asyncio
+        result = asyncio.run(runner.run(tmpl, "审计 src/auth.py"))
+        assert result.status == NodeStatus.PASSED
+        assert len(result.node_results) == 3
+
+    def test_roundtrip(self, tmp_path):
+        """Save → load roundtrip."""
+        tmpl = self._load_template()
+        store = WorkflowStore(tmp_path / "workflows")
+        store.save(tmpl)
+        loaded = store.load("code-audit")
+        assert loaded is not None
+        assert len(loaded.nodes) == 3
+        assert loaded.max_total_seconds == 1800
+
+
+class TestIntegrationTest:
+    """并行集成测试 — api_tester + e2e_tester 并行 → aggregator → fix → re_test(gate)."""
+
+    @staticmethod
+    def _load_template():
+        import yaml
+        path = Path(__file__).resolve().parent.parent.parent / "config" / "workflows" / "integration-test.yaml"
+        data = yaml.safe_load(path.read_text("utf-8"))
+        return WorkflowTemplate.from_dict(data)
+
+    def test_load_and_structure(self):
+        """5 nodes: api_tester + e2e_tester + aggregator + fix + re_test."""
+        tmpl = self._load_template()
+        assert tmpl.name == "integration-test"
+        assert len(tmpl.nodes) == 5
+        assert tmpl.max_total_seconds == 2400
+
+    def test_parallel_testers(self):
+        """api_tester and e2e_tester have no deps → execute in parallel."""
+        tmpl = self._load_template()
+        for tid in ("api_tester", "e2e_tester"):
+            node = next(n for n in tmpl.nodes if n.id == tid)
+            assert node.depends_on == []
+
+    def test_aggregator_depends_on_both(self):
+        """aggregator waits for api_tester and e2e_tester."""
+        tmpl = self._load_template()
+        agg = next(n for n in tmpl.nodes if n.id == "aggregator")
+        assert set(agg.depends_on) == {"api_tester", "e2e_tester"}
+
+    def test_gate_on_re_test(self):
+        """re_test has gate: review — if fails, retries fix."""
+        tmpl = self._load_template()
+        re_test = next(n for n in tmpl.nodes if n.id == "re_test")
+        assert re_test.gate == {"type": "review"}
+
+    def test_dag_order(self):
+        """Verify DAG: testers(parallel) → aggregator → fix → re_test."""
+        tmpl = self._load_template()
+        runner = WorkflowRunner.__new__(WorkflowRunner)
+        runner._node_map = {n.id: n for n in tmpl.nodes}
+        order = runner._resolve_order(tmpl.nodes)
+        agg_idx = order.index("aggregator")
+        assert order.index("api_tester") < agg_idx
+        assert order.index("e2e_tester") < agg_idx
+        assert order.index("aggregator") < order.index("fix") < order.index("re_test")
+
+    def test_mock_execution(self, workshop, tmp_path, monkeypatch):
+        """Full pipeline with mock outputs."""
+        monkeypatch.setenv("SNAPSHOT_DIR", str(tmp_path / "runs"))
+        tmpl = self._load_template()
+        mock = {
+            nid: {"status": "passed", "output": f"Mock from {nid}"}
+            for nid in ("api_tester", "e2e_tester", "aggregator", "fix", "re_test")
+        }
+        runner = WorkflowRunner(workshop, mock_outputs=mock)
+        import asyncio
+        result = asyncio.run(runner.run(tmpl, "测试 src/app.py"))
+        assert result.status == NodeStatus.PASSED
+        assert len(result.node_results) == 5
+
+    def test_roundtrip(self, tmp_path):
+        """Save → load roundtrip."""
+        tmpl = self._load_template()
+        store = WorkflowStore(tmp_path / "workflows")
+        store.save(tmpl)
+        loaded = store.load("integration-test")
+        assert loaded is not None
+        assert len(loaded.nodes) == 5
+        assert loaded.max_total_seconds == 2400
+
+
+class TestPackagePipeline:
+    """封装交付 — builder → smoke_test(gate) → fix → confirm(gate)."""
+
+    @staticmethod
+    def _load_template():
+        import yaml
+        path = Path(__file__).resolve().parent.parent.parent / "config" / "workflows" / "package-pipeline.yaml"
+        data = yaml.safe_load(path.read_text("utf-8"))
+        return WorkflowTemplate.from_dict(data)
+
+    def test_load_and_structure(self):
+        """4 nodes: builder + smoke_test + fix + confirm."""
+        tmpl = self._load_template()
+        assert tmpl.name == "package-pipeline"
+        assert len(tmpl.nodes) == 4
+        assert tmpl.max_total_seconds == 1800
+
+    def test_builder_is_entry(self):
+        """builder has no dependencies — entry point."""
+        tmpl = self._load_template()
+        builder = next(n for n in tmpl.nodes if n.id == "builder")
+        assert builder.depends_on == []
+
+    def test_smoke_test_has_gate(self):
+        """smoke_test has gate: review — build issues retry builder."""
+        tmpl = self._load_template()
+        smoke = next(n for n in tmpl.nodes if n.id == "smoke_test")
+        assert smoke.gate == {"type": "review"}
+
+    def test_confirm_has_gate(self):
+        """confirm has gate: review."""
+        tmpl = self._load_template()
+        confirm = next(n for n in tmpl.nodes if n.id == "confirm")
+        assert confirm.gate == {"type": "review"}
+
+    def test_dag_order(self):
+        """Verify: builder → smoke_test → fix → confirm."""
+        tmpl = self._load_template()
+        runner = WorkflowRunner.__new__(WorkflowRunner)
+        runner._node_map = {n.id: n for n in tmpl.nodes}
+        order = runner._resolve_order(tmpl.nodes)
+        assert order.index("builder") < order.index("smoke_test") < order.index("fix") < order.index("confirm")
+
+    def test_mock_execution(self, workshop, tmp_path, monkeypatch):
+        """Full pipeline with mock outputs."""
+        monkeypatch.setenv("SNAPSHOT_DIR", str(tmp_path / "runs"))
+        tmpl = self._load_template()
+        mock = {
+            nid: {"status": "passed", "output": f"Mock from {nid}"}
+            for nid in ("builder", "smoke_test", "fix", "confirm")
+        }
+        runner = WorkflowRunner(workshop, mock_outputs=mock)
+        import asyncio
+        result = asyncio.run(runner.run(tmpl, "打包 my-app"))
+        assert result.status == NodeStatus.PASSED
+        assert len(result.node_results) == 4
+
+    def test_roundtrip(self, tmp_path):
+        """Save → load roundtrip."""
+        tmpl = self._load_template()
+        store = WorkflowStore(tmp_path / "workflows")
+        store.save(tmpl)
+        loaded = store.load("package-pipeline")
+        assert loaded is not None
+        assert len(loaded.nodes) == 4
+        assert loaded.max_total_seconds == 1800
+
+
+class TestNexusPackage:
+    """Nexus 封装发布 — packager → verify_install(gate) → fix → confirm(gate)."""
+
+    @staticmethod
+    def _load_template():
+        import yaml
+        path = Path(__file__).resolve().parent.parent.parent / "config" / "workflows" / "nexus-package.yaml"
+        data = yaml.safe_load(path.read_text("utf-8"))
+        return WorkflowTemplate.from_dict(data)
+
+    def test_load_and_structure(self):
+        """4 nodes: packager + verify_install + fix + confirm."""
+        tmpl = self._load_template()
+        assert tmpl.name == "nexus-package"
+        assert len(tmpl.nodes) == 4
+        assert tmpl.max_total_seconds == 1800
+
+    def test_dag_order(self):
+        """Verify: packager → verify_install → fix → confirm."""
+        tmpl = self._load_template()
+        runner = WorkflowRunner.__new__(WorkflowRunner)
+        runner._node_map = {n.id: n for n in tmpl.nodes}
+        order = runner._resolve_order(tmpl.nodes)
+        assert order.index("packager") < order.index("verify_install") < order.index("fix") < order.index("confirm")
+
+    def test_both_gates(self):
+        """verify_install and confirm both have gate: review."""
+        tmpl = self._load_template()
+        for nid in ("verify_install", "confirm"):
+            node = next(n for n in tmpl.nodes if n.id == nid)
+            assert node.gate == {"type": "review"}
+
+    def test_mock_execution(self, workshop, tmp_path, monkeypatch):
+        """Full pipeline with mock outputs."""
+        monkeypatch.setenv("SNAPSHOT_DIR", str(tmp_path / "runs"))
+        tmpl = self._load_template()
+        mock = {
+            nid: {"status": "passed", "output": f"Mock from {nid}"}
+            for nid in ("packager", "verify_install", "fix", "confirm")
+        }
+        runner = WorkflowRunner(workshop, mock_outputs=mock)
+        import asyncio
+        result = asyncio.run(runner.run(tmpl, "封装 demo 工作区"))
+        assert result.status == NodeStatus.PASSED
+
+    def test_roundtrip(self, tmp_path):
+        """Save → load roundtrip."""
+        tmpl = self._load_template()
+        store = WorkflowStore(tmp_path / "workflows")
+        store.save(tmpl)
+        loaded = store.load("nexus-package")
+        assert loaded is not None
+        assert len(loaded.nodes) == 4
+        assert loaded.max_total_seconds == 1800
+
+
 from pathlib import Path

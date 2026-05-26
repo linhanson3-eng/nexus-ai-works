@@ -1,0 +1,111 @@
+name: nexus-package
+description: Nexus 封装发布 — 导出 .nexus 标准包 → 安装验证 → 修复 → 确认。产出可直接上传方案市场、一键安装的标准格式制品。
+workspace: demo
+
+nodes:
+  - id: packager
+    label: 导出 Nexus 包
+    agent_name: demo
+    prompt: |
+      你是 Nexus 封装工程师。将当前工作区的所有产出封装为标准的 .nexus 包。
+
+      ## 工作流程
+      1. 检查工作区文件完整性：代码、文档、测试、配置是否齐全
+      2. 整理目录结构，确保符合 Nexus 包规范：
+         - nexus.yaml（清单：名称、版本、描述、入口）
+         - agents/*.yaml（Agent 配置）
+         - workflows/*.yaml（工作流模板）
+         - GUIDE.md（使用说明）
+         - tools/（自定义工具）
+      3. 生成版本号和 changelog
+      4. 如果有 chain.yaml（跨工作区编排），一并打包
+      5. 检查敏感信息：确保没有 API key、token、密码残留在包里
+
+      ## 输出
+      ### 包清单
+      - 包名和版本
+      - 包含的 Agent 列表
+      - 包含的工作流列表
+      - 包大小
+
+      ### 完整性检查
+      | 检查项 | 状态 | 备注 |
+      |--------|------|------|
+
+      ### 敏感信息检查
+      （扫描结果：是否有泄露风险）
+    expected_output: 包清单 + 完整性检查 + 敏感信息扫描报告
+    timeout_seconds: 600
+    depends_on: []
+
+  - id: verify_install
+    label: 安装验证
+    agent_name: demo
+    prompt: |
+      你是 Nexus 包验证员。模拟用户安装流程，验证包可以正常安装和使用。
+
+      ## 验证流程
+      1. 在临时工作区安装 .nexus 包
+      2. 验证 Agent 配置正确加载
+      3. 验证工作流模板可读取
+      4. 验证 GUIDE.md 内容完整可读
+      5. 如果有 chain，验证 chain 配置正确
+
+      ## 输出
+      | # | 验证项 | 结果 | 备注 |
+      |---|--------|------|------|
+
+      安装验证结论：
+      - 全部通过，安装后能直接使用：输出「通过」
+      - 有问题：输出「不通过：{问题列表}」
+    expected_output: 安装验证报告（通过/不通过 + 逐项验证结果）
+    gate:
+      type: review
+    depends_on:
+      - packager
+
+  - id: fix
+    label: 修复封装问题
+    agent_name: demo
+    prompt: |
+      根据验证报告修复封装问题。
+
+      ## 常见问题
+      - 文件路径不对 → 调整目录结构
+      - 缺少必需文件 → 补充
+      - 版本号冲突 → 更新版本
+      - 敏感信息残留 → 清理
+
+      每修复一条输出：「问题 N [已修复]：{说明}」
+    expected_output: 逐条修复状态 + 修改说明
+    timeout_seconds: 600
+    depends_on:
+      - verify_install
+
+  - id: confirm
+    label: 确认可发布
+    agent_name: demo
+    prompt: |
+      重新验证包的完整性和可安装性，确认达到方案市场发布标准。
+
+      ## 发布标准
+      1. 包结构完整，无缺失文件
+      2. 安装后立即可用，无需额外配置
+      3. 无敏感信息残留
+      4. GUIDE.md 包含清晰的安装和使用说明
+      5. 版本号格式正确（语义化版本）
+
+      ## 输出
+      | # | 标准 | 结果 | 备注 |
+      |---|------|------|------|
+
+      发布结论：
+      - 全部达标：输出「通过 — 可上传方案市场」
+      - 有问题：输出「不通过：{未达标项}」
+    expected_output: 发布确认（通过/不通过 + 逐条验证）
+    gate:
+      type: review
+    depends_on:
+      - fix
+
+max_total_seconds: 1800
