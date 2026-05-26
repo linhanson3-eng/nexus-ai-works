@@ -5,7 +5,7 @@ from __future__ import annotations
 WorkflowNode → WorkflowTemplate → WorkflowRunner (parallel DAG) → WorkflowStore (persistence).
 """
 
-from factory.workflow.models import WorkflowNode, WorkflowTemplate, NodeStatus, GateType
+from factory.workflow.models import WorkflowNode, WorkflowTemplate, NodeStatus, GateType, ChainStep, ChainTemplate
 from factory.workflow.engine import WorkflowRunner, NodeResult, WorkflowResult
 from factory.workflow.store import WorkflowStore
 
@@ -18,4 +18,6 @@ __all__ = [
     "WorkflowResult",
     "NodeStatus",
     "GateType",
+    "ChainStep",
+    "ChainTemplate",
 ]

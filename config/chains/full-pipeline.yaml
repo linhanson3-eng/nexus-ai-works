@@ -1,0 +1,111 @@
+name: full-pipeline
+description: 完整产线 — 从商机发现到用户验收的全链路编排。9 个步骤可自由增删、跳过、重排。
+steps:
+  - id: opportunity
+    template: opportunity-discovery
+    label: 商机发现
+    description: 输入商机方向 → 多路侦察 → 交叉验证 → 商机简报
+    input:
+      from: manual
+    approval: true
+    enabled: true
+    outputs:
+      - synthesizer
+
+  - id: market
+    template: market-research
+    label: 市场调研
+    description: 市场规模 + 竞品分析 + 需求图谱 + 风险评估
+    input:
+      from: upstream
+      step: opportunity
+    approval: true
+    enabled: true
+    outputs:
+      - publisher
+
+  - id: design
+    template: design-review-pipeline
+    label: 设计评审
+    description: 交互方案 + 信息架构 + 视觉方向 → 审核闭环
+    input:
+      from: upstream
+      step: market
+    approval: true
+    enabled: true
+    outputs:
+      - confirm
+
+  - id: code
+    template: code-review-pipeline
+    label: 代码审查
+    description: 编码 → Review → 修复 → 确认
+    input:
+      from: upstream
+      step: design
+    approval: false
+    enabled: true
+    outputs:
+      - confirm
+
+  - id: audit
+    template: code-audit
+    label: 代码审计
+    description: 安全/静默失败/性能/合规 四维审计 → 修复 → 确认
+    input:
+      from: upstream
+      step: code
+    approval: false
+    enabled: true
+    outputs:
+      - confirm
+
+  - id: test
+    template: integration-test
+    label: 集成测试
+    description: API + E2E 并行测试 → 汇总去重 → 修复 → 再测
+    input:
+      from: upstream
+      step: audit
+    approval: false
+    enabled: true
+    outputs:
+      - re_test
+
+  - id: package
+    template: package-pipeline
+    label: 构建打包
+    description: 安装依赖 + 构建 + 冒烟测试 → 修复 → 确认
+    input:
+      from: upstream
+      step: test
+    approval: false
+    enabled: true
+    outputs:
+      - builder
+
+  - id: nexus
+    template: nexus-package
+    label: Nexus 封装
+    description: 封装为 .nexus 标准包 → 安装验证 → 修复 → 确认
+    input:
+      from: upstream
+      step: package
+    approval: true
+    enabled: true
+    outputs:
+      - packager
+
+  - id: uat
+    template: user-acceptance-test
+    label: 用户验收测试
+    description: 盲测 + 经验测试 双线并行 → 去重 → 修复 → 确认
+    input:
+      from: upstream
+      step: nexus
+    approval: true
+    enabled: true
+    outputs:
+      - confirm
+
+max_total_seconds: 0

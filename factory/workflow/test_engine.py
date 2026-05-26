@@ -11,6 +11,8 @@ from factory.workflow import (
     WorkflowRunner,
     WorkflowStore,
     NodeStatus,
+    ChainStep,
+    ChainTemplate,
 )
 
 
@@ -818,6 +820,356 @@ class TestNexusPackage:
         assert loaded is not None
         assert len(loaded.nodes) == 4
         assert loaded.max_total_seconds == 1800
+
+
+class TestUserAcceptanceTest:
+    """用户验收测试 — verify_a + verify_b 并行 → aggregator → fix → confirm(gate)."""
+
+    @staticmethod
+    def _load_template():
+        import yaml
+        path = Path(__file__).resolve().parent.parent.parent / "config" / "workflows" / "user-acceptance-test.yaml"
+        data = yaml.safe_load(path.read_text("utf-8"))
+        return WorkflowTemplate.from_dict(data)
+
+    def test_load_and_structure(self):
+        """5 nodes: verify_a + verify_b + aggregator + fix + confirm."""
+        tmpl = self._load_template()
+        assert tmpl.name == "user-acceptance-test"
+        assert len(tmpl.nodes) == 5
+        assert tmpl.max_total_seconds == 2400
+
+    def test_dag_order(self):
+        """Parallel scouts → aggregator → fix → confirm."""
+        tmpl = self._load_template()
+        runner = WorkflowRunner.__new__(WorkflowRunner)
+        runner._node_map = {n.id: n for n in tmpl.nodes}
+        order = runner._resolve_order(tmpl.nodes)
+
+        # verify_a and verify_b have no deps — they can run before aggregator
+        assert order.index("verify_a") < order.index("aggregator")
+        assert order.index("verify_b") < order.index("aggregator")
+        # aggregator → fix → confirm
+        assert order.index("aggregator") < order.index("fix") < order.index("confirm")
+
+    def test_parallel_scouts(self):
+        """verify_a and verify_b both depend on [] — parallel execution."""
+        tmpl = self._load_template()
+        for nid in ("verify_a", "verify_b"):
+            node = next(n for n in tmpl.nodes if n.id == nid)
+            assert node.depends_on == []
+
+    def test_only_confirm_has_gate(self):
+        """Only confirm node has gate: review."""
+        tmpl = self._load_template()
+        for node in tmpl.nodes:
+            if node.id == "confirm":
+                assert node.gate == {"type": "review"}
+            else:
+                assert node.gate is None
+
+    def test_mock_execution(self, workshop, tmp_path, monkeypatch):
+        """Full pipeline with mock outputs."""
+        monkeypatch.setenv("SNAPSHOT_DIR", str(tmp_path / "runs"))
+        tmpl = self._load_template()
+        mock = {
+            nid: {"status": "passed", "output": f"Mock from {nid}"}
+            for nid in ("verify_a", "verify_b", "aggregator", "fix", "confirm")
+        }
+        runner = WorkflowRunner(workshop, mock_outputs=mock)
+        import asyncio
+        result = asyncio.run(runner.run(tmpl, "验收测试 demo 输出"))
+        assert result.status == NodeStatus.PASSED
+
+    def test_roundtrip(self, tmp_path):
+        """Save → load roundtrip."""
+        tmpl = self._load_template()
+        store = WorkflowStore(tmp_path / "workflows")
+        store.save(tmpl)
+        loaded = store.load("user-acceptance-test")
+        assert loaded is not None
+        assert len(loaded.nodes) == 5
+        assert loaded.max_total_seconds == 2400
+
+
+class TestChain:
+    """Chain orchestration — sequential workflow steps with input/approval/outputs."""
+
+    @staticmethod
+    def _load_chain(name: str = "full-pipeline"):
+        import yaml
+        path = Path(__file__).resolve().parent.parent.parent / "config" / "chains" / f"{name}.yaml"
+        data = yaml.safe_load(path.read_text("utf-8"))
+        return ChainTemplate.from_dict(data)
+
+    # ── Model ─────────────────────────────────────────
+
+    def test_chain_step_roundtrip(self):
+        step = ChainStep(
+            id="s1", template="code-audit", label="审计", description="安全审计",
+            input={"from": "manual"}, approval=True, enabled=True,
+            outputs=["confirm"],
+        )
+        d = step.to_dict()
+        s2 = ChainStep.from_dict(d)
+        assert s2.id == "s1"
+        assert s2.template == "code-audit"
+        assert s2.input == {"from": "manual"}
+        assert s2.approval is True
+        assert s2.enabled is True
+        assert s2.outputs == ["confirm"]
+
+    def test_chain_step_defaults(self):
+        step = ChainStep(id="s1")
+        assert step.template == ""
+        assert step.input == {}
+        assert step.approval is False
+        assert step.enabled is True
+        assert step.outputs == []
+
+    def test_chain_template_roundtrip(self):
+        steps = [
+            ChainStep(id="a", template="code-audit"),
+            ChainStep(id="b", template="integration-test", input={"from": "upstream", "step": "a"}),
+        ]
+        chain = ChainTemplate(name="test-chain", description="desc", steps=steps, max_total_seconds=3600)
+        d = chain.to_dict()
+        c2 = ChainTemplate.from_dict(d)
+        assert c2.name == "test-chain"
+        assert len(c2.steps) == 2
+        assert c2.steps[1].input == {"from": "upstream", "step": "a"}
+        assert c2.max_total_seconds == 3600
+
+    # ── Full-pipeline ─────────────────────────────────
+
+    def test_full_pipeline_load(self):
+        chain = self._load_chain()
+        assert chain.name == "full-pipeline"
+        assert len(chain.steps) == 9
+
+    def test_full_pipeline_step_order(self):
+        chain = self._load_chain()
+        template_order = [s.template for s in chain.steps]
+        assert template_order == [
+            "opportunity-discovery", "market-research", "design-review-pipeline",
+            "code-review-pipeline", "code-audit", "integration-test",
+            "package-pipeline", "nexus-package", "user-acceptance-test",
+        ]
+
+    def test_manual_input_steps(self):
+        """First step is manual input; the rest are upstream."""
+        chain = self._load_chain()
+        assert chain.steps[0].input == {"from": "manual"}
+        for step in chain.steps[1:]:
+            assert step.input.get("from") == "upstream"
+
+    def test_approval_gates(self):
+        """Opportunity, market, design, nexus, UAT require approval. Others auto."""
+        chain = self._load_chain()
+        approval_steps = {"opportunity", "market", "design", "nexus", "uat"}
+        for step in chain.steps:
+            if step.id in approval_steps:
+                assert step.approval is True, f"{step.id} should require approval"
+            else:
+                assert step.approval is False, f"{step.id} should be auto"
+
+    def test_outputs_configured(self):
+        """Every step has at least one output node configured."""
+        chain = self._load_chain()
+        for step in chain.steps:
+            assert len(step.outputs) >= 1, f"{step.id} missing outputs"
+
+    def test_all_steps_enabled(self):
+        chain = self._load_chain()
+        for step in chain.steps:
+            assert step.enabled is True
+
+    def test_disabled_step_skipped_in_enabled_list(self):
+        """Steps with enabled=False are excluded from enabled_steps."""
+        steps = [
+            ChainStep(id="a", template="code-audit", enabled=True),
+            ChainStep(id="b", template="integration-test", enabled=False),
+            ChainStep(id="c", template="package-pipeline", enabled=True),
+        ]
+        chain = ChainTemplate(name="test", steps=steps)
+        enabled = [s for s in chain.steps if s.enabled]
+        assert len(enabled) == 2
+        assert enabled[0].id == "a"
+        assert enabled[1].id == "c"
+
+    # ── Chain Store ───────────────────────────────────
+
+    def test_chain_store_save_load(self, tmp_path):
+        from factory.workflow.chain import ChainStore
+        steps = [ChainStep(id="a", template="code-audit")]
+        chain = ChainTemplate(name="test-chain", description="test", steps=steps)
+        store = ChainStore(tmp_path / "chains")
+        store.save(chain)
+        loaded = store.load("test-chain")
+        assert loaded is not None
+        assert loaded.name == "test-chain"
+        assert len(loaded.steps) == 1
+
+    def test_chain_store_list(self, tmp_path):
+        from factory.workflow.chain import ChainStore
+        store = ChainStore(tmp_path / "chains")
+        store.save(ChainTemplate(name="c1", steps=[ChainStep(id="a")]))
+        store.save(ChainTemplate(name="c2", steps=[ChainStep(id="b")]))
+        items = store.list_all()
+        assert len(items) == 2
+
+    def test_chain_store_delete(self, tmp_path):
+        from factory.workflow.chain import ChainStore
+        store = ChainStore(tmp_path / "chains")
+        store.save(ChainTemplate(name="c1", steps=[ChainStep(id="a")]))
+        assert store.delete("c1") is True
+        assert store.load("c1") is None
+        assert store.delete("nonexistent") is False
+
+    def test_chain_store_load_missing(self, tmp_path):
+        from factory.workflow.chain import ChainStore
+        store = ChainStore(tmp_path / "chains")
+        assert store.load("nonexistent") is None
+
+    # ── Mock execution ────────────────────────────────
+
+    def test_mock_chain_execution(self, workshop, tmp_path, monkeypatch):
+        """Run a 2-step chain with mock workflow outputs."""
+        monkeypatch.setenv("SNAPSHOT_DIR", str(tmp_path / "runs"))
+        from factory.workflow.chain import ChainRunner, ChainCallbacks
+
+        steps = [
+            ChainStep(id="s1", template="code-audit", input={"from": "manual"}),
+            ChainStep(id="s2", template="integration-test", input={"from": "upstream", "step": "s1"}),
+        ]
+        chain = ChainTemplate(name="test-chain", steps=steps)
+
+        import asyncio
+
+        async def mock_run(self, tmpl, task):
+            from factory.workflow.engine import WorkflowResult as _WFR
+            return _WFR(
+                template_name=tmpl.name, task=task,
+                status=NodeStatus.PASSED,
+                final_output=f"Output from {tmpl.name}: {task[:50]}",
+            )
+
+        original_run = WorkflowRunner.run
+        WorkflowRunner.run = mock_run
+
+        try:
+            runner = ChainRunner(workshop)
+            result = asyncio.run(runner.run(chain, "测试任务"))
+            assert result.status == NodeStatus.PASSED
+            assert len(result.step_results) == 2
+            assert result.step_results["s1"].status == NodeStatus.PASSED
+            assert result.step_results["s2"].status == NodeStatus.PASSED
+        finally:
+            WorkflowRunner.run = original_run
+
+    def test_chain_step_manual_input_callback(self, workshop, tmp_path, monkeypatch):
+        """Manual input step invokes on_manual_input callback."""
+        monkeypatch.setenv("SNAPSHOT_DIR", str(tmp_path / "runs"))
+        from factory.workflow.chain import ChainRunner, ChainCallbacks
+
+        steps = [ChainStep(id="s1", template="code-audit", input={"from": "manual"})]
+        chain = ChainTemplate(name="test-chain", steps=steps)
+
+        import asyncio
+
+        async def mock_run(self, tmpl, task):
+            from factory.workflow.engine import WorkflowResult as _WFR
+            return _WFR(template_name=tmpl.name, task=task, status=NodeStatus.PASSED, final_output=f"did: {task}")
+
+        original_run = WorkflowRunner.run
+        WorkflowRunner.run = mock_run
+
+        captured_input = {}
+
+        async def on_manual_input(step):
+            captured_input["called"] = True
+            captured_input["step_id"] = step.id
+            return {"action": "continue", "input": "用户输入的内容"}
+
+        callbacks = ChainCallbacks(on_manual_input=on_manual_input)
+
+        try:
+            runner = ChainRunner(workshop, callbacks=callbacks)
+            result = asyncio.run(runner.run(chain, "fallback"))
+            assert result.status == NodeStatus.PASSED
+            assert captured_input.get("called") is True
+            assert captured_input.get("step_id") == "s1"
+            assert "用户输入的内容" in result.step_results["s1"].output
+        finally:
+            WorkflowRunner.run = original_run
+
+    def test_chain_approval_callback(self, workshop, tmp_path, monkeypatch):
+        """Approval steps invoke on_approval callback."""
+        monkeypatch.setenv("SNAPSHOT_DIR", str(tmp_path / "runs"))
+        from factory.workflow.chain import ChainRunner, ChainCallbacks
+
+        steps = [ChainStep(id="s1", template="code-audit", input={"from": "manual"}, approval=True)]
+        chain = ChainTemplate(name="test-chain", steps=steps)
+
+        import asyncio
+
+        async def mock_run(self, tmpl, task):
+            from factory.workflow.engine import WorkflowResult as _WFR
+            return _WFR(template_name=tmpl.name, task=task, status=NodeStatus.PASSED, final_output="raw output")
+
+        original_run = WorkflowRunner.run
+        WorkflowRunner.run = mock_run
+
+        captured = {}
+
+        async def on_approval(step, output):
+            captured["called"] = True
+            captured["output"] = output
+            return {"action": "agree"}
+
+        callbacks = ChainCallbacks(on_approval=on_approval)
+
+        try:
+            runner = ChainRunner(workshop, callbacks=callbacks)
+            result = asyncio.run(runner.run(chain, "test"))
+            assert result.status == NodeStatus.PASSED
+            assert captured.get("called") is True
+            assert captured.get("output") == "raw output"
+        finally:
+            WorkflowRunner.run = original_run
+
+    def test_chain_step_skip_via_callback(self, workshop, tmp_path, monkeypatch):
+        """Manual input callback can return action=skip."""
+        monkeypatch.setenv("SNAPSHOT_DIR", str(tmp_path / "runs"))
+        from factory.workflow.chain import ChainRunner, ChainCallbacks
+
+        steps = [ChainStep(id="s1", template="code-audit", input={"from": "manual"})]
+        chain = ChainTemplate(name="test-chain", steps=steps)
+
+        import asyncio
+
+        async def on_manual_input(step):
+            return {"action": "skip"}
+
+        callbacks = ChainCallbacks(on_manual_input=on_manual_input)
+
+        runner = ChainRunner(workshop, callbacks=callbacks)
+        result = asyncio.run(runner.run(chain, "test"))
+        assert result.step_results["s1"].status == NodeStatus.SKIPPED
+
+    def test_chain_template_not_found(self, workshop, tmp_path, monkeypatch):
+        """Missing template fails fast."""
+        monkeypatch.setenv("SNAPSHOT_DIR", str(tmp_path / "runs"))
+        from factory.workflow.chain import ChainRunner
+
+        steps = [ChainStep(id="s1", template="nonexistent-template", input={"from": "manual"})]
+        chain = ChainTemplate(name="test-chain", steps=steps)
+
+        import asyncio
+        runner = ChainRunner(workshop)
+        result = asyncio.run(runner.run(chain, "test"))
+        assert result.status == NodeStatus.FAILED
+        assert "not found" in result.final_output
 
 
 from pathlib import Path
