@@ -85,6 +85,7 @@ nodes:
   - id: confirm
     label: 确认可发布
     agent_name: demo
+    timeout_seconds: 600
     prompt: |
       重新验证包的完整性和可安装性，确认达到方案市场发布标准。
 

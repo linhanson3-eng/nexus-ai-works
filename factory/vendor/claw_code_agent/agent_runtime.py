@@ -1277,6 +1277,8 @@ class LocalCodingAgent:
             finish_reason=finish_reason,
             usage=usage,
         )
+        if assistant_index < 0 or assistant_index >= len(session.messages):
+            return AssistantTurn(content='', tool_calls=(), finish_reason='error'), ()
         if reasoning_content:
             msg = session.messages[assistant_index]
             session.messages[assistant_index] = replace(
