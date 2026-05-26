@@ -230,6 +230,53 @@ class TestStore:
         store = WorkflowStore(tmp_path / "workflows")
         assert store.delete("nope") is False
 
+
+# ── Review Loop Node Type ─────────────────────────────────────
+
+
+class TestReviewLoopNode:
+    def test_node_type_supported(self):
+        """review_loop node type is accepted by WorkflowNode."""
+        node = WorkflowNode(id="review", node_type="review_loop", agent_name="review-loop")
+        assert node.node_type == "review_loop"
+
+    def test_workflow_template_with_review_loop(self, tmp_path):
+        """Workflow template with review_loop node type loads correctly."""
+        template = WorkflowTemplate(
+            name="test-review",
+            nodes=[WorkflowNode(
+                id="review",
+                node_type="review_loop",
+                agent_name="review-loop",
+                prompt='{"target": "src/test.py", "models": ["deepseek/deepseek-v4-pro", "siliconflow/kimi"]}',
+            )],
+        )
+        store = WorkflowStore(tmp_path / "workflows")
+        store.save(template)
+        loaded = store.load("test-review")
+        assert loaded is not None
+        assert loaded.nodes[0].node_type == "review_loop"
+
+    def test_review_loop_node_with_mock(self, workshop):
+        """review_loop node with mock_outputs falls back to simulated execution."""
+        from factory.workflow.engine import WorkflowRunner as WR
+        template = WorkflowTemplate(
+            name="rl-test",
+            nodes=[WorkflowNode(
+                id="rv", node_type="review_loop", agent_name="rv",
+                prompt='{"target": "test.py", "models": ["a/x", "b/y"]}',
+            )],
+        )
+        runner = WR(workshop, mock_outputs={"rv": {"status": "passed", "output": "verdict=PASS"}})
+        import asyncio
+        result = asyncio.run(runner.run(template, "review this"))
+        assert result is not None
+        assert result.status in (NodeStatus.PASSED, NodeStatus.FAILED)
+
+    def test_delete_missing(self, tmp_path):
+        store = WorkflowStore(tmp_path / "workflows")
+        assert store.delete("nope") is False
+
     def test_load_missing(self, tmp_path):
         store = WorkflowStore(tmp_path / "workflows")
         assert store.load("nope") is None

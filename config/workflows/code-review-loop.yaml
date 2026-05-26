@@ -1,0 +1,12 @@
+name: code-review-loop
+description: 代码审查→自动修复→验证闭环。审查节点使用 review_loop 类型，并行多模型交叉审查。
+workspace: demo
+
+nodes:
+  - id: review-fix-verify
+    label: 审查修复验证
+    node_type: review_loop
+    agent_name: review-loop
+    prompt: |
+      {"target": "src/review_target.py", "models": ["deepseek/deepseek-v4-pro", "siliconflow/Pro/moonshotai/Kimi-K2.6"]}
+    expected_output: verdict + before/after comparison

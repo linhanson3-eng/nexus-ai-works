@@ -203,9 +203,8 @@ class WorkflowRunner:
         node = self._node_map[node_id]
         node_type = getattr(node, 'node_type', 'agent') or 'agent'
 
-        # Condition node: agent evaluates condition, output used for routing
-        # Transform node: agent runs code/transformation
-        # Both fall through to the same agent execution path for now
+        if node_type == 'review_loop':
+            return await self._execute_review_loop_node(node_id, node, task)
 
         # Mock for testing
         if node_id in self._mock_outputs:
@@ -270,6 +269,70 @@ class WorkflowRunner:
         # Unreachable — kept for type completeness
         await self._notify(node_id, "failed", "Max retries exceeded")
         return NodeResult(node_id=node_id, agent_name=agent_name, status=NodeStatus.FAILED, error="Max retries exceeded")
+
+    async def _execute_review_loop_node(self, node_id: str, node: WorkflowNode, task: str) -> NodeResult:
+        """Execute a review_loop node: cross-review → fix → verify."""
+        from gateway.mcp.tools import run_review_loop
+        from factory.engine.providers import ProviderRegistry
+        from factory.settings import SettingsStore
+
+        # Parse target and models from node config
+        target = task.strip()
+        model_strs: list[str] = []
+        if hasattr(node, 'prompt') and node.prompt:
+            import json as _json
+            try:
+                cfg = _json.loads(node.prompt) if node.prompt.strip().startswith('{') else {}
+                if isinstance(cfg, dict):
+                    target = cfg.get('target', target)
+                    model_strs = cfg.get('models', [])
+            except Exception:
+                pass
+
+        if not model_strs:
+            model_strs = ["deepseek/deepseek-v4-pro", "siliconflow/Pro/moonshotai/Kimi-K2.6"]
+
+        try:
+            store = SettingsStore()
+            registry = ProviderRegistry.from_store(store)
+
+            from gateway.mcp.tools import run_review_loop
+            result = await run_review_loop(
+                workspace_root=self.workshop.workspace,
+                target=target,
+                models=model_strs,
+                registry=registry,
+                agent_spec=self.workshop.spec.agents[0] if self.workshop.spec.agents else None,
+            )
+        except Exception as exc:
+            await self._notify(node_id, "failed", str(exc))
+            return NodeResult(
+                node_id=node_id, agent_name=node.agent_name or "review-loop",
+                status=NodeStatus.FAILED, error=str(exc),
+            )
+
+        if result.get("error"):
+            await self._notify(node_id, "failed", result["error"])
+            return NodeResult(
+                node_id=node_id, agent_name=node.agent_name or "review-loop",
+                status=NodeStatus.FAILED, error=result["error"],
+            )
+
+        verdict = result.get("verdict", "REVIEW")
+        comparison = result.get("comparison", {})
+        output_text = (
+            f"verdict={verdict} | "
+            f"before: consensus={comparison.get('before', {}).get('consensus', 0)} | "
+            f"after: consensus={comparison.get('after', {}).get('consensus', 0)} | "
+            f"fix_effective={comparison.get('fix_effective', False)}"
+        )
+
+        status = NodeStatus.PASSED if verdict != "NEEDS_FIX" else NodeStatus.FAILED
+        await self._notify(node_id, status.value, output_text)
+        return NodeResult(
+            node_id=node_id, agent_name=node.agent_name or "review-loop",
+            status=status, output=output_text,
+        )
 
     async def _run_simulated(self, node: WorkflowNode, task: str) -> NodeResult:
         content = f"[simulated] Node: {node.id}\nAgent: {node.agent_name}\nTask: {task}"

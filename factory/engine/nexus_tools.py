@@ -24,7 +24,8 @@ _PARAMS = {
             "mode": {"type": "string", "enum": ["continue", "fork", "spawn", "btw"], "default": "spawn"},
             "parent_session_id": {"type": "string", "description": "父会话ID (fork需要)"},
             "workshop": {"type": "string", "description": "工作区名称"},
-            "model": {"type": "string", "description": "模型名称(可选)"},
+            "model": {"type": "string", "description": "模型名称(可选，如 deepseek/deepseek-v4-pro)"},
+            "agent_name": {"type": "string", "description": "指定 Agent 名称(可选，默认第一个)"},
         },
         "required": ["task", "workshop"],
     },
@@ -45,6 +46,34 @@ _PARAMS = {
         "type": "object",
         "properties": {"workshop": {"type": "string"}},
         "required": [],
+    },
+    "nexus_cross_review": {
+        "type": "object",
+        "properties": {
+            "workshop": {"type": "string", "description": "工作区名称"},
+            "target": {"type": "string", "description": "要审查的文件路径"},
+            "models": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "审查模型列表(至少2个)",
+            },
+            "focus": {"type": "string", "description": "审查重点(可选)"},
+        },
+        "required": ["workshop", "target", "models"],
+    },
+    "nexus_review_loop": {
+        "type": "object",
+        "properties": {
+            "workshop": {"type": "string", "description": "工作区名称"},
+            "target": {"type": "string", "description": "要审查并修复的文件路径"},
+            "models": {
+                "type": "array", "items": {"type": "string"},
+                "description": "审查模型列表(至少2个)",
+            },
+            "fix_model": {"type": "string", "description": "执行修复的模型(默认用models[0])"},
+            "focus": {"type": "string", "description": "审查重点(可选)"},
+        },
+        "required": ["workshop", "target", "models"],
     },
     "nexus_read_board": {
         "type": "object",
@@ -146,6 +175,8 @@ def register_nexus_tools(
         _NEXUS_TOOLS_CACHE = {}
         tool_specs = [
             ("nexus_execute_task", "创建或继续Agent任务。mode: spawn(新任务)/fork(继承父上下文)/continue(继续)/btw(旁路)"),
+            ("nexus_cross_review", "并行启动多个不同模型独立审查代码，汇总对比结论(consensus+unique+conflicts)"),
+            ("nexus_review_loop", "审查→修复→验证闭环: 交叉审查→自动修复→再审查对比"),
             ("nexus_list_sessions", "列出所有session及fork/spawn关系"),
             ("nexus_stop_session", "停止指定session"),
             ("nexus_get_status", "获取工作区状态(agent数/看板/运行中任务)"),
