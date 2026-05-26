@@ -557,6 +557,7 @@ class WorkshopManager:
                                 "name": a.name,
                                 "mode": getattr(a, "mode", "super"),
                                 "model": a.model,
+                                "fallbacks": getattr(a, "fallbacks", []),
                                 "tools": a.tools if a.tools else [],
                                 "system_prompt": getattr(a, "system_prompt", ""),
                                 "guide_file": getattr(a, "guide_file", ""),

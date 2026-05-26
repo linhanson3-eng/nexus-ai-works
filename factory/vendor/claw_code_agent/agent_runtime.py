@@ -698,7 +698,69 @@ class LocalCodingAgent:
                             self.last_run_result = result
                             return result
                         # fall through to the normal tool-call branch below
-                # normal error path if not recovered
+                # Try fallback models before giving up
+                recovered = False
+                for fb_cfg in self.model_config.fallbacks:
+                    try:
+                        self.model_config = fb_cfg
+                        self.client = OpenAICompatClient(fb_cfg)
+                        turn, turn_events = self._query_model(session, tool_specs)
+                        recovered = True
+                        break
+                    except OpenAICompatError:
+                        continue
+                if recovered:
+                    stream_events.extend(event.to_dict() for event in turn_events)
+                    model_calls += 1
+                    total_usage = total_usage + turn.usage
+                    total_cost_usd = self.model_config.pricing.estimate_cost_usd(total_usage)
+                    last_content = turn.content
+
+                    budget_after_model = self._check_budget(
+                        total_usage, total_cost_usd,
+                        tool_calls=tool_calls, delegated_tasks=delegated_tasks,
+                        model_calls=model_calls,
+                        session_turns=starting_session_turns + turn_index,
+                    )
+                    if budget_after_model.exceeded:
+                        result = AgentRunResult(
+                            final_output=budget_after_model.reason or 'Budget exceeded after failover.',
+                            turns=turn_index, tool_calls=tool_calls,
+                            transcript=session.transcript(), events=tuple(stream_events),
+                            usage=total_usage, total_cost_usd=total_cost_usd,
+                            stop_reason='budget_exceeded', file_history=tuple(file_history),
+                            session_id=session_id,
+                            scratchpad_directory=str(scratchpad_directory) if scratchpad_directory is not None else None,
+                        )
+                        result = self._persist_session(session, result)
+                        self.last_run_result = result
+                        return result
+
+                    if not turn.tool_calls:
+                        assistant_response_segments.append(turn.content)
+                        if self._should_continue_response(turn):
+                            session.append_user(
+                                self._build_continuation_prompt(),
+                                metadata={'kind': 'continuation_request', 'continuation_index': len(assistant_response_segments)},
+                                message_id=f'continuation_{turn_index}',
+                            )
+                            stream_events.append({'type': 'continuation_request', 'turn_index': turn_index})
+                            continue  # next turn iteration
+                        result = AgentRunResult(
+                            final_output=''.join(assistant_response_segments),
+                            turns=turn_index, tool_calls=tool_calls,
+                            transcript=session.transcript(), events=tuple(stream_events),
+                            usage=total_usage, total_cost_usd=total_cost_usd,
+                            stop_reason=turn.finish_reason, file_history=tuple(file_history),
+                            session_id=session_id,
+                            scratchpad_directory=str(scratchpad_directory) if scratchpad_directory is not None else None,
+                        )
+                        result = self._persist_session(session, result)
+                        self.last_run_result = result
+                        return result
+                    # fall through to the normal tool-call branch below
+                    continue  # skip the error path below
+                # normal error path if all fallbacks exhausted
                 result = AgentRunResult(
                     final_output=str(exc),
                     turns=max(turn_index - 1, 0),

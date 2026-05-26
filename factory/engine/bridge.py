@@ -121,12 +121,16 @@ def create_model_config(
     timeout_seconds: float = 120.0,
     *,
     registry: Any = None,
+    fallbacks: list[str] | None = None,
 ) -> ModelConfig:
     """Create a ModelConfig from Nexus settings.
 
     If a ProviderRegistry is passed, the model string is resolved
     through it: ``"anthropic/claude-sonnet-4-6"`` → provider base_url
     and actual model name ``"claude-sonnet-4-6"``.
+
+    If *fallbacks* are provided, each is resolved through the registry
+    and stored in ModelConfig.fallbacks for automatic failover.
     """
     actual_model = model
     if registry is not None:
@@ -144,12 +148,35 @@ def create_model_config(
             f"Please add a provider in Settings > LLM Key."
         )
 
+    # Resolve fallback models
+    fallback_configs: list[ModelConfig] = []
+    for fb_model in (fallbacks or []):
+        fb_actual = fb_model
+        fb_url = ""
+        fb_key = ""
+        if registry is not None:
+            provider, resolved = registry.resolve(fb_model)
+            if provider is not None:
+                fb_actual = resolved
+                fb_url = provider.base_url or ""
+                fb_key = provider.api_key or ""
+        fb_url = _normalize_base_url(fb_url)
+        if fb_url:
+            fallback_configs.append(ModelConfig(
+                model=fb_actual,
+                base_url=fb_url,
+                api_key=fb_key,
+                temperature=temperature,
+                timeout_seconds=timeout_seconds,
+            ))
+
     return ModelConfig(
         model=actual_model,
         base_url=base_url,
         api_key=api_key,
         temperature=temperature,
         timeout_seconds=timeout_seconds,
+        fallbacks=tuple(fallback_configs),
     )
 
 

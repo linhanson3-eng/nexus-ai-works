@@ -105,6 +105,7 @@ class AgentSpec(BaseModel):
     role: str = ""  # references config/roles/<role>.yaml
     type: str = ""
     model: str = ""
+    fallbacks: list[str] = Field(default_factory=list)  # ordered fallback models: ["provider/model", ...]
     tools: list[str] = Field(default_factory=list)
     system_prompt: str = ""
     guide_file: str = ""  # path to agent guide/prompt file

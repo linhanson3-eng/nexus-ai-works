@@ -9,6 +9,9 @@ departments:
   - name: demo
     mode: super
     model: deepseek/deepseek-v4-pro
+    fallbacks:
+      - siliconflow/Qwen/Qwen3-235B-A22B
+      - siliconflow/deepseek-ai/DeepSeek-V3
     tools: []
     system_prompt: 你是一个 AI 助手。
     guide_file: ''

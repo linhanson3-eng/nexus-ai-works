@@ -48,7 +48,11 @@ def _is_transient_error(error: str | None) -> bool:
     if not error:
         return False
     error_lower = error.lower()
-    transient_keywords = ("429", "rate", "limit", "503", "timeout", "connection", "temporarily", "overloaded")
+    transient_keywords = (
+        "429", "rate", "limit", "503", "timeout", "connection", "temporarily", "overloaded",
+        "backend_error", "tool_failure", "internal_error", "server_error", "unavailable",
+        "capacity", "busy", "prompt_too_long",
+    )
     return any(k in error_lower for k in transient_keywords)
 
 
@@ -129,14 +133,16 @@ class WorkflowRunner:
             tasks = [self._execute_node(nid, task) for nid in batch]
             node_results = await asyncio.gather(*tasks)
 
+            # Store all batch results before checking for failures,
+            # so successful sibling nodes are preserved even if one failed.
             for nr in node_results:
-                # Preserve retries from previous attempt
                 prev = result.node_results.get(nr.node_id)
                 if prev and prev.retries > 0:
                     nr.retries = prev.retries
                 result.node_results[nr.node_id] = nr
                 completed.add(nr.node_id)
 
+            for nr in node_results:
                 if nr.status == NodeStatus.FAILED:
                     result.status = NodeStatus.FAILED
                     result.final_output = nr.error or f"Node '{nr.node_id}' failed"

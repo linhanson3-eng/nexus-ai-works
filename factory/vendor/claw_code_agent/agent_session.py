@@ -202,6 +202,8 @@ class AgentSessionState:
         return len(self.messages) - 1
 
     def append_assistant_delta(self, index: int, delta: str) -> None:
+        if index < 0 or index >= len(self.messages):
+            return
         message = self.messages[index]
         merged_metadata = _record_mutation(
             dict(message.metadata),
@@ -228,6 +230,8 @@ class AgentSessionState:
         tool_name: str | None = None,
         arguments_delta: str = '',
     ) -> None:
+        if index < 0 or index >= len(self.messages):
+            return
         message = self.messages[index]
         tool_calls = [dict(item) for item in message.tool_calls]
         while len(tool_calls) <= tool_call_index:
@@ -273,6 +277,8 @@ class AgentSessionState:
         finish_reason: str | None,
         usage: UsageStats | None = None,
     ) -> None:
+        if index < 0 or index >= len(self.messages):
+            return
         message = self.messages[index]
         merged_metadata = _record_mutation(
             dict(message.metadata),

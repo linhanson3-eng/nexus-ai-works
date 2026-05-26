@@ -187,9 +187,11 @@ class NexusAgentRunner:
         allow_shell = getattr(allow_shell, "exec", True) if allow_shell else True
 
         registry = ProviderRegistry.from_store(self._settings)
+        spec_fallbacks = getattr(self.spec, "fallbacks", None) or []
         model_config = create_model_config(
             model=model,
             registry=registry,
+            fallbacks=spec_fallbacks,
         )
 
         cache_key = (workspace_path, model)
@@ -627,7 +629,7 @@ def _classify_error(stop_reason: str, output: str) -> ErrorKind:
         return ErrorKind.TIMEOUT
     if any(k in reason_lower for k in ("401", "403", "unauthorized", "forbidden", "permission")):
         return ErrorKind.PERMISSION_DENIED
-    if any(k in reason_lower for k in ("api_error", "server_error", "500", "502", "503", "connect", "refused")):
+    if any(k in reason_lower for k in ("api_error", "server_error", "500", "502", "503", "connect", "refused", "backend_error")):
         return ErrorKind.API_ERROR
     return ErrorKind.UNKNOWN
 

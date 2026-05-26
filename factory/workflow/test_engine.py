@@ -387,3 +387,175 @@ class TestCodeNode:
         assert loaded.nodes[2].node_type == "code"
         assert loaded.nodes[1].gate == {"type": "review"}
         assert loaded.nodes[3].gate == {"type": "review"}
+
+
+class TestOpportunityDiscovery:
+    """商机发现 · 蜂群扫描 — 4 scout 并行 → 交叉验证 → 简报 → gate review 闭环."""
+
+    @staticmethod
+    def _load_template():
+        import yaml
+        path = Path(__file__).resolve().parent.parent.parent / "config" / "workflows" / "opportunity-discovery.yaml"
+        data = yaml.safe_load(path.read_text("utf-8"))
+        return WorkflowTemplate.from_dict(data)
+
+    def test_load_and_structure(self):
+        """9 nodes: 4 scouts + cross_validator + synthesizer + reviewer + fix + confirm."""
+        tmpl = self._load_template()
+        assert tmpl.name == "opportunity-discovery"
+        assert len(tmpl.nodes) == 9
+        assert tmpl.max_total_seconds == 2400
+
+    def test_parallel_scouts(self):
+        """4 scout nodes have no dependencies → execute in parallel batch."""
+        tmpl = self._load_template()
+        scouts = [n for n in tmpl.nodes if n.id in ("market_intel", "demand_intel", "policy_intel", "tech_intel")]
+        assert len(scouts) == 4
+        for s in scouts:
+            assert s.depends_on == []
+            assert s.agent_name == "demo"
+
+    def test_cross_validator_depends_on_all_scouts(self):
+        """cross_validator waits for all 4 scouts."""
+        tmpl = self._load_template()
+        cv = next(n for n in tmpl.nodes if n.id == "cross_validator")
+        assert set(cv.depends_on) == {"market_intel", "demand_intel", "policy_intel", "tech_intel"}
+
+    def test_gate_review_loop(self):
+        """reviewer and confirm have gate: review."""
+        tmpl = self._load_template()
+        reviewer = next(n for n in tmpl.nodes if n.id == "reviewer")
+        confirm = next(n for n in tmpl.nodes if n.id == "confirm")
+        assert reviewer.gate == {"type": "review"}
+        assert confirm.gate == {"type": "review"}
+
+    def test_dag_order(self):
+        """Verify linear order after scouts: cv → synthesizer → reviewer → fix → confirm."""
+        tmpl = self._load_template()
+        runner = WorkflowRunner.__new__(WorkflowRunner)
+        runner._node_map = {n.id: n for n in tmpl.nodes}
+        order = runner._resolve_order(tmpl.nodes)
+        # Scouts all come before cross_validator
+        cv_idx = order.index("cross_validator")
+        for sid in ("market_intel", "demand_intel", "policy_intel", "tech_intel"):
+            assert order.index(sid) < cv_idx
+        # After cross_validator: synthesizer → reviewer → fix → confirm
+        assert order.index("cross_validator") < order.index("synthesizer") < order.index("reviewer") < order.index("fix") < order.index("confirm")
+
+    def test_mock_execution(self, workshop, tmp_path, monkeypatch):
+        """Full pipeline with mock outputs completes successfully."""
+        monkeypatch.setenv("SNAPSHOT_DIR", str(tmp_path / "runs"))
+        tmpl = self._load_template()
+        mock = {
+            nid: {"status": "passed", "output": f"Mock output from {nid}"}
+            for nid in ("market_intel", "demand_intel", "policy_intel", "tech_intel",
+                         "cross_validator", "synthesizer", "reviewer", "fix", "confirm")
+        }
+        runner = WorkflowRunner(workshop, mock_outputs=mock)
+        import asyncio
+        result = asyncio.run(runner.run(tmpl, "社区团购 SaaS 工具市场"))
+        assert result.status == NodeStatus.PASSED
+        assert len(result.node_results) >= 9
+
+    def test_roundtrip(self, tmp_path):
+        """Save → load roundtrip via WorkflowStore."""
+        tmpl = self._load_template()
+        store = WorkflowStore(tmp_path / "workflows")
+        store.save(tmpl)
+        loaded = store.load("opportunity-discovery")
+        assert loaded is not None
+        assert len(loaded.nodes) == 9
+        assert loaded.max_total_seconds == 2400
+
+
+class TestMarketResearch:
+    """市场调研 · 深度研报 — Planner → 4 Researchers → Reviewer → Publisher → gate review 闭环."""
+
+    @staticmethod
+    def _load_template():
+        import yaml
+        path = Path(__file__).resolve().parent.parent.parent / "config" / "workflows" / "market-research.yaml"
+        data = yaml.safe_load(path.read_text("utf-8"))
+        return WorkflowTemplate.from_dict(data)
+
+    def test_load_and_structure(self):
+        """10 nodes: planner + 4 researchers + reviewer + publisher + qa_reviewer + fix + confirm."""
+        tmpl = self._load_template()
+        assert tmpl.name == "market-research"
+        assert len(tmpl.nodes) == 10
+        assert tmpl.max_total_seconds == 3600
+
+    def test_planner_is_entry_point(self):
+        """planner has no dependencies — entry point of the pipeline."""
+        tmpl = self._load_template()
+        planner = next(n for n in tmpl.nodes if n.id == "planner")
+        assert planner.depends_on == []
+
+    def test_researchers_depend_on_planner(self):
+        """4 researchers all depend on planner → parallel batch after planner."""
+        tmpl = self._load_template()
+        for rid in ("researcher_market", "researcher_competition", "researcher_demand", "researcher_risk"):
+            r = next(n for n in tmpl.nodes if n.id == rid)
+            assert r.depends_on == ["planner"]
+
+    def test_reviewer_depends_on_all_researchers(self):
+        """reviewer waits for all 4 researchers."""
+        tmpl = self._load_template()
+        reviewer = next(n for n in tmpl.nodes if n.id == "reviewer")
+        assert set(reviewer.depends_on) == {
+            "researcher_market", "researcher_competition", "researcher_demand", "researcher_risk",
+        }
+
+    def test_gate_review_at_qa(self):
+        """qa_reviewer and confirm have gate: review."""
+        tmpl = self._load_template()
+        qa = next(n for n in tmpl.nodes if n.id == "qa_reviewer")
+        confirm = next(n for n in tmpl.nodes if n.id == "confirm")
+        assert qa.gate == {"type": "review"}
+        assert confirm.gate == {"type": "review"}
+
+    def test_dag_order(self):
+        """Verify DAG: planner → researchers (parallel) → reviewer → publisher → qa → fix → confirm."""
+        tmpl = self._load_template()
+        runner = WorkflowRunner.__new__(WorkflowRunner)
+        runner._node_map = {n.id: n for n in tmpl.nodes}
+        order = runner._resolve_order(tmpl.nodes)
+        # planner before all researchers
+        p_idx = order.index("planner")
+        for rid in ("researcher_market", "researcher_competition", "researcher_demand", "researcher_risk"):
+            assert order.index(rid) > p_idx
+        # researchers before reviewer
+        rv_idx = order.index("reviewer")
+        for rid in ("researcher_market", "researcher_competition", "researcher_demand", "researcher_risk"):
+            assert order.index(rid) < rv_idx
+        # sequential tail: reviewer → publisher → qa_reviewer → fix → confirm
+        assert order.index("reviewer") < order.index("publisher") < order.index("qa_reviewer") < order.index("fix") < order.index("confirm")
+
+    def test_mock_execution(self, workshop, tmp_path, monkeypatch):
+        """Full pipeline with mock outputs completes successfully."""
+        monkeypatch.setenv("SNAPSHOT_DIR", str(tmp_path / "runs"))
+        tmpl = self._load_template()
+        mock = {
+            nid: {"status": "passed", "output": f"Mock output from {nid}"}
+            for nid in ("planner", "researcher_market", "researcher_competition",
+                         "researcher_demand", "researcher_risk", "reviewer",
+                         "publisher", "qa_reviewer", "fix", "confirm")
+        }
+        runner = WorkflowRunner(workshop, mock_outputs=mock)
+        import asyncio
+        result = asyncio.run(runner.run(tmpl, "社区团购 SaaS 工具市场"))
+        assert result.status == NodeStatus.PASSED
+        assert len(result.node_results) >= 9
+
+    def test_roundtrip(self, tmp_path):
+        """Save → load roundtrip via WorkflowStore."""
+        tmpl = self._load_template()
+        store = WorkflowStore(tmp_path / "workflows")
+        store.save(tmpl)
+        loaded = store.load("market-research")
+        assert loaded is not None
+        assert len(loaded.nodes) == 10
+        assert loaded.max_total_seconds == 3600
+
+
+from pathlib import Path
