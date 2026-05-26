@@ -372,6 +372,8 @@ class AgentSessionState:
         *,
         metadata: dict[str, Any] | None = None,
     ) -> None:
+        if index < 0 or index >= len(self.messages):
+            return
         message = self.messages[index]
         merged_metadata = dict(message.metadata)
         merged_metadata = _record_mutation(
@@ -400,6 +402,8 @@ class AgentSessionState:
         metadata: dict[str, Any] | None = None,
         stop_reason: str | None = None,
     ) -> None:
+        if index < 0 or index >= len(self.messages):
+            return
         message = self.messages[index]
         merged_metadata = dict(message.metadata)
         if message.content and message.content != content:
@@ -434,6 +438,8 @@ class AgentSessionState:
         metadata: dict[str, Any] | None = None,
         mutation_kind: str | None = None,
     ) -> None:
+        if index < 0 or index >= len(self.messages):
+            return
         message = self.messages[index]
         merged_metadata = dict(message.metadata)
         new_content = message.content if content is None else content
