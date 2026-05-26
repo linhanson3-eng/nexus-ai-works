@@ -71,9 +71,11 @@ class WorkflowRunner:
         on_status: StatusCallback | None = None,
         mock_outputs: dict[str, dict[str, str]] | None = None,
         run_id: str = "",
+        org: Any = None,
     ):
         self.workshop = workshop
         self.store = store
+        self._org = org
         self._on_status = on_status
         self._mock_outputs = mock_outputs or {}
         self._context: dict[str, str] = {}
@@ -231,6 +233,8 @@ class WorkflowRunner:
                 return await self._run_with_agent(node_id, node.agent_name, agent, prompt)
             return await self._run_simulated(node, task)
         except Exception as exc:
+            import traceback as _tb
+            logger.error("Node %s failed:\n%s", node_id, _tb.format_exc())
             await self._notify(node_id, "failed", str(exc))
             return NodeResult(node_id=node_id, agent_name=node.agent_name, status=NodeStatus.FAILED, error=str(exc))
 
@@ -247,7 +251,7 @@ class WorkflowRunner:
 
         max_retries = 2
         for attempt in range(max_retries + 1):
-            runner = runner_factory(agent, self.workshop, store)
+            runner = runner_factory(agent, self.workshop, store, org=self._org)
             agent_result = await runner.run(prompt)
 
             if agent_result.error is None:
@@ -415,6 +419,13 @@ class WorkflowRunner:
             parts: list[str] = [f"判断以下条件是否成立，只回答「通过」或「不通过」：\n{node.prompt}"]
         elif node_type == 'transform':
             parts: list[str] = [f"执行以下代码或数据转换：\n{node.prompt}"]
+        elif node_type == 'code':
+            parts: list[str] = ["写代码完成以下任务：\n"]
+            targets = self._extract_code_targets(node)
+            if targets:
+                parts.append("目标文件：\n" + "\n".join(f"- {t}" for t in targets) + "\n")
+            parts.append(f"{task}\n\n{node.prompt or node.expected_output}")
+            parts.append("\n注意：直接输出完整代码文件内容，使用 Write 工具写入文件，不要额外解释。")
         else:
             parts: list[str] = [f"任务：{task}"]
         if node.depends_on:
@@ -422,8 +433,24 @@ class WorkflowRunner:
             for dep_id in node.depends_on:
                 if dep_id in self._context:
                     parts.append(f"### {dep_id}\n{self._context[dep_id][:2000]}\n")
-        parts.append(f"\n## 当前阶段\n{node.prompt or node.expected_output}")
+        if node_type != 'code':
+            parts.append(f"\n## 当前阶段\n{node.prompt or node.expected_output}")
         return "\n".join(parts)
+
+    @staticmethod
+    def _extract_code_targets(node: WorkflowNode) -> list[str]:
+        """Extract probable file paths from node prompt and expected_output."""
+        import re
+        combined = f"{node.prompt or ''} {node.expected_output or ''}"
+        pattern = r'[\w/\-._]+\.(?:py|tsx?|jsx?|ya?ml|json|toml|rs|go|java|kt|swift|dart|css|html|md|sql)'
+        matches: list[str] = re.findall(pattern, combined, re.IGNORECASE)
+        seen: set[str] = set()
+        result: list[str] = []
+        for m in matches:
+            if m not in seen:
+                seen.add(m)
+                result.append(m)
+        return result[:5]
 
     async def _notify(self, node_id: str, status: str, detail: str) -> None:
         if self._on_status:
@@ -469,6 +496,7 @@ class WorkflowRunner:
             workshop or (org.workshops[0] if org.workshops else None),
             mock_outputs=mock_outputs,
             run_id=run_id,
+            org=org,
         )
 
         # Execute — completed nodes will be mocked (instant return)

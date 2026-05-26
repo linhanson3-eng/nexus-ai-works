@@ -235,7 +235,7 @@ def _patch_workshop_manager(monkeypatch):
 
     monkeypatch.setattr(fwm, "WorkshopManager", lambda org, kb=None: DummyWorkshopManager(org, kb))
     monkeypatch.setattr(fr, "NexusAgentRunner", lambda *a, **kw: _StubRunner())
-    monkeypatch.setattr(wfe, "WorkflowRunner", lambda ws, store=None, on_status=None: _StubWorkflowRunner())
+    monkeypatch.setattr(wfe, "WorkflowRunner", lambda ws, store=None, on_status=None, org=None: _StubWorkflowRunner())
 
     # Also patch workshop.bridge for the bridge/product routes
     monkeypatch.setattr(

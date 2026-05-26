@@ -200,7 +200,7 @@ class ChainRunner:
 
                 # Run workflow with SSE passthrough
                 wf_runner = WorkflowRunner(ws, store=self.org.workflow_store,
-                                           on_status=self._on_status)
+                                           on_status=self._on_status, org=self.org)
                 wf_result: WorkflowResult = await wf_runner.run(tmpl, enriched_task)
                 step_output = wf_result.final_output
                 wf_status = wf_result.status.value

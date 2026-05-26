@@ -1,0 +1,72 @@
+name: code-review-pipeline
+description: 代码生成 → 审查 → 修复 → 确认的闭环审查流水线。Code 节点写代码，Review 节点把关，gate 失败自动重试上游（最多 3 次）。
+workspace: demo
+
+nodes:
+  - id: coder
+    label: 代码生成
+    node_type: code
+    agent_name: demo
+    prompt: |
+      根据需求编写代码实现，确保代码完整可运行。
+      包括类型提示、docstring、错误处理和边界条件处理。
+    expected_output: 完整可运行的代码文件
+    timeout_seconds: 600
+    depends_on: []
+
+  - id: reviewer
+    label: 代码审查
+    agent_name: demo
+    prompt: |
+      审查上游代码输出，按以下维度逐项检查：
+
+      1. 需求覆盖：是否完整实现了需求
+      2. 正确性：逻辑是否正确，边界条件是否处理
+      3. 代码质量：类型提示、docstring、命名规范
+      4. 安全性：是否有注入、泄露等风险
+
+      审查结论格式：
+      - 如果全部通过：输出「通过」
+      - 如果有问题：输出「不通过：{逐条问题描述}」
+    expected_output: 审查结论（通过 / 不通过 + 问题列表）
+    gate:
+      type: review
+    depends_on:
+      - coder
+
+  - id: fix
+    label: 修复代码
+    node_type: code
+    agent_name: demo
+    prompt: |
+      根据上游审查意见逐条修改代码：
+
+      1. 逐条回应每个审查问题
+      2. 修改代码解决问题
+      3. 输出修改后的完整文件内容
+
+      对每个问题标注修改状态：已修改 / 需讨论（如果审查意见不合理）
+    expected_output: 修改后的完整代码文件
+    timeout_seconds: 600
+    depends_on:
+      - reviewer
+
+  - id: confirm
+    label: 确认修复
+    agent_name: demo
+    prompt: |
+      逐条确认上游修复结果：
+
+      1. 对照审查意见，逐条检查修复情况
+      2. 每条标注：已解决 / 未解决
+
+      确认结论格式：
+      - 如果全部已解决：输出「通过」
+      - 如果有未解决：输出「不通过：{未解决问题列表}」
+    expected_output: 确认结论（通过 / 不通过 + 逐条状态）
+    gate:
+      type: review
+    depends_on:
+      - fix
+
+max_total_seconds: 1800

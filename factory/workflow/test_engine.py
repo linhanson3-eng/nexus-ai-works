@@ -280,3 +280,110 @@ class TestReviewLoopNode:
     def test_load_missing(self, tmp_path):
         store = WorkflowStore(tmp_path / "workflows")
         assert store.load("nope") is None
+
+
+# ── Code Node Type ────────────────────────────────────────────
+
+
+class TestCodeNode:
+    def test_code_node_type_roundtrip(self):
+        """node_type='code' survives serialization roundtrip."""
+        node = WorkflowNode(id="c1", node_type="code", agent_name="coder")
+        d = node.to_dict()
+        n2 = WorkflowNode.from_dict(d)
+        assert n2.node_type == "code"
+        assert n2.agent_name == "coder"
+
+    def test_extract_code_targets(self, runner):
+        """_extract_code_targets finds file paths in prompt and expected_output."""
+        node = WorkflowNode(
+            id="c1", node_type="code",
+            prompt="Write src/sort.py with bubble sort",
+            expected_output="tests/test_sort.py with test cases",
+        )
+        targets = runner._extract_code_targets(node)
+        assert "src/sort.py" in targets
+        assert "tests/test_sort.py" in targets
+
+    def test_extract_code_targets_no_duplicates(self, runner):
+        """Same file in prompt and expected_output should not duplicate."""
+        node = WorkflowNode(
+            id="c1", node_type="code",
+            prompt="Edit src/app.ts to add login",
+            expected_output="Updated src/app.ts",
+        )
+        targets = runner._extract_code_targets(node)
+        assert targets.count("src/app.ts") == 1
+
+    def test_code_node_prompt_formatting(self, runner):
+        """Code node prompt contains code-specific formatting."""
+        runner._context["up"] = "some upstream data"
+        node = WorkflowNode(
+            id="c1", node_type="code", agent_name="coder",
+            prompt="Implement bubble_sort in sort.py",
+            depends_on=["up"],
+        )
+        prompt = runner._build_prompt(node, "Write code")
+        assert "写代码完成以下任务" in prompt
+        assert "sort.py" in prompt
+        assert "直接输出完整代码" in prompt
+        assert "## 上游阶段产出" in prompt
+        assert "upstream data" in prompt
+        assert "## 当前阶段" not in prompt
+
+    def test_code_node_execution_with_mock(self, workshop, tmp_path, monkeypatch):
+        """Code node with mock output returns expected result."""
+        monkeypatch.setenv("SNAPSHOT_DIR", str(tmp_path / "runs"))
+        node = WorkflowNode(
+            id="c1", node_type="code", agent_name="coder",
+            prompt="Write sort.py",
+        )
+        tmpl = WorkflowTemplate(name="code-test", nodes=[node])
+        runner = WorkflowRunner(workshop, mock_outputs={
+            "c1": {"status": "passed", "output": "def bubble_sort(arr): ..."},
+        })
+        import asyncio
+        result = asyncio.run(runner.run(tmpl, "write code"))
+        assert result.status == NodeStatus.PASSED
+        assert "bubble_sort" in result.node_results["c1"].output
+
+    def test_code_node_passes_upstream_context(self, workshop, tmp_path, monkeypatch):
+        """Downstream code node receives upstream output in prompt."""
+        monkeypatch.setenv("SNAPSHOT_DIR", str(tmp_path / "runs"))
+        nodes = [
+            WorkflowNode(id="review", label="Review", agent_name="demo"),
+            WorkflowNode(
+                id="fix", node_type="code", agent_name="demo",
+                prompt="Fix issues in sort.py",
+                depends_on=["review"],
+            ),
+        ]
+        tmpl = WorkflowTemplate(name="ctx-test", nodes=nodes)
+        runner = WorkflowRunner(workshop, mock_outputs={
+            "review": {"status": "passed", "output": "Line 3: missing type hint"},
+            "fix": {"status": "passed", "output": "fixed code"},
+        })
+        import asyncio
+        result = asyncio.run(runner.run(tmpl, "test"))
+        assert result.status == NodeStatus.PASSED
+        assert "missing type hint" in runner._context.get("review", "")
+
+    def test_code_review_pipeline_roundtrip(self, tmp_path):
+        """4-node pipeline template roundtrip: coder → reviewer → fix → confirm."""
+        nodes = [
+            WorkflowNode(id="coder", node_type="code", agent_name="demo", prompt="Write code", timeout_seconds=600),
+            WorkflowNode(id="reviewer", agent_name="demo", prompt="Review", depends_on=["coder"], gate={"type": "review"}),
+            WorkflowNode(id="fix", node_type="code", agent_name="demo", prompt="Fix", depends_on=["reviewer"], timeout_seconds=600),
+            WorkflowNode(id="confirm", agent_name="demo", prompt="Confirm", depends_on=["fix"], gate={"type": "review"}),
+        ]
+        tmpl = WorkflowTemplate(name="code-review-pipeline", description="Full pipeline", workspace="demo", nodes=nodes, max_total_seconds=1800)
+        store = WorkflowStore(tmp_path / "workflows")
+        store.save(tmpl)
+        loaded = store.load("code-review-pipeline")
+        assert loaded is not None
+        assert len(loaded.nodes) == 4
+        assert loaded.max_total_seconds == 1800
+        assert loaded.nodes[0].node_type == "code"
+        assert loaded.nodes[2].node_type == "code"
+        assert loaded.nodes[1].gate == {"type": "review"}
+        assert loaded.nodes[3].gate == {"type": "review"}

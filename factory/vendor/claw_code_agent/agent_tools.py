@@ -2796,7 +2796,7 @@ def _enter_plan_mode(arguments: dict[str, Any], context: ToolExecutionContext) -
     """Enter plan mode — focus on exploration and planning, not execution."""
     if getattr(context, '_plan_mode', False):
         return 'Already in plan mode.'
-    context._plan_mode = True
+    object.__setattr__(context, '_plan_mode', True)
     return (
         'Entered plan mode. Focus on exploring the codebase and creating a plan. '
         'Use read-only tools (Read, Grep, Glob) to investigate. '
@@ -2808,7 +2808,7 @@ def _exit_plan_mode(arguments: dict[str, Any], context: ToolExecutionContext) ->
     """Exit plan mode and return to normal execution."""
     if not getattr(context, '_plan_mode', False):
         return 'Not currently in plan mode.'
-    context._plan_mode = False
+    object.__setattr__(context, '_plan_mode', False)
     return 'Exited plan mode. You can now execute changes based on your plan.'
 
 

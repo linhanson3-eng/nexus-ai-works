@@ -200,8 +200,13 @@ class MemoryStore:
     """SQLite + FTS5 记忆存储引擎。"""
 
     def __init__(self, db_path: str | Path = "~/.factory/memory.db"):
-        self.db_path = Path(db_path).expanduser().resolve()
-        self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        raw = str(db_path)
+        if raw == ":memory:" or raw.startswith("file:"):
+            self.db_path = Path(raw)
+        else:
+            self.db_path = Path(raw).expanduser().resolve()
+        if not raw.startswith("file:") and raw != ":memory:":
+            self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._conn: sqlite3.Connection | None = None
 
     @property

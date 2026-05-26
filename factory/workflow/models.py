@@ -25,7 +25,7 @@ class WorkflowNode:
 
     id: str
     label: str = ""
-    node_type: str = "agent"   # "agent" | "condition" | "transform"
+    node_type: str = "agent"   # "agent" | "condition" | "transform" | "code" | "review_loop"
     agent_name: str = ""       # agent in the workspace (agent node only)
     prompt: str = ""           # task prompt / condition expression / transform code
     depends_on: list[str] = field(default_factory=list)

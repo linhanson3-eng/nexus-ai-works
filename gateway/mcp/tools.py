@@ -957,7 +957,7 @@ async def execute_tool(
         tmpl = org.workflow_store.load(workflow_name) if org.workflow_store else None
         if tmpl is None:
             return _err(f"工作流 {workflow_name} 不存在")
-        runner = WorkflowRunner(ws)
+        runner = WorkflowRunner(ws, org=org)
         result = await runner.run(tmpl, task)
         return {"content": [{"type": "text", "text": result.final_output or str(result.node_results)}]}
 

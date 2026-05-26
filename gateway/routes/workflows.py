@@ -100,7 +100,7 @@ async def execute_workflow_stream(name: str, body: ExecuteWorkflowRequest, reque
         except asyncio.QueueFull:
             pass  # drop event if consumer is too slow
 
-    runner = WorkflowRunner(ws, store=org.workflow_store, on_status=on_status)
+    runner = WorkflowRunner(ws, store=org.workflow_store, on_status=on_status, org=org)
 
     async def event_stream():
         yield _sse("started", {"template": name, "task": task[:200], "workshop": workshop_name})

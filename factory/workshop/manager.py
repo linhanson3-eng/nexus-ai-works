@@ -538,8 +538,8 @@ class WorkshopManager:
     def _persist_org(self) -> None:
         """Write current org state back to org.yaml, preserving all existing keys."""
         import yaml as _yaml
-        config_path = Path("config/org.yaml")
-        if not config_path.exists():
+        config_path = getattr(self.org, 'config_path', None)
+        if config_path is None or not Path(config_path).exists():
             return
         with open(config_path, "r+") as f:
             fcntl.flock(f, fcntl.LOCK_EX)
