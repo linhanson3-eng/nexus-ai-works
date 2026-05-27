@@ -117,34 +117,63 @@ export function PluginsTab({ toast }: { toast: ToastFn }) {
         </div>
       ) : (
         <div className="space-y-2">
-          {entries.map(p => (
+          {entries.map(p => {
+            const isMarketplace = p.source === "marketplace";
+            return (
             <div key={p.name} className="flex items-center justify-between bg-background border border-border rounded-xl px-4 py-3">
-              <div className="flex items-center gap-3">
-                <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${p.healthy ? "bg-success/10" : "bg-destructive/10"}`}>
-                  <Shield className={`w-4 h-4 ${p.healthy ? "text-success" : "text-destructive"}`} />
+              <div className="flex items-center gap-3 min-w-0">
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${p.healthy === true ? "bg-success/10" : p.healthy === false ? "bg-destructive/10" : "bg-muted"}`}>
+                  <Shield className={`w-4 h-4 ${p.healthy === true ? "text-success" : p.healthy === false ? "text-destructive" : "text-muted-foreground"}`} />
                 </div>
-                <div>
-                  <span className="text-sm text-foreground font-medium">{p.name}</span>
-                  <p className="text-xs text-muted-foreground mt-0.5">{p.healthy ? "运行中" : "未连接"}</p>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-foreground font-medium">{p.name}</span>
+                    {isMarketplace && (
+                      <span className="text-[10px] px-1.5 py-px bg-primary/10 text-primary rounded-full shrink-0">
+                        {p.category ?? "marketplace"}
+                      </span>
+                    )}
+                    {p.transport === "streamable-http" && (
+                      <span className="text-[10px] px-1.5 py-px bg-muted text-muted-foreground rounded-full shrink-0">HTTP</span>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                    {isMarketplace
+                      ? p.description ?? ""
+                      : p.healthy ? "运行中" : "未连接"}
+                  </p>
                 </div>
               </div>
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={() => toggle(p.name, !p.enabled)}
-                  className={`relative w-10 h-5 rounded-full transition-colors ${p.enabled ? "bg-success/30" : "bg-muted"}`}
-                >
-                  <div className={`absolute w-4 h-4 bg-background rounded-full top-0.5 transition-all ${p.enabled ? "left-5" : "left-0.5"}`} />
-                </button>
-                <button
-                  onClick={() => setDeleteTarget(p.name)}
-                  className="text-muted-foreground hover:text-destructive transition-colors"
-                  title="卸载插件"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
+              <div className="flex items-center gap-3 shrink-0 ml-3">
+                {isMarketplace ? (
+                  p.homepage ? (
+                    <a href={p.homepage} target="_blank" rel="noopener noreferrer"
+                      className="text-xs px-3 py-1.5 bg-primary/10 text-primary rounded-lg hover:bg-primary/20 transition-colors">
+                      查看
+                    </a>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">待配置</span>
+                  )
+                ) : (
+                  <>
+                    <button
+                      onClick={() => toggle(p.name, !p.enabled)}
+                      className={`relative w-10 h-5 rounded-full transition-colors ${p.enabled ? "bg-success/30" : "bg-muted"}`}
+                    >
+                      <div className={`absolute w-4 h-4 bg-background rounded-full top-0.5 transition-all ${p.enabled ? "left-5" : "left-0.5"}`} />
+                    </button>
+                    <button
+                      onClick={() => setDeleteTarget(p.name)}
+                      className="text-muted-foreground hover:text-destructive transition-colors"
+                      title="卸载插件"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </>
+                )}
               </div>
             </div>
-          ))}
+          )})}
         </div>
       )}
 

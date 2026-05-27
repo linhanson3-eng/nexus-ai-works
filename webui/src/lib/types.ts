@@ -132,7 +132,12 @@ export interface ToolConfig {
 export interface PluginEntry {
   name: string;
   enabled: boolean;
-  healthy: boolean;
+  healthy: boolean | null;
+  source?: string;
+  description?: string;
+  category?: string;
+  transport?: string;
+  homepage?: string;
 }
 
 // ── Agent ──

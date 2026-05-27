@@ -171,6 +171,22 @@ async def list_settings_plugins(request: Request):
     for name, cfg in stored.items():
         if name not in result:
             result[name] = {"name": name, "enabled": cfg.get("enabled", False), "healthy": False}
+
+    # Merge MCP marketplace entries (search, etc.)
+    from factory.mcp.registry import MCPRegistry
+    for entry in MCPRegistry._builtin_entries():
+        if entry.name not in result:
+            result[entry.name] = {
+                "name": entry.name,
+                "enabled": stored.get(entry.name, {}).get("enabled", False),
+                "healthy": None,  # MCP servers: health unknown until configured
+                "source": "marketplace",
+                "description": entry.description,
+                "category": entry.category,
+                "transport": entry.transport,
+                "homepage": entry.homepage,
+            }
+
     return JSONResponse(content=result)
 
 
