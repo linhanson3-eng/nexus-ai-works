@@ -17,6 +17,9 @@ import yaml
 from .models import ChainStep, ChainTemplate, NodeStatus
 from .engine import WorkflowRunner, WorkflowResult
 
+# Backward-compatible alias
+Chain = ChainTemplate
+
 logger = logging.getLogger(__name__)
 
 CHAIN_DIR = Path.home() / ".nexus" / "chains"

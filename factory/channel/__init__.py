@@ -14,6 +14,7 @@ from factory.channel.adapter import (
     unregister,
 )
 from factory.channel.types import ChannelMessage, ChannelStatus
+from factory.channel.weixin import WeixinChannel, WeixinConfig
 
 __all__ = [
     "ChannelAdapter",
@@ -27,4 +28,6 @@ __all__ = [
     "broadcast",
     "ChannelMessage",
     "ChannelStatus",
+    "WeixinChannel",
+    "WeixinConfig",
 ]

@@ -78,6 +78,99 @@ class _ShutdownState:
 shutdown_state = _ShutdownState()
 
 
+# ── Channel lifecycle ─────────────────────────────────────────────
+
+_channel_adapters: list = []
+
+
+def _setup_channel_inbound(app: FastAPI) -> None:
+    """Register an inbound handler that routes channel messages to agents."""
+    from factory.channel.adapter import on_inbound, send_to_channel
+    from factory.channel.types import ChannelMessage
+    from factory.runner import NexusAgentRunner
+
+    org = app.state.org
+
+    @on_inbound
+    async def _handle_inbound(msg: ChannelMessage) -> None:
+        if msg.channel_name != "weixin":
+            return
+
+        workshop_name = msg.workshop_name or "demo"
+        workshop = next((w for w in org.workshops if w.name == workshop_name), None)
+        if workshop is None:
+            logger.warning("Channel inbound: workshop %s not found", workshop_name)
+            return
+
+        agent_name = msg.agent_name or "demo"
+        agent_spec = next((a for a in workshop.spec.agents if a.name == agent_name), None)
+        if agent_spec is None and workshop.spec.agents:
+            agent_spec = workshop.spec.agents[0]
+
+        if agent_spec is None:
+            logger.warning("Channel inbound: no agent found for %s/%s", workshop_name, agent_name)
+            return
+
+        logger.info("Channel inbound: routing to %s/%s", workshop_name, agent_spec.name)
+        try:
+            from factory.memory import MemoryStore
+            store = MemoryStore()
+            runner = NexusAgentRunner(agent_spec, workshop, store)
+            result = await runner.run(msg.content)
+            reply_text = result.content[:4000] if result.content else "(empty response)"
+
+            reply = ChannelMessage(
+                sender="bot",
+                content=reply_text,
+                channel_name="weixin",
+                metadata={"chat_id": msg.sender},
+            )
+            ok = await send_to_channel("weixin", reply)
+            if not ok:
+                logger.warning("Channel inbound: failed to send reply to %s", msg.sender[:20])
+        except Exception:
+            logger.exception("Channel inbound: agent run failed")
+
+
+async def _start_channels(app: FastAPI) -> None:
+    """Start enabled channel adapters from org.yaml config."""
+    from factory.channel.adapter import register as reg_channel
+    from factory.channel.weixin import WeixinChannel, WeixinConfig
+
+    org = app.state.org
+    channel_specs = getattr(org.spec, "channels", None) or []
+    if not channel_specs:
+        channel_specs = getattr(org.spec, "channels", []) or []
+
+    for spec in channel_specs:
+        if not spec.enabled:
+            continue
+        try:
+            if spec.name == "weixin":
+                cfg = WeixinConfig.model_validate(spec.config)
+                adapter = WeixinChannel(cfg)
+                await adapter.start()
+                reg_channel("weixin", adapter)
+                _channel_adapters.append(adapter)
+                logger.info("WeixinChannel started")
+            # Future: add feishu, discord, etc.
+        except Exception:
+            logger.exception("Failed to start channel %s", spec.name)
+
+    # Register inbound message handler
+    _setup_channel_inbound(app)
+
+
+async def _stop_channels() -> None:
+    """Stop all running channel adapters."""
+    for adapter in _channel_adapters:
+        try:
+            await adapter.stop()
+        except Exception:
+            logger.exception("Failed to stop channel %s", adapter.name)
+    _channel_adapters.clear()
+
+
 # ── Lifespan ───────────────────────────────────────────────────
 
 
@@ -89,8 +182,12 @@ async def _app_lifespan(app: FastAPI):
     schedule_engine.start()
     logger.info("ScheduleEngine started")
 
+    # Start channel adapters from org.yaml config
+    await _start_channels(app)
+
     yield
 
+    await _stop_channels()
     logger.info("Gateway shutting down — draining %d active requests", shutdown_state.pending_count)
     schedule_engine.stop()
     shutdown_state.signal_shutdown()

@@ -1,7 +1,6 @@
 from __future__ import annotations
 """Unit tests for Chain, ChainStep, and ChainStore."""
 
-import tempfile
 from pathlib import Path
 
 import pytest
@@ -11,34 +10,36 @@ from factory.workflow.chain import Chain, ChainStep, ChainStore
 
 class TestChainStep:
     def test_create_step(self):
-        step = ChainStep(workshop="test-ws")
-        assert step.workshop == "test-ws"
-        assert step.workflow == ""
-        assert step.description == ""
+        step = ChainStep(id="step-1", template="build")
+        assert step.id == "step-1"
+        assert step.template == "build"
+        assert step.label == ""
+        assert step.enabled is True
 
     def test_create_step_full(self):
-        step = ChainStep(workshop="ws1", workflow="build", description="Build step")
-        assert step.workshop == "ws1"
-        assert step.workflow == "build"
+        step = ChainStep(id="step-1", template="build", label="Build", description="Build step")
+        assert step.id == "step-1"
+        assert step.template == "build"
+        assert step.label == "Build"
         assert step.description == "Build step"
 
     def test_to_dict(self):
-        step = ChainStep(workshop="ws1", workflow="build")
+        step = ChainStep(id="step-1", template="build")
         d = step.to_dict()
-        assert d["workshop"] == "ws1"
-        assert d["workflow"] == "build"
+        assert d["id"] == "step-1"
+        assert d["template"] == "build"
 
     def test_from_dict(self):
-        d = {"workshop": "ws1", "workflow": "build", "description": "desc"}
+        d = {"id": "step-1", "template": "build", "label": "Build"}
         step = ChainStep.from_dict(d)
-        assert step.workshop == "ws1"
-        assert step.workflow == "build"
-        assert step.description == "desc"
+        assert step.id == "step-1"
+        assert step.template == "build"
+        assert step.label == "Build"
 
     def test_from_dict_minimal(self):
-        step = ChainStep.from_dict({"workshop": "minimal"})
-        assert step.workshop == "minimal"
-        assert step.workflow == ""
+        step = ChainStep.from_dict({"id": "minimal"})
+        assert step.id == "minimal"
+        assert step.template == ""
 
 
 class TestChain:
@@ -48,12 +49,12 @@ class TestChain:
         assert chain.steps == []
 
     def test_create_with_steps(self):
-        steps = [ChainStep(workshop="ws1"), ChainStep(workshop="ws2")]
+        steps = [ChainStep(id="s1"), ChainStep(id="s2")]
         chain = Chain(name="multi", description="Multi-step", steps=steps)
         assert len(chain.steps) == 2
 
     def test_to_dict(self):
-        steps = [ChainStep(workshop="ws1")]
+        steps = [ChainStep(id="s1", template="build")]
         chain = Chain(name="c1", description="desc", steps=steps)
         d = chain.to_dict()
         assert d["name"] == "c1"
@@ -64,12 +65,12 @@ class TestChain:
         d = {
             "name": "imported",
             "description": "Imported chain",
-            "steps": [{"workshop": "ws1", "workflow": "build"}],
+            "steps": [{"id": "s1", "template": "build"}],
         }
         chain = Chain.from_dict(d)
         assert chain.name == "imported"
         assert len(chain.steps) == 1
-        assert chain.steps[0].workshop == "ws1"
+        assert chain.steps[0].id == "s1"
 
 
 class TestChainStore:
@@ -78,7 +79,7 @@ class TestChainStore:
         return ChainStore(str(tmp_path))
 
     def test_save_and_load(self, store):
-        chain = Chain(name="test-chain", description="Test", steps=[ChainStep(workshop="ws1")])
+        chain = Chain(name="test-chain", description="Test", steps=[ChainStep(id="s1")])
         path = store.save(chain)
         assert isinstance(path, Path)
 
@@ -112,9 +113,9 @@ class TestChainStore:
         assert store.list_all() == []
 
     def test_overwrite(self, store):
-        c1 = Chain(name="overwrite", steps=[ChainStep(workshop="old")])
+        c1 = Chain(name="overwrite", steps=[ChainStep(id="s1", template="old")])
         store.save(c1)
-        c2 = Chain(name="overwrite", steps=[ChainStep(workshop="new")])
+        c2 = Chain(name="overwrite", steps=[ChainStep(id="s1", template="new")])
         store.save(c2)
         loaded = store.load("overwrite")
-        assert loaded.steps[0].workshop == "new"
+        assert loaded.steps[0].template == "new"

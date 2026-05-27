@@ -257,7 +257,7 @@ def _patch_workshop_manager(monkeypatch):
     # Patch ChainRunner for chain execution routes
     monkeypatch.setattr(
         "factory.workflow.chain.ChainRunner",
-        lambda org, kb, on_status=None: _StubChainRunner(),
+        lambda workshop=None, store=None, *, callbacks=None, org=None: _StubChainRunner(),
         raising=False,
     )
 
@@ -740,7 +740,7 @@ class TestChainRoutes:
         resp = await client.post("/api/chains", json={
             "name": "test-chain",
             "description": "A test chain",
-            "steps": [{"workshop": "test-ws", "task": "do it"}],
+            "steps": [{"id": "s1", "template": "build"}],
         })
         assert resp.status_code == 200
         assert resp.json()["saved"]

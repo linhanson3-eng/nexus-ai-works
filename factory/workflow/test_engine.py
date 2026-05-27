@@ -1172,4 +1172,79 @@ class TestChain:
         assert "not found" in result.final_output
 
 
+class TestGithubHunter:
+    """GitHub 搬运工 — hunter → analyzer → decider(gate) → cloner → adapter → packager → verify(gate)."""
+
+    @staticmethod
+    def _load_template():
+        import yaml
+        path = Path(__file__).resolve().parent.parent.parent / "config" / "workflows" / "github-hunter.yaml"
+        data = yaml.safe_load(path.read_text("utf-8"))
+        return WorkflowTemplate.from_dict(data)
+
+    def test_load_and_structure(self):
+        """7 nodes: hunter + analyzer + decider + cloner + adapter + packager + verify."""
+        tmpl = self._load_template()
+        assert tmpl.name == "github-hunter"
+        assert len(tmpl.nodes) == 7
+        assert tmpl.max_total_seconds == 3600
+
+    def test_dag_order(self):
+        """Linear pipeline: hunter → analyzer → decider → cloner → adapter → packager → verify."""
+        tmpl = self._load_template()
+        runner = WorkflowRunner.__new__(WorkflowRunner)
+        runner._node_map = {n.id: n for n in tmpl.nodes}
+        order = runner._resolve_order(tmpl.nodes)
+        assert order.index("hunter") < order.index("analyzer") < order.index("decider")
+        assert order.index("decider") < order.index("cloner") < order.index("adapter")
+        assert order.index("adapter") < order.index("packager") < order.index("verify")
+
+    def test_hunter_is_entry_point(self):
+        """Hunter has no dependencies."""
+        tmpl = self._load_template()
+        hunter = next(n for n in tmpl.nodes if n.id == "hunter")
+        assert hunter.depends_on == []
+
+    def test_gate_nodes(self):
+        """decider and verify have gate: review."""
+        tmpl = self._load_template()
+        for nid in ("decider", "verify"):
+            node = next(n for n in tmpl.nodes if n.id == nid)
+            assert node.gate == {"type": "review"}
+
+    def test_adapter_checklist_in_prompt(self):
+        """Adapter prompt includes all 5 adaptation checklist items."""
+        tmpl = self._load_template()
+        adapter = next(n for n in tmpl.nodes if n.id == "adapter")
+        prompt = adapter.prompt or ""
+        assert "CLAUDE.md" in prompt
+        assert "Agent 配置" in prompt
+        assert "入口适配" in prompt
+        assert "清理" in prompt
+        assert "合规" in prompt
+
+    def test_mock_execution(self, workshop, tmp_path, monkeypatch):
+        """Full pipeline with mock outputs."""
+        monkeypatch.setenv("SNAPSHOT_DIR", str(tmp_path / "runs"))
+        tmpl = self._load_template()
+        mock = {
+            nid: {"status": "passed", "output": f"Mock from {nid}"}
+            for nid in ("hunter", "analyzer", "decider", "cloner", "adapter", "packager", "verify")
+        }
+        runner = WorkflowRunner(workshop, mock_outputs=mock)
+        import asyncio
+        result = asyncio.run(runner.run(tmpl, "搜索 AI 代码助手开源项目"))
+        assert result.status == NodeStatus.PASSED
+
+    def test_roundtrip(self, tmp_path):
+        """Save → load roundtrip."""
+        tmpl = self._load_template()
+        store = WorkflowStore(tmp_path / "workflows")
+        store.save(tmpl)
+        loaded = store.load("github-hunter")
+        assert loaded is not None
+        assert len(loaded.nodes) == 7
+        assert loaded.max_total_seconds == 3600
+
+
 from pathlib import Path

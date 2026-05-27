@@ -1,3 +1,10 @@
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["factory*", "gateway*"]
+
 [project]
 name = "nexus"
 version = "1.0.0"
@@ -16,6 +23,10 @@ dependencies = [
 dev = [
     "pytest",
     "pytest-asyncio",
+    "respx",
+]
+weixin = [
+    "pycryptodome",
 ]
 
 [tool.pytest.ini_options]

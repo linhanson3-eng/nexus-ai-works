@@ -89,12 +89,12 @@ async def execute_chain_stream(name: str, request: Request):
         except asyncio.QueueFull:
             pass  # drop event if consumer is too slow
 
-    runner = ChainRunner(_org(request), _kanban_store(request), on_status=on_status)
+    runner = ChainRunner(None, _kanban_store(request), org=_org(request))
 
     async def event_stream():
         yield _sse("started", {
             "chain": name, "task": task[:200],
-            "steps": [s.workshop for s in chain.steps],
+            "steps": [s.template for s in chain.steps],
         })
 
         run_task = asyncio.ensure_future(runner.run(chain, task))

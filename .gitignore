@@ -20,3 +20,4 @@ webui/dist/
 
 # Session files contain encrypted keys but should never be committed
 workspaces/
+config/org.yaml
