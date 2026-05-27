@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, createContext, useContext } from "react";
+import { useState, useCallback, useEffect, useRef, createContext, useContext } from "react";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import {
   PanelLeftClose, PanelLeft, Sun, Moon, Monitor, Plus, Settings, MessageSquare,
