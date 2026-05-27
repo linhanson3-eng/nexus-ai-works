@@ -563,6 +563,53 @@
   overflow: hidden;
 }
 
+/* ── Resize handles ── */
+.resize-handle {
+  width: 4px;
+  cursor: col-resize;
+  background: transparent;
+  transition: background 150ms ease;
+  position: relative;
+  z-index: 10;
+  flex-shrink: 0;
+}
+
+.resize-handle:hover,
+.resize-handle--active {
+  background: hsl(var(--accent-000) / 0.3);
+}
+
+/* ── Right panel toggle ── */
+.right-panel-toggle {
+  position: fixed;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 48px;
+  border: 1px solid hsl(var(--border-200));
+  border-right: none;
+  border-radius: 6px 0 0 6px;
+  background: hsl(var(--bg-000));
+  color: hsl(var(--text-300));
+  cursor: pointer;
+  transition: all 150ms ease;
+}
+
+.right-panel-toggle:hover {
+  color: hsl(var(--text-100));
+  background: hsl(var(--bg-200));
+}
+
+.right-panel-toggle svg {
+  width: 12px;
+  height: 12px;
+}
+
 /* ── Responsive ── */
 @media (max-width: 768px) {
   .app-layout {

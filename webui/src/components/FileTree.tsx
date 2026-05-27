@@ -92,23 +92,26 @@ export function FileTree({
 
   return (
     <div className="flex-1 overflow-y-auto px-3 py-1" ref={menuRef}>
-      {/* Workspace root — like Cursor/Codex folder header */}
-      <div className="flex items-center gap-1 group">
-        <button
-          onClick={() => setWsMenuOpen(!wsMenuOpen)}
-          className="flex items-center gap-1 flex-1 px-2 py-0.5 text-xs font-medium text-text-100 hover:bg-bg-300/50 rounded transition-colors"
-        >
-          <ChevronRight className="w-3 h-3 shrink-0 rotate-90" />
-          <FolderOpen className="w-3.5 h-3.5 text-text-300 shrink-0" />
-          <span className="truncate">{workshop.toUpperCase()}</span>
-        </button>
-        <button
-          onClick={() => setAddMenuOpen(!addMenuOpen)}
-          className="p-0.5 rounded opacity-0 group-hover:opacity-100 hover:bg-bg-300 text-text-200 hover:text-text-100 transition-all"
-          title="新建"
-        >
-          <Plus className="w-3 h-3" />
-        </button>
+      {/* Workspace root — matches nav item style */}
+      <div className="group">
+        <div className="flex items-center w-full px-3 py-1.5 rounded-lg text-sm text-text-200 hover:bg-bg-300/50 transition-colors"
+          style={{ marginLeft: "-0.75rem", marginRight: "-0.75rem", paddingLeft: "0.75rem", paddingRight: "0.75rem" }}>
+          <button
+            onClick={() => setWsMenuOpen(!wsMenuOpen)}
+            className="flex items-center gap-2 flex-1 text-left"
+          >
+            <FolderOpen className="w-4 h-4 text-text-300 shrink-0" />
+            <span className="truncate font-medium text-text-100">{workshop.toUpperCase()}</span>
+            <ChevronRight className={`w-3.5 h-3.5 shrink-0 ml-auto text-text-300 transition-transform ${wsMenuOpen ? "rotate-90" : ""}`} />
+          </button>
+          <button
+            onClick={() => setAddMenuOpen(!addMenuOpen)}
+            className="p-0.5 rounded opacity-0 group-hover:opacity-100 hover:bg-bg-300 text-text-200 hover:text-text-100 transition-all"
+            title="新建"
+          >
+            <Plus className="w-3.5 h-3.5" />
+          </button>
+        </div>
       </div>
 
       {/* Workspace switcher dropdown */}

@@ -293,6 +293,28 @@ function CollapsedToggle() {
 
 // ── Layout ──
 
+function useResize(initial: number, min: number, max: number) {
+  const [width, setWidth] = useState(initial);
+  const [dragging, setDragging] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!dragging) return;
+    const onMove = (e: MouseEvent) => {
+      setWidth(Math.min(max, Math.max(min, e.clientX)));
+    };
+    const onUp = () => setDragging(false);
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+    return () => {
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+    };
+  }, [dragging, min, max]);
+
+  return { width, dragging, setDragging, ref };
+}
+
 export function Layout() {
   const [collapsed, setCollapsed] = useState(
     () => localStorage.getItem("nexus_sidebar_collapsed") === "true"
@@ -302,6 +324,21 @@ export function Layout() {
     updateArtifact, rightOpen, setRightOpen, count,
   } = useArtifactContext();
 
+  const sidebar = useResize(
+    parseInt(localStorage.getItem("nexus_sidebar_width") || "260"), 180, 480
+  );
+  const rightPanel = useResize(
+    parseInt(localStorage.getItem("nexus_right_width") || "360"), 280, 600
+  );
+
+  // Persist widths
+  useEffect(() => {
+    localStorage.setItem("nexus_sidebar_width", String(sidebar.width));
+  }, [sidebar.width]);
+  useEffect(() => {
+    localStorage.setItem("nexus_right_width", String(rightPanel.width));
+  }, [rightPanel.width]);
+
   const toggleSidebar = useCallback(() => {
     setCollapsed((v) => {
       localStorage.setItem("nexus_sidebar_collapsed", String(!v));
@@ -309,30 +346,59 @@ export function Layout() {
     });
   }, []);
 
+  const sidebarW = collapsed ? 0 : sidebar.width;
+  const rightW = rightOpen ? rightPanel.width : 0;
+
   return (
     <SidebarContext.Provider value={{ collapsed, toggle: toggleSidebar }}>
       <div
-        className={`app-layout ${
-          collapsed ? "app-layout--sidebar-collapsed" : ""
-        } ${rightOpen ? "app-layout--right-open" : ""}`}
+        className="app-layout"
+        style={{
+          gridTemplateColumns: `${sidebarW}px 1fr ${rightW}px`,
+        }}
       >
         <Sidebar />
+        {/* Left resize handle */}
+        {!collapsed && (
+          <div
+            className={`resize-handle ${sidebar.dragging ? "resize-handle--active" : ""}`}
+            onMouseDown={() => sidebar.setDragging(true)}
+          />
+        )}
         <div className="app-layout__main">
           <CollapsedToggle />
-          {/* Right panel toggle when count > 0 */}
+
+          {/* Right panel toggle — always visible */}
+          <button
+            onClick={() => setRightOpen(!rightOpen)}
+            className="right-panel-toggle"
+            title={rightOpen ? "关闭右边栏" : "打开右边栏"}
+          >
+            {rightOpen ? "›" : "‹"}
+          </button>
+
+          {/* Product count badge */}
           {count > 0 && !rightOpen && (
             <button
               onClick={() => setRightOpen(true)}
-              className="fixed right-3 top-3 z-40 px-2.5 py-1.5 rounded-lg bg-bg-000 border border-border text-xs text-text-200 hover:text-text-100 hover:bg-bg-200 transition-colors shadow-sm flex items-center gap-1.5"
+              className="fixed right-6 top-3 z-40 px-2.5 py-1.5 rounded-lg bg-bg-000 border border-border text-xs text-text-200 hover:text-text-100 hover:bg-bg-200 transition-colors shadow-sm flex items-center gap-1.5"
             >
               <span className="w-1.5 h-1.5 rounded-full bg-accent-000 animate-pulse-dot" style={{ background: "hsl(var(--accent-000))" }} />
               产物 ({count})
             </button>
           )}
+
           <Outlet />
         </div>
+        {/* Right resize handle */}
         {rightOpen && (
-          <div className="app-layout__right">
+          <div
+            className={`resize-handle ${rightPanel.dragging ? "resize-handle--active" : ""}`}
+            onMouseDown={() => rightPanel.setDragging(true)}
+          />
+        )}
+        {rightOpen && (
+          <div className="app-layout__right" style={{ width: rightPanel.width }}>
             <div className="flex items-center justify-between px-4 py-3 border-b border-border">
               <span className="text-sm font-medium text-text-100">产物</span>
               <button
