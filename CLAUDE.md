@@ -1,4 +1,4 @@
-# Nexus AI Works — Claude Code 项目指令
+# Nexus AI Works 【重度框架 · 全功能版 · 含 WebUI】
 
 ## 项目
 
