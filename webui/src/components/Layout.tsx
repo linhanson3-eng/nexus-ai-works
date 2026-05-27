@@ -299,14 +299,20 @@ function useResize(initial: number, min: number, max: number, side: "left" | "ri
 
   useEffect(() => {
     if (!dragging) return;
+    const prev = document.body.style.userSelect;
+    document.body.style.userSelect = "none";
     const onMove = (e: MouseEvent) => {
       const w = side === "right" ? window.innerWidth - e.clientX : e.clientX;
       setWidth(Math.min(max, Math.max(min, w)));
     };
-    const onUp = () => setDragging(false);
+    const onUp = () => {
+      document.body.style.userSelect = prev;
+      setDragging(false);
+    };
     document.addEventListener("mousemove", onMove);
     document.addEventListener("mouseup", onUp);
     return () => {
+      document.body.style.userSelect = prev;
       document.removeEventListener("mousemove", onMove);
       document.removeEventListener("mouseup", onUp);
     };
