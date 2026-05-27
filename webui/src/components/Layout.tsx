@@ -358,17 +358,28 @@ export function Layout() {
         }}
       >
         <Sidebar />
-        {/* Left resize handle */}
-        {!collapsed && (
-          <div
-            className={`resize-handle ${sidebar.dragging ? "resize-handle--active" : ""}`}
-            onMouseDown={() => sidebar.setDragging(true)}
-          />
-        )}
         <div className="app-layout__main">
           <CollapsedToggle />
 
-          {/* Right panel toggle — always visible */}
+          {/* Left resize handle — absolute overlay */}
+          {!collapsed && (
+            <div
+              className={`resize-handle ${sidebar.dragging ? "resize-handle--active" : ""}`}
+              style={{ position: "absolute", left: sidebarW - 2, top: 0, bottom: 0 }}
+              onMouseDown={() => sidebar.setDragging(true)}
+            />
+          )}
+
+          {/* Right resize handle — absolute overlay */}
+          {rightOpen && (
+            <div
+              className={`resize-handle ${rightPanel.dragging ? "resize-handle--active" : ""}`}
+              style={{ position: "absolute", right: rightPanel.width - 2, top: 0, bottom: 0 }}
+              onMouseDown={() => rightPanel.setDragging(true)}
+            />
+          )}
+
+          {/* Right panel toggle — always visible on right edge */}
           <button
             onClick={() => setRightOpen(!rightOpen)}
             className="right-panel-toggle"
@@ -390,15 +401,8 @@ export function Layout() {
 
           <Outlet />
         </div>
-        {/* Right resize handle */}
         {rightOpen && (
-          <div
-            className={`resize-handle ${rightPanel.dragging ? "resize-handle--active" : ""}`}
-            onMouseDown={() => rightPanel.setDragging(true)}
-          />
-        )}
-        {rightOpen && (
-          <div className="app-layout__right" style={{ width: rightPanel.width }}>
+          <div className="app-layout__right">
             <div className="flex items-center justify-between px-4 py-3 border-b border-border">
               <span className="text-sm font-medium text-text-100">产物</span>
               <button
