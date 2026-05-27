@@ -162,10 +162,11 @@ async def list_settings_plugins(request: Request):
     result = {}
     for name in names:
         adapter = get_adapter(name)
+        healthy = await adapter.health() if adapter else False
         result[name] = {
             "name": name,
             "enabled": stored.get(name, {}).get("enabled", True),
-            "healthy": adapter.health() if adapter else False,
+            "healthy": healthy,
         }
     for name, cfg in stored.items():
         if name not in result:

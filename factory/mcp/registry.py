@@ -112,6 +112,14 @@ class MCPRegistry:
                 transport="stdio",
             ),
             MarketplaceEntry(
+                name="anysearch",
+                description="AI-native unified search — 23 verticals, batch parallel search, page-to-Markdown. Free tier 1000 calls/day, no API key required for anonymous use",
+                category="search",
+                install_command="",
+                transport="streamable-http",
+                homepage="https://www.anysearch.com",
+            ),
+            MarketplaceEntry(
                 name="memory",
                 description="Persistent memory system for knowledge graphs",
                 category="memory",
