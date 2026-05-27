@@ -6,6 +6,7 @@ import {
 import { getMainPanels, getAdvancedPanels } from "../lib/panels";
 import { ArtifactPanel } from "./ArtifactPanel";
 import { FileTree } from "./FileTree";
+import { WorkspaceSwitcher } from "./WorkspaceSwitcher";
 import { useArtifactContext } from "../lib/ArtifactContext";
 import { api } from "../lib/api";
 import type { SessionSummary } from "../lib/types";
@@ -41,10 +42,20 @@ function Sidebar() {
     () => (localStorage.getItem("nexus_theme") as "light" | "dark" | "system") || "system"
   );
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
+  const [activeWorkspace, setActiveWorkspace] = useState(
+    () => localStorage.getItem("nexus_active_workspace") || "demo"
+  );
 
   // Load session history
   useEffect(() => {
-    api.listSessions("demo").then(setSessions).catch(() => {});
+    api.listSessions(activeWorkspace).then(setSessions).catch(() => {});
+  }, [activeWorkspace]);
+
+  const handleWorkspaceChange = useCallback((name: string) => {
+    setActiveWorkspace(name);
+    localStorage.setItem("nexus_active_workspace", name);
+    // Reload sessions for new workspace
+    api.listSessions(name).then(setSessions).catch(() => {});
   }, []);
 
   const toggleAdvanced = useCallback(() => {
@@ -76,7 +87,7 @@ function Sidebar() {
 
   const handleFileSelect = useCallback(async (filePath: string) => {
     try {
-      const resp = await fetch(`/api/workspaces/demo/files/${encodeURIComponent(filePath)}`);
+      const resp = await fetch(`/api/workspaces/${activeWorkspace}/files/${encodeURIComponent(filePath)}`);
       if (resp.ok) {
         const data = await resp.json() as { name: string; path: string; content: string; size: number };
         const ext = filePath.split(".").pop()?.toLowerCase() || "";
@@ -84,14 +95,14 @@ function Sidebar() {
         const artId = `file:${filePath}`;
         addArtifact({
           id: artId, name: data.name, type: typeMap[ext] || "text",
-          content: data.content, workspace: "demo",
+          content: data.content, workspace: activeWorkspace,
           createdAt: new Date().toISOString(), size: data.size,
         });
         setSelectedId(artId);
         setRightOpen(true);
       }
     } catch { /* ignore */ }
-  }, [addArtifact, setSelectedId, setRightOpen]);
+  }, [addArtifact, setSelectedId, setRightOpen, activeWorkspace]);
 
   if (collapsed) return null;
 
@@ -102,8 +113,11 @@ function Sidebar() {
 
   return (
     <div className="app-layout__sidebar">
+      {/* Workspace switcher — Claude-style project selector */}
+      <WorkspaceSwitcher current={activeWorkspace} onChange={handleWorkspaceChange} />
+
       {/* New chat */}
-      <div className="px-3 pt-3 pb-2">
+      <div className="px-3 pb-2">
         <button
           onClick={() => {
             navigate("/chat");
@@ -171,7 +185,7 @@ function Sidebar() {
 
         {/* File tree */}
         <div className="pt-3">
-          <FileTree workshop="demo" onSelectFile={handleFileSelect} selectedPath={null} />
+          <FileTree workshop={activeWorkspace} onSelectFile={handleFileSelect} selectedPath={null} />
         </div>
 
         {/* Advanced section */}
