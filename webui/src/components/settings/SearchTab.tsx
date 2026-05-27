@@ -7,7 +7,7 @@ import type { SearchConfig } from "../../lib/types";
 export function SearchTab({ toast }: { toast: ToastFn }) {
   const [config, setConfig] = useState<SearchConfig>({
     tavily_api_key: "", brave_api_key: "", searxng_base_url: "",
-    active_provider: "tavily", deep_search_enabled: false, max_results: 5,
+    active_provider: "anysearch", deep_search_enabled: false, max_results: 5,
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -46,11 +46,22 @@ export function SearchTab({ toast }: { toast: ToastFn }) {
           onChange={e => setConfig(c => ({ ...c, active_provider: e.target.value }))}
           className="w-full bg-card border border-border rounded-xl px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary/30 mt-1"
         >
+          <option value="anysearch">AnySearch (推荐 · 免费)</option>
           <option value="tavily">Tavily</option>
           <option value="brave">Brave Search</option>
           <option value="searxng">SearXNG (自建)</option>
         </select>
       </div>
+
+      {config.active_provider === "anysearch" && (
+        <div className="bg-background border border-border rounded-xl p-4 space-y-3">
+          <div className="flex items-center gap-2"><Search className="w-4 h-4 text-accent" /><span className="text-sm font-semibold text-foreground">AnySearch</span></div>
+          <p className="text-xs text-muted-foreground">
+            AI-native 搜索引擎。支持 23 个垂直领域搜索（金融、学术、代码等），批量并行搜索和页面 Markdown 抽取。
+            每天 1000 次免费调用，无需 API Key。
+          </p>
+        </div>
+      )}
 
       {config.active_provider === "tavily" && (
         <div className="bg-background border border-border rounded-xl p-4 space-y-3">

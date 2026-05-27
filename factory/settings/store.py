@@ -83,7 +83,7 @@ DEFAULT_SEARCH = {
     "tavily_api_key": "",
     "brave_api_key": "",
     "searxng_base_url": "",
-    "active_provider": "tavily",
+    "active_provider": "anysearch",
     "deep_search_enabled": False,
     "max_results": 5,
 }
@@ -344,6 +344,13 @@ class SettingsStore:
                 "provider": "searxng",
                 "base_url": search["searxng_base_url"],
             })
+
+        # AnySearch: always available (no API key, free tier)
+        providers.append({
+            "name": "anysearch",
+            "provider": "anysearch",
+            "base_url": "https://api.anysearch.com/mcp",
+        })
 
         manifest_path = Path(workspace) / ".claw-search.json"
         manifest_path.parent.mkdir(parents=True, exist_ok=True)

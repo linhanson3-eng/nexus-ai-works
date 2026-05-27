@@ -17,6 +17,7 @@ SEARCH_MANIFEST_PATHS = (
 DEFAULT_SEARXNG_BASE_URL = 'http://127.0.0.1:8080'
 DEFAULT_BRAVE_BASE_URL = 'https://api.search.brave.com/res/v1/web/search'
 DEFAULT_TAVILY_BASE_URL = 'https://api.tavily.com/search'
+DEFAULT_ANYSEARCH_BASE_URL = 'https://api.anysearch.com/mcp'
 
 
 @dataclass(frozen=True)
@@ -260,6 +261,8 @@ class SearchRuntime:
             results = _search_brave(provider, query, max_results=max_results, timeout_seconds=timeout_seconds)
         elif backend == 'tavily':
             results = _search_tavily(provider, query, max_results=max_results, domains=domains, timeout_seconds=timeout_seconds)
+        elif backend == 'anysearch':
+            results = _search_anysearch(provider, query, max_results=max_results, timeout_seconds=timeout_seconds)
         else:
             raise ValueError(f'Unsupported search provider: {provider.provider}')
         if domains:
@@ -388,6 +391,16 @@ def _load_profiles_from_env() -> list[SearchProviderProfile]:
                 api_key_env='TAVILY_API_KEY',
             )
         )
+    # AnySearch: always available (no API key required, free tier)
+    providers.append(
+        SearchProviderProfile(
+            name='anysearch',
+            provider='anysearch',
+            source_manifest='env:builtin',
+            base_url=DEFAULT_ANYSEARCH_BASE_URL,
+            description='AI-native unified search — 23 vertical domains, free 1000 calls/day',
+        )
+    )
     return providers
 
 
@@ -420,6 +433,8 @@ def _default_base_url(provider: str) -> str | None:
         return DEFAULT_BRAVE_BASE_URL
     if provider == 'tavily':
         return DEFAULT_TAVILY_BASE_URL
+    if provider == 'anysearch':
+        return DEFAULT_ANYSEARCH_BASE_URL
     return None
 
 
@@ -428,6 +443,8 @@ def _default_api_env(provider: str) -> str | None:
         return 'BRAVE_SEARCH_API_KEY'
     if provider == 'tavily':
         return 'TAVILY_API_KEY'
+    if provider == 'anysearch':
+        return None  # no API key needed
     return None
 
 
@@ -581,6 +598,69 @@ def _search_tavily(
             )
         )
     return tuple(rendered)
+
+
+def _search_anysearch(
+    provider: SearchProviderProfile,
+    query: str,
+    *,
+    max_results: int,
+    timeout_seconds: float,
+) -> tuple[SearchResult, ...]:
+    """Search via AnySearch MCP JSON-RPC endpoint (no API key needed)."""
+    payload = json.dumps({
+        "jsonrpc": "2.0",
+        "method": "tools/call",
+        "params": {
+            "name": "search",
+            "arguments": {"query": query, "max_results": max_results},
+        },
+        "id": 1,
+    }, ensure_ascii=True).encode('utf-8')
+    req = request.Request(
+        provider.base_url,
+        data=payload,
+        headers={
+            'User-Agent': 'claw-code-agent/1.0',
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+        },
+        method='POST',
+    )
+    with request.urlopen(req, timeout=timeout_seconds) as response:
+        body = json.loads(response.read().decode('utf-8', errors='replace'))
+
+    # Parse MCP response: result.content[0].text is a Markdown report
+    text = ""
+    if isinstance(body.get('result'), dict):
+        content_list = body['result'].get('content', [])
+        if content_list and isinstance(content_list[0], dict):
+            text = content_list[0].get('text', '')
+
+    return _parse_anysearch_markdown(text, provider.name)
+
+
+def _parse_anysearch_markdown(text: str, provider_name: str) -> tuple[SearchResult, ...]:
+    """Parse AnySearch Markdown response into SearchResult tuples."""
+    import re
+    results: list[SearchResult] = []
+
+    # Pattern: ### N. Title\n- **URL**: url\n- description...
+    pattern = r'###\s+(\d+)\.\s+(.+?)\n\s*-\s+\*\*URL\*\*:\s*(\S+)\n\s*-\s*(.+?)(?=\n###|\n##|\Z)'
+    for m in re.finditer(pattern, text, re.DOTALL):
+        rank = int(m.group(1))
+        title = m.group(2).strip()
+        url = m.group(3).strip()
+        snippet = m.group(4).strip()[:500]
+        results.append(SearchResult(
+            title=title,
+            url=url,
+            snippet=snippet,
+            provider_name=provider_name,
+            rank=rank,
+        ))
+
+    return tuple(results)
 
 
 def _require_api_key(provider: SearchProviderProfile) -> str:
