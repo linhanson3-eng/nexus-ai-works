@@ -293,15 +293,15 @@ function CollapsedToggle() {
 
 // ── Layout ──
 
-function useResize(initial: number, min: number, max: number) {
+function useResize(initial: number, min: number, max: number, side: "left" | "right" = "left") {
   const [width, setWidth] = useState(initial);
   const [dragging, setDragging] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!dragging) return;
     const onMove = (e: MouseEvent) => {
-      setWidth(Math.min(max, Math.max(min, e.clientX)));
+      const w = side === "right" ? window.innerWidth - e.clientX : e.clientX;
+      setWidth(Math.min(max, Math.max(min, w)));
     };
     const onUp = () => setDragging(false);
     document.addEventListener("mousemove", onMove);
@@ -310,9 +310,9 @@ function useResize(initial: number, min: number, max: number) {
       document.removeEventListener("mousemove", onMove);
       document.removeEventListener("mouseup", onUp);
     };
-  }, [dragging, min, max]);
+  }, [dragging, min, max, side]);
 
-  return { width, dragging, setDragging, ref };
+  return { width, dragging, setDragging };
 }
 
 export function Layout() {
@@ -328,7 +328,7 @@ export function Layout() {
     parseInt(localStorage.getItem("nexus_sidebar_width") || "260"), 180, 480
   );
   const rightPanel = useResize(
-    parseInt(localStorage.getItem("nexus_right_width") || "360"), 280, 600
+    parseInt(localStorage.getItem("nexus_right_width") || "360"), 280, 600, "right"
   );
 
   // Persist widths
