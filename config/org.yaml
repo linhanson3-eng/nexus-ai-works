@@ -1,6 +1,10 @@
 channels:
 - enabled: true
   name: webui
+- enabled: true
+  name: weixin
+  config:
+    token: ''
 departments:
 - name: demo
   type: custom
@@ -8,12 +12,10 @@ departments:
   agents:
   - name: demo
     mode: super
-    model: deepseek/deepseek-v4-pro
-    fallbacks:
-      - siliconflow/Qwen/Qwen3-235B-A22B
-      - siliconflow/deepseek-ai/DeepSeek-V3
+    model: ''
+    fallbacks: []
     tools: []
-    system_prompt: 你是一个 AI 助手。
+    system_prompt: ''
     guide_file: ''
     skills: []
     permissions:

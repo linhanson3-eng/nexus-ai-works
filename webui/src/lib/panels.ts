@@ -1,7 +1,7 @@
 import { lazy, type LazyExoticComponent, type ComponentType } from "react";
 import {
   MessageSquare, Activity, Blocks, Kanban, GitBranch,
-  Package, Lightbulb, Bot, Clock, Link,
+  Package, Lightbulb, Clock,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -17,14 +17,12 @@ export interface PanelDefinition {
 }
 
 const ChatPanel = lazy(() => import("../components/ChatPanel").then((m) => ({ default: m.ChatPanel })));
-const MyAssistant = lazy(() => import("../components/MyAssistant").then((m) => ({ default: m.MyAssistant })));
 const Marketplace = lazy(() => import("../components/Marketplace").then((m) => ({ default: m.Marketplace })));
 const ScheduledTasks = lazy(() => import("../components/ScheduledTasks").then((m) => ({ default: m.ScheduledTasks })));
 const Dashboard = lazy(() => import("../components/Dashboard").then((m) => ({ default: m.Dashboard })));
 const WorkshopList = lazy(() => import("../components/WorkshopList").then((m) => ({ default: m.WorkshopList })));
 const WorkflowList = lazy(() => import("../components/WorkflowList").then((m) => ({ default: m.WorkflowList })));
 const ModuleFactory = lazy(() => import("../components/ModuleFactory").then((m) => ({ default: m.ModuleFactory })));
-const CollaborationChain = lazy(() => import("../components/CollaborationChain").then((m) => ({ default: m.CollaborationChain })));
 const KanbanBoard = lazy(() => import("../components/KanbanBoard").then((m) => ({ default: m.KanbanBoard })));
 
 export const PANEL_REGISTRY: Record<string, PanelDefinition> = {
@@ -37,16 +35,6 @@ export const PANEL_REGISTRY: Record<string, PanelDefinition> = {
     sortOrder: 1,
     description: "Agent 对话窗口，输入 / 查看命令",
     element: ChatPanel,
-  },
-  "my-assistant": {
-    id: "my-assistant",
-    label: "我的助手",
-    icon: Bot,
-    route: "/my-assistant",
-    section: "main",
-    sortOrder: 2,
-    description: "管理和配置你的 AI 助手",
-    element: MyAssistant,
   },
   market: {
     id: "market",
@@ -87,16 +75,6 @@ export const PANEL_REGISTRY: Record<string, PanelDefinition> = {
     sortOrder: 2,
     description: "导入/导出工作流模板和 Agent 配置",
     element: ModuleFactory,
-  },
-  chain: {
-    id: "chain",
-    label: "协作链",
-    icon: Link,
-    route: "/chain",
-    section: "advanced",
-    sortOrder: 3,
-    description: "多步骤链式调用，串联 Agent 协作",
-    element: CollaborationChain,
   },
   kanban: {
     id: "kanban",

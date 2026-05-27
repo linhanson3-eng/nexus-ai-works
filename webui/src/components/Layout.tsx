@@ -1,258 +1,224 @@
-import { useState, useEffect } from "react";
-import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { useState, useCallback, useEffect } from "react";
+import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import {
-  Settings, LogOut, User,
-  Sun, Moon, Monitor, Search, ChevronRight, ChevronLeft,
-  Zap, ChevronDown, Sparkles,
+  PanelLeftClose, PanelLeft, Sun, Moon, Monitor, Plus, Settings,
 } from "lucide-react";
-import { useAuth } from "../lib/AuthContext";
-import { useTheme } from "./ThemeProvider";
-import { getMainPanels, getAdvancedPanels } from "../lib/panels";
+import { PANEL_REGISTRY, getMainPanels, getAdvancedPanels } from "../lib/panels";
 
-const themeIcons: Record<string, typeof Sun> = {
-  light: Sun,
-  dark: Moon,
-  system: Monitor,
-};
-
-function loadSidebarPref(): boolean {
-  const v = localStorage.getItem("nexus_sidebar_collapsed");
-  if (v === null) return false;
-  return v === "1";
+function useSidebarCollapsed() {
+  const [collapsed, setCollapsed] = useState(
+    () => localStorage.getItem("nexus_sidebar_collapsed") === "true"
+  );
+  useEffect(() => {
+    const check = () =>
+      setCollapsed(localStorage.getItem("nexus_sidebar_collapsed") === "true");
+    const interval = setInterval(check, 300);
+    window.addEventListener("storage", check);
+    return () => {
+      window.removeEventListener("storage", check);
+      clearInterval(interval);
+    };
+  }, []);
+  const toggle = useCallback(() => {
+    setCollapsed((v) => {
+      localStorage.setItem("nexus_sidebar_collapsed", String(!v));
+      return !v;
+    });
+  }, []);
+  return { collapsed, toggle, setCollapsed };
 }
 
-export function Layout() {
-  const { user, logout } = useAuth();
+function Sidebar() {
   const navigate = useNavigate();
-  const { theme, setTheme } = useTheme();
-  const [collapsed, setCollapsed] = useState(loadSidebarPref);
+  const location = useLocation();
+  const { collapsed, toggle } = useSidebarCollapsed();
+  const [advancedOpen, setAdvancedOpen] = useState(
+    () => localStorage.getItem("nexus_advanced_open") !== "false"
+  );
+  const [theme, setThemeState] = useState<"light" | "dark" | "system">(
+    () => (localStorage.getItem("nexus_theme") as "light" | "dark" | "system") || "system"
+  );
+
+  const toggleAdvanced = useCallback(() => {
+    setAdvancedOpen((v) => {
+      localStorage.setItem("nexus_advanced_open", String(!v));
+      return !v;
+    });
+  }, []);
+
+  const cycleTheme = useCallback(() => {
+    setThemeState((prev) => {
+      const order: Array<"light" | "dark" | "system"> = ["light", "dark", "system"];
+      const next = order[(order.indexOf(prev) + 1) % order.length];
+      localStorage.setItem("nexus_theme", next);
+      // Apply theme
+      const root = document.documentElement;
+      root.classList.remove("dark");
+      if (next === "dark" || (next === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches)) {
+        root.classList.add("dark");
+      }
+      return next;
+    });
+  }, []);
+
+  useEffect(() => {
+    const handler = () => cycleTheme();
+    window.addEventListener("nexus:cycle-theme", handler);
+    return () => window.removeEventListener("nexus:cycle-theme", handler);
+  }, [cycleTheme]);
+
+  if (collapsed) return null;
 
   const mainPanels = getMainPanels();
   const advancedPanels = getAdvancedPanels();
-
-  const [advancedOpen, setAdvancedOpen] = useState(
-    localStorage.getItem("nexus_advanced_open") !== "0",
-  );
-
-  const toggleAdvanced = () => {
-    const next = !advancedOpen;
-    setAdvancedOpen(next);
-    localStorage.setItem("nexus_advanced_open", next ? "1" : "0");
-  };
-
-  const toggleCollapsed = () => {
-    const next = !collapsed;
-    setCollapsed(next);
-    localStorage.setItem("nexus_sidebar_collapsed", next ? "1" : "0");
-  };
-
-  // Listen for slash-command theme/logout events
-  useEffect(() => {
-    const onCycleTheme = () => cycleTheme();
-    const onLogout = () => handleLogout();
-    document.addEventListener("nexus:cycle-theme", onCycleTheme);
-    document.addEventListener("nexus:logout", onLogout);
-    return () => {
-      document.removeEventListener("nexus:cycle-theme", onCycleTheme);
-      document.removeEventListener("nexus:logout", onLogout);
-    };
-  }, [theme]);
-
-  const handleLogout = () => {
-    logout();
-    navigate("/auth", { replace: true });
-  };
-
-  const cycleTheme = () => {
-    const order: Array<"light" | "dark" | "system"> = ["light", "dark", "system"];
-    const idx = order.indexOf(theme);
-    setTheme(order[(idx + 1) % order.length]);
-  };
-
-  const ThemeIcon = themeIcons[theme];
+  const ThemeIcon = theme === "dark" ? Moon : theme === "light" ? Sun : Monitor;
+  const isActive = (route: string) => location.pathname === route || location.pathname.startsWith(route + "/");
 
   return (
-    <div className="flex h-screen bg-background">
-      {/* Left sidebar */}
-      <aside
-        className={`shrink-0 bg-card border-r border-border flex flex-col transition-all duration-200 max-md:hidden ${
-          collapsed ? "w-14" : "w-56"
-        }`}
-      >
-        {/* Logo */}
+    <div className="app-layout__sidebar">
+      <div className="px-3 pt-3 pb-2">
         <button
-          onClick={toggleCollapsed}
-          className="h-12 flex items-center gap-2.5 px-3 border-b border-border hover:bg-accent/50 transition-colors"
+          onClick={() => navigate("/chat")}
+          className="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-sm font-medium
+            bg-bg-300 text-text-100 hover:bg-bg-400 transition-colors"
+          style={{ background: "hsl(var(--bg-300))" }}
         >
-          <div className="w-7 h-7 rounded-md bg-primary/10 flex items-center justify-center shrink-0">
-            <Zap className="w-3.5 h-3.5 text-primary" />
-          </div>
-          {!collapsed && (
-            <span className="font-semibold text-sm tracking-tight">Nexus AI</span>
-          )}
+          <Plus className="w-4 h-4" />
+          新建聊天
         </button>
-
-        {/* User ping */}
-        {user && !collapsed && (
-          <div className="px-3 py-2.5 border-b border-border flex items-center gap-2">
-            <div className="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-              <User className="w-2.5 h-2.5 text-primary" />
-            </div>
-            <span className="text-xs text-muted-foreground truncate">{user.username}</span>
-            <span className="w-1.5 h-1.5 rounded-full bg-success shrink-0 ml-auto" />
-          </div>
-        )}
-
-        {/* Nav */}
-        <nav className="flex-1 p-2 space-y-0.5 overflow-y-auto">
-          {/* Main panels — fixed */}
-          {mainPanels.map(({ route, label, icon: Icon }) => (
-            <NavLink
-              key={route}
-              to={route}
-              className={({ isActive }) =>
-                `flex items-center gap-2.5 px-2.5 py-2 rounded-md transition-colors ${
-                  isActive
-                    ? "bg-primary/10 text-primary"
-                    : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
-                }`
-              }
-              title={collapsed ? label : undefined}
-            >
-              <Icon className="w-4 h-4 shrink-0" />
-              {!collapsed && <span className="text-sm">{label}</span>}
-            </NavLink>
-          ))}
-
-          {/* Advanced panels — collapsible section */}
-          <div className="pt-2 mt-2 border-t border-border">
-            <button
-              onClick={toggleAdvanced}
-              className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-md transition-colors text-muted-foreground hover:text-foreground hover:bg-accent/50 ${
-                advancedOpen ? "text-foreground" : ""
-              }`}
-              title="高级功能"
-            >
-              {collapsed ? (
-                <div className="relative">
-                  <Sparkles className="w-4 h-4 shrink-0" />
-                  <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-primary/20 text-[8px] text-primary flex items-center justify-center font-medium">
-                    {advancedPanels.length}
-                  </span>
-                </div>
-              ) : (
-                <>
-                  <Sparkles className="w-4 h-4 shrink-0" />
-                  <span className="text-sm flex-1 text-left">高级功能</span>
-                  <ChevronDown className={`w-3.5 h-3.5 shrink-0 transition-transform ${advancedOpen ? "" : "-rotate-90"}`} />
-                </>
-              )}
-            </button>
-
-            {advancedOpen && (
-              <div className="mt-0.5 space-y-0.5">
-                {advancedPanels.map(({ route, label, icon: Icon }) => (
-                  <NavLink
-                    key={route}
-                    to={route}
-                    className={({ isActive }) =>
-                      `flex items-center gap-2.5 pl-7 pr-2.5 py-2 rounded-md transition-colors ${
-                        isActive
-                          ? "bg-primary/10 text-primary"
-                          : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
-                      }`
-                    }
-                    title={collapsed ? label : undefined}
-                  >
-                    <Icon className="w-4 h-4 shrink-0" />
-                    {!collapsed && <span className="text-sm">{label}</span>}
-                  </NavLink>
-                ))}
-              </div>
-            )}
-          </div>
-        </nav>
-
-        {/* Bottom */}
-        <div className="p-2 border-t border-border space-y-0.5">
-          <NavLink
-            to="/settings"
-            className={({ isActive }) =>
-              `flex items-center gap-2.5 px-2.5 py-2 rounded-md transition-colors ${
-                isActive
-                  ? "bg-primary/10 text-primary"
-                  : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
-              }`
-            }
-            title={collapsed ? "设置" : undefined}
-          >
-            <Settings className="w-4 h-4 shrink-0" />
-            {!collapsed && <span className="text-sm">设置</span>}
-          </NavLink>
-          <button
-            onClick={handleLogout}
-            className="flex items-center gap-2.5 px-2.5 py-2 rounded-md w-full text-muted-foreground hover:text-destructive hover:bg-destructive/5 transition-colors"
-          >
-            <LogOut className="w-4 h-4 shrink-0" />
-            {!collapsed && <span className="text-sm">退出</span>}
-          </button>
-        </div>
-      </aside>
-
-      {/* Main area */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <header className="h-12 border-b border-border bg-card/50 backdrop-blur-sm flex items-center px-4 gap-3 shrink-0">
-          <button
-            onClick={toggleCollapsed}
-            className="p-1.5 text-muted-foreground hover:text-foreground transition-colors rounded-md max-md:hidden"
-          >
-            {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
-          </button>
-
-          <div className="flex-1" />
-
-          <button
-            onClick={() => console.log("[Search] global search triggered")}
-            className="hidden sm:flex items-center gap-2 px-3 py-1.5 text-xs text-muted-foreground bg-accent/50 border border-border rounded-md hover:border-ring/30 transition-colors"
-          >
-            <Search className="w-3.5 h-3.5" />
-            <span className="w-32 text-left">搜索...</span>
-            <kbd className="text-[10px] px-1 py-0.5 rounded bg-muted text-muted-foreground font-mono">/</kbd>
-          </button>
-
-          <button
-            onClick={cycleTheme}
-            className="p-1.5 text-muted-foreground hover:text-foreground transition-colors rounded-md"
-            title={`主题: ${theme}`}
-          >
-            <ThemeIcon className="w-4 h-4" />
-          </button>
-        </header>
-
-        <main className="flex-1 overflow-auto p-6 max-md:pb-20">
-          <Outlet />
-        </main>
       </div>
 
-      {/* Mobile bottom nav */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-card/90 backdrop-blur-xl border-t border-border z-40 flex justify-around py-2">
-        {[...mainPanels.map((p) => ({ to: p.route, label: p.label, icon: p.icon })), { to: "/settings", label: "设置", icon: Settings }].map(
-          ({ to, label, icon: Icon }) => (
-            <NavLink
-              key={to}
-              to={to}
-              className={({ isActive }) =>
-                `flex flex-col items-center gap-0.5 px-2 py-1 text-[10px] transition-colors ${
-                  isActive ? "text-primary" : "text-muted-foreground"
-                }`
-              }
+      <nav className="flex-1 overflow-y-auto px-3 py-1 space-y-0.5">
+        {mainPanels.map((p) => {
+          const Icon = p.icon;
+          const active = isActive(p.route);
+          return (
+            <button
+              key={p.id}
+              onClick={() => navigate(p.route)}
+              className={`flex items-center gap-3 w-full px-3 py-2 rounded-lg text-sm transition-colors ${
+                active
+                  ? "bg-bg-300 text-text-000 font-medium"
+                  : "text-text-200 hover:bg-bg-300/50 hover:text-text-100"
+              }`}
+              style={active ? { background: "hsl(var(--bg-300))" } : undefined}
             >
-              <Icon className="w-5 h-5" />
-              {label}
-            </NavLink>
-          ),
-        )}
+              <Icon className="w-4 h-4 shrink-0" />
+              <span className="truncate">{p.label}</span>
+            </button>
+          );
+        })}
+
+        <div className="pt-4 pb-1">
+          <button
+            onClick={toggleAdvanced}
+            className="flex items-center gap-2 px-3 py-1 w-full text-[10px] uppercase tracking-widest text-text-300 hover:text-text-200 transition-colors"
+          >
+            <span className={`text-xs transition-transform ${advancedOpen ? "rotate-90" : ""}`}>
+              ▸
+            </span>
+            高级
+          </button>
+        </div>
+
+        {advancedOpen &&
+          advancedPanels.map((p) => {
+            const Icon = p.icon;
+            const active = isActive(p.route);
+            return (
+              <button
+                key={p.id}
+                onClick={() => navigate(p.route)}
+                className={`flex items-center gap-3 w-full px-3 py-2 rounded-lg text-sm transition-colors ${
+                  active
+                    ? "bg-bg-300 text-text-000 font-medium"
+                    : "text-text-200 hover:bg-bg-300/50 hover:text-text-100"
+                }`}
+                style={active ? { background: "hsl(var(--bg-300))" } : undefined}
+              >
+                <Icon className="w-4 h-4 shrink-0" />
+                <span className="truncate">{p.label}</span>
+              </button>
+            );
+          })}
       </nav>
+
+      <div className="px-3 py-2 border-t border-border flex items-center justify-between">
+        <button
+          onClick={cycleTheme}
+          className="p-2 rounded-lg text-text-200 hover:bg-bg-300 hover:text-text-100 transition-colors"
+          title={`Theme: ${theme}`}
+        >
+          <ThemeIcon className="w-4 h-4" />
+        </button>
+        <button
+          onClick={() => navigate("/settings")}
+          className={`p-2 rounded-lg transition-colors ${
+            location.pathname === "/settings"
+              ? "bg-bg-300 text-text-000"
+              : "text-text-200 hover:bg-bg-300 hover:text-text-100"
+          }`}
+          title="Settings"
+        >
+          <Settings className="w-4 h-4" />
+        </button>
+        <button
+          onClick={toggle}
+          className="p-2 rounded-lg text-text-200 hover:bg-bg-300 hover:text-text-100 transition-colors"
+          title="Collapse sidebar"
+        >
+          <PanelLeftClose className="w-4 h-4" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function CollapsedToggle() {
+  const { collapsed, setCollapsed } = useSidebarCollapsed();
+  if (!collapsed) return null;
+  return (
+    <button
+      onClick={() => setCollapsed(false)}
+      className="fixed left-3 top-3 z-50 p-2 rounded-lg bg-bg-000 border border-border text-text-200 hover:text-text-100 hover:bg-bg-200 transition-colors shadow-sm"
+      title="Expand sidebar"
+    >
+      <PanelLeft className="w-4 h-4" />
+    </button>
+  );
+}
+
+export function Layout() {
+  const [rightOpen, setRightOpen] = useState(false);
+  const { collapsed } = useSidebarCollapsed();
+
+  return (
+    <div
+      className={`app-layout ${
+        collapsed ? "app-layout--sidebar-collapsed" : ""
+      } ${rightOpen ? "app-layout--right-open" : ""}`}
+    >
+      <Sidebar />
+      <div className="app-layout__main">
+        <CollapsedToggle />
+        <Outlet />
+      </div>
+      {rightOpen && (
+        <div className="app-layout__right">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+            <span className="text-sm font-medium text-text-100">产物</span>
+            <button
+              onClick={() => setRightOpen(false)}
+              className="p-1 rounded text-text-200 hover:text-text-100"
+            >
+              ✕
+            </button>
+          </div>
+          <div className="flex-1 flex items-center justify-center text-sm text-text-300 p-4 text-center">
+            运行工作流后，产物会出现在这里
+          </div>
+        </div>
+      )}
     </div>
   );
 }
