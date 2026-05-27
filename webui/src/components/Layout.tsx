@@ -1,37 +1,34 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, createContext, useContext } from "react";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import {
   PanelLeftClose, PanelLeft, Sun, Moon, Monitor, Plus, Settings,
 } from "lucide-react";
-import { PANEL_REGISTRY, getMainPanels, getAdvancedPanels } from "../lib/panels";
+import { getMainPanels, getAdvancedPanels } from "../lib/panels";
+import { ArtifactPanel } from "./ArtifactPanel";
+import { useArtifactContext } from "../lib/ArtifactContext";
 
-function useSidebarCollapsed() {
-  const [collapsed, setCollapsed] = useState(
-    () => localStorage.getItem("nexus_sidebar_collapsed") === "true"
-  );
-  useEffect(() => {
-    const check = () =>
-      setCollapsed(localStorage.getItem("nexus_sidebar_collapsed") === "true");
-    const interval = setInterval(check, 300);
-    window.addEventListener("storage", check);
-    return () => {
-      window.removeEventListener("storage", check);
-      clearInterval(interval);
-    };
-  }, []);
-  const toggle = useCallback(() => {
-    setCollapsed((v) => {
-      localStorage.setItem("nexus_sidebar_collapsed", String(!v));
-      return !v;
-    });
-  }, []);
-  return { collapsed, toggle, setCollapsed };
+// ── Sidebar State Context (shared between Layout, Sidebar, CollapsedToggle) ──
+
+interface SidebarContextValue {
+  collapsed: boolean;
+  toggle: () => void;
 }
+
+const SidebarContext = createContext<SidebarContextValue>({
+  collapsed: false,
+  toggle: () => {},
+});
+
+function useSidebar() {
+  return useContext(SidebarContext);
+}
+
+// ── Sidebar ──
 
 function Sidebar() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { collapsed, toggle } = useSidebarCollapsed();
+  const { collapsed, toggle } = useSidebar();
   const [advancedOpen, setAdvancedOpen] = useState(
     () => localStorage.getItem("nexus_advanced_open") !== "false"
   );
@@ -51,7 +48,6 @@ function Sidebar() {
       const order: Array<"light" | "dark" | "system"> = ["light", "dark", "system"];
       const next = order[(order.indexOf(prev) + 1) % order.length];
       localStorage.setItem("nexus_theme", next);
-      // Apply theme
       const root = document.documentElement;
       root.classList.remove("dark");
       if (next === "dark" || (next === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches)) {
@@ -174,51 +170,84 @@ function Sidebar() {
   );
 }
 
+// ── Collapsed Toggle (shown in main area when sidebar hidden) ──
+
 function CollapsedToggle() {
-  const { collapsed, setCollapsed } = useSidebarCollapsed();
+  const { collapsed, toggle } = useSidebar();
   if (!collapsed) return null;
   return (
     <button
-      onClick={() => setCollapsed(false)}
+      onClick={toggle}
       className="fixed left-3 top-3 z-50 p-2 rounded-lg bg-bg-000 border border-border text-text-200 hover:text-text-100 hover:bg-bg-200 transition-colors shadow-sm"
-      title="Expand sidebar"
+      title="展开侧栏"
     >
       <PanelLeft className="w-4 h-4" />
     </button>
   );
 }
 
+// ── Layout ──
+
 export function Layout() {
-  const [rightOpen, setRightOpen] = useState(false);
-  const { collapsed } = useSidebarCollapsed();
+  const [collapsed, setCollapsed] = useState(
+    () => localStorage.getItem("nexus_sidebar_collapsed") === "true"
+  );
+  const {
+    artifacts, selected, selectedId, setSelectedId,
+    updateArtifact, rightOpen, setRightOpen, count,
+  } = useArtifactContext();
+
+  const toggleSidebar = useCallback(() => {
+    setCollapsed((v) => {
+      localStorage.setItem("nexus_sidebar_collapsed", String(!v));
+      return !v;
+    });
+  }, []);
 
   return (
-    <div
-      className={`app-layout ${
-        collapsed ? "app-layout--sidebar-collapsed" : ""
-      } ${rightOpen ? "app-layout--right-open" : ""}`}
-    >
-      <Sidebar />
-      <div className="app-layout__main">
-        <CollapsedToggle />
-        <Outlet />
-      </div>
-      {rightOpen && (
-        <div className="app-layout__right">
-          <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-            <span className="text-sm font-medium text-text-100">产物</span>
+    <SidebarContext.Provider value={{ collapsed, toggle: toggleSidebar }}>
+      <div
+        className={`app-layout ${
+          collapsed ? "app-layout--sidebar-collapsed" : ""
+        } ${rightOpen ? "app-layout--right-open" : ""}`}
+      >
+        <Sidebar />
+        <div className="app-layout__main">
+          <CollapsedToggle />
+          {/* Right panel toggle when count > 0 */}
+          {count > 0 && !rightOpen && (
             <button
-              onClick={() => setRightOpen(false)}
-              className="p-1 rounded text-text-200 hover:text-text-100"
+              onClick={() => setRightOpen(true)}
+              className="fixed right-3 top-3 z-40 px-2.5 py-1.5 rounded-lg bg-bg-000 border border-border text-xs text-text-200 hover:text-text-100 hover:bg-bg-200 transition-colors shadow-sm flex items-center gap-1.5"
             >
-              ✕
+              <span className="w-1.5 h-1.5 rounded-full bg-accent-000 animate-pulse-dot" style={{ background: "hsl(var(--accent-000))" }} />
+              产物 ({count})
             </button>
-          </div>
-          <div className="flex-1 flex items-center justify-center text-sm text-text-300 p-4 text-center">
-            运行工作流后，产物会出现在这里
-          </div>
+          )}
+          <Outlet />
         </div>
-      )}
-    </div>
+        {rightOpen && (
+          <div className="app-layout__right">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+              <span className="text-sm font-medium text-text-100">产物</span>
+              <button
+                onClick={() => setRightOpen(false)}
+                className="p-1 rounded text-text-200 hover:text-text-100"
+              >
+                ✕
+              </button>
+            </div>
+            <ArtifactPanel
+              artifacts={artifacts}
+              selected={selected}
+              selectedId={selectedId}
+              onSelect={setSelectedId}
+              onClose={() => setRightOpen(false)}
+              onUpdate={updateArtifact}
+            />
+          </div>
+        )}
+      </div>
+    </SidebarContext.Provider>
   );
 }

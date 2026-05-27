@@ -302,6 +302,26 @@ export function ChatPanel() {
         update((m) => ({ ...m, content: m.content || c.reply || "", isStreaming: false, turns: c.turns, cost: c.cost_usd, toolsUsed: c.tools_used, model: m.model || c.model, sessionId: c.session_id }));
         break;
       }
+      case "artifact": {
+        const art = event as { id: string; name: string; type: string; content: string; node_id?: string; node_label?: string; workspace?: string };
+        import("../lib/ArtifactContext").then(({ useArtifactContext }) => {
+          // Dispatch custom event since we can't use hooks in SSE callback
+          window.dispatchEvent(new CustomEvent("nexus:artifact", {
+            detail: {
+              id: art.id || `${Date.now()}-${art.name}`,
+              name: art.name,
+              type: art.type || "text",
+              content: art.content,
+              nodeId: art.node_id,
+              nodeLabel: art.node_label,
+              workspace: art.workspace || "",
+              createdAt: new Date().toISOString(),
+              size: new Blob([art.content || ""]).size,
+            },
+          }));
+        });
+        break;
+      }
       case "error": update((m) => ({ ...m, isStreaming: false, error: (event as { message: string }).message })); break;
       case "done":
       case "message_stop": update((m) => ({ ...m, isStreaming: false })); break;

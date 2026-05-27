@@ -7,6 +7,7 @@ import { Layout } from "./components/Layout";
 import { AuthPage } from "./components/AuthPage";
 import { Settings } from "./components/Settings";
 import { AuthProvider, useAuth } from "./lib/AuthContext";
+import { ArtifactProvider } from "./lib/ArtifactContext";
 import { api } from "./lib/api";
 import { Onboarding } from "./components/Onboarding";
 import { PANEL_REGISTRY } from "./lib/panels";
@@ -100,9 +101,11 @@ function App() {
     <ThemeProvider>
       <ToastProvider>
         <AuthProvider>
-          <BrowserRouter>
-            <AppRoutes />
-          </BrowserRouter>
+          <ArtifactProvider>
+            <BrowserRouter>
+              <AppRoutes />
+            </BrowserRouter>
+          </ArtifactProvider>
         </AuthProvider>
       </ToastProvider>
     </ThemeProvider>
