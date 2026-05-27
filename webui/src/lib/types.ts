@@ -129,6 +129,20 @@ export interface ToolConfig {
   [key: string]: unknown;
 }
 
+export interface FileTreeNode {
+  name: string;
+  type: "file" | "directory";
+  path: string;
+  children?: FileTreeNode[];
+}
+
+export interface SessionSummary {
+  id: string;
+  first_message: string;
+  created_at: string;
+  timestamp: number;
+}
+
 export interface PluginEntry {
   name: string;
   enabled: boolean;

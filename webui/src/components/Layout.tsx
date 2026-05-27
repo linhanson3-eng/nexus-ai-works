@@ -1,11 +1,14 @@
 import { useState, useCallback, useEffect, createContext, useContext } from "react";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import {
-  PanelLeftClose, PanelLeft, Sun, Moon, Monitor, Plus, Settings,
+  PanelLeftClose, PanelLeft, Sun, Moon, Monitor, Plus, Settings, MessageSquare,
 } from "lucide-react";
 import { getMainPanels, getAdvancedPanels } from "../lib/panels";
 import { ArtifactPanel } from "./ArtifactPanel";
+import { FileTree } from "./FileTree";
 import { useArtifactContext } from "../lib/ArtifactContext";
+import { api } from "../lib/api";
+import type { SessionSummary } from "../lib/types";
 
 // ── Sidebar State Context (shared between Layout, Sidebar, CollapsedToggle) ──
 
@@ -29,12 +32,20 @@ function Sidebar() {
   const navigate = useNavigate();
   const location = useLocation();
   const { collapsed, toggle } = useSidebar();
+  const { setRightOpen, addArtifact, setSelectedId } = useArtifactContext();
   const [advancedOpen, setAdvancedOpen] = useState(
     () => localStorage.getItem("nexus_advanced_open") !== "false"
   );
+  const [sessionsOpen, setSessionsOpen] = useState(true);
   const [theme, setThemeState] = useState<"light" | "dark" | "system">(
     () => (localStorage.getItem("nexus_theme") as "light" | "dark" | "system") || "system"
   );
+  const [sessions, setSessions] = useState<SessionSummary[]>([]);
+
+  // Load session history
+  useEffect(() => {
+    api.listSessions("demo").then(setSessions).catch(() => {});
+  }, []);
 
   const toggleAdvanced = useCallback(() => {
     setAdvancedOpen((v) => {
@@ -63,6 +74,25 @@ function Sidebar() {
     return () => window.removeEventListener("nexus:cycle-theme", handler);
   }, [cycleTheme]);
 
+  const handleFileSelect = useCallback(async (filePath: string) => {
+    try {
+      const resp = await fetch(`/api/workspaces/demo/files/${encodeURIComponent(filePath)}`);
+      if (resp.ok) {
+        const data = await resp.json() as { name: string; path: string; content: string; size: number };
+        const ext = filePath.split(".").pop()?.toLowerCase() || "";
+        const typeMap: Record<string, string> = { py: "python", ts: "typescript", tsx: "typescript", js: "javascript", json: "json", yaml: "yaml", yml: "yaml", md: "markdown", html: "html", css: "css" };
+        const artId = `file:${filePath}`;
+        addArtifact({
+          id: artId, name: data.name, type: typeMap[ext] || "text",
+          content: data.content, workspace: "demo",
+          createdAt: new Date().toISOString(), size: data.size,
+        });
+        setSelectedId(artId);
+        setRightOpen(true);
+      }
+    } catch { /* ignore */ }
+  }, [addArtifact, setSelectedId, setRightOpen]);
+
   if (collapsed) return null;
 
   const mainPanels = getMainPanels();
@@ -72,9 +102,14 @@ function Sidebar() {
 
   return (
     <div className="app-layout__sidebar">
+      {/* New chat */}
       <div className="px-3 pt-3 pb-2">
         <button
-          onClick={() => navigate("/chat")}
+          onClick={() => {
+            navigate("/chat");
+            // Dispatch event to clear chat
+            window.dispatchEvent(new CustomEvent("nexus:new-chat"));
+          }}
           className="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-sm font-medium
             bg-bg-300 text-text-100 hover:bg-bg-400 transition-colors"
           style={{ background: "hsl(var(--bg-300))" }}
@@ -85,6 +120,35 @@ function Sidebar() {
       </div>
 
       <nav className="flex-1 overflow-y-auto px-3 py-1 space-y-0.5">
+        {/* Session history */}
+        {sessions.length > 0 && (
+          <>
+            <button
+              onClick={() => setSessionsOpen(!sessionsOpen)}
+              className="flex items-center gap-2 px-3 py-1 w-full text-[10px] uppercase tracking-widest text-text-300 hover:text-text-200 transition-colors"
+            >
+              <span className={`text-xs transition-transform ${sessionsOpen ? "rotate-90" : ""}`}>▸</span>
+              最近对话
+            </button>
+            {sessionsOpen &&
+              sessions.slice(0, 8).map((s) => (
+                <button
+                  key={s.id}
+                  onClick={() => navigate(`/chat?session=${s.id}`)}
+                  className="flex items-center gap-3 w-full px-3 py-2 rounded-lg text-xs text-text-200 hover:bg-bg-300/50 hover:text-text-100 transition-colors"
+                  title={s.first_message}
+                >
+                  <MessageSquare className="w-3.5 h-3.5 shrink-0" />
+                  <div className="min-w-0 flex-1 text-left">
+                    <div className="truncate">{s.first_message || "新对话"}</div>
+                    <div className="text-[10px] text-text-300">{s.created_at}</div>
+                  </div>
+                </button>
+              ))}
+          </>
+        )}
+
+        {/* Main navigation */}
         {mainPanels.map((p) => {
           const Icon = p.icon;
           const active = isActive(p.route);
@@ -105,14 +169,18 @@ function Sidebar() {
           );
         })}
 
-        <div className="pt-4 pb-1">
+        {/* File tree */}
+        <div className="pt-3">
+          <FileTree workshop="demo" onSelectFile={handleFileSelect} selectedPath={null} />
+        </div>
+
+        {/* Advanced section */}
+        <div className="pt-3 pb-1">
           <button
             onClick={toggleAdvanced}
             className="flex items-center gap-2 px-3 py-1 w-full text-[10px] uppercase tracking-widest text-text-300 hover:text-text-200 transition-colors"
           >
-            <span className={`text-xs transition-transform ${advancedOpen ? "rotate-90" : ""}`}>
-              ▸
-            </span>
+            <span className={`text-xs transition-transform ${advancedOpen ? "rotate-90" : ""}`}>▸</span>
             高级
           </button>
         </div>
@@ -139,6 +207,7 @@ function Sidebar() {
           })}
       </nav>
 
+      {/* Bottom bar */}
       <div className="px-3 py-2 border-t border-border flex items-center justify-between">
         <button
           onClick={cycleTheme}

@@ -110,6 +110,8 @@ export const api = {
   createWorkshop: (name: string, workflow?: string, model?: string) =>
     post<Workshop>("/workshops", { name, workflow_name: workflow || "simple", model: model || "" }),
   deleteWorkshop: (name: string) => del(`/workshops/${name}`),
+  listFiles: (workshop: string) => get<{ files: FileTreeNode[]; root: string }>(`/workshops/${workshop}/files`),
+  listSessions: (workshop: string) => get<SessionSummary[]>(`/workshops/${workshop}/sessions`),
   runWorkflow: (name: string, workflow: string, task: string) =>
     post<WorkflowResult>(`/workshops/${name}/run`, { workflow, task }),
   listProducts: (name: string) =>

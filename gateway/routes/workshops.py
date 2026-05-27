@@ -396,3 +396,112 @@ async def get_peer_products(name: str, peer: str, request: Request):
 async def org_status(request: Request):
     status = _org(request).status()
     return JSONResponse(content=status)
+
+
+# ── File tree ──
+
+@router.get("/workspaces/{name}/files")
+async def list_files(name: str, request: Request):
+    """Return directory tree for a workspace's files."""
+    workshop = _get_workshop(name, request)
+    if not workshop:
+        return JSONResponse(content={"detail": "Not found"}, status_code=404)
+
+    try:
+        root = Path(workshop.workspace).expanduser().resolve()
+        if not root.exists():
+            return JSONResponse(content={"files": [], "root": str(root)})
+
+        skip_dirs = {"__pycache__", ".git", "node_modules", ".claude", ".port_sessions",
+                     ".nexus", "__pycache__"}
+        show_exts = {".py", ".ts", ".tsx", ".js", ".jsx", ".json", ".yaml", ".yml",
+                     ".md", ".html", ".css", ".txt", ".toml", ".cfg", ".ini", ".env.example"}
+
+        def walk(path: Path, depth: int = 0) -> list[dict]:
+            if depth > 4:
+                return []
+            items: list[dict] = []
+            try:
+                for child in sorted(path.iterdir(), key=lambda x: (x.is_file(), x.name.lower())):
+                    if child.name.startswith(".") or child.name in skip_dirs:
+                        continue
+                    if child.is_dir():
+                        children = walk(child, depth + 1)
+                        items.append({
+                            "name": child.name,
+                            "type": "directory",
+                            "path": str(child.relative_to(root)),
+                            "children": children,
+                        })
+                    elif child.suffix.lower() in show_exts:
+                        items.append({
+                            "name": child.name,
+                            "type": "file",
+                            "path": str(child.relative_to(root)),
+                        })
+            except PermissionError:
+                pass
+            return items
+
+        files = walk(root)
+        return JSONResponse(content={"files": files, "root": str(root)})
+    except Exception as e:
+        return JSONResponse(content={"files": [], "error": str(e)})
+
+
+# ── Sessions ──
+
+@router.get("/workspaces/{name}/sessions")
+async def list_sessions(name: str, request: Request):
+    """Return recent session history for a workspace."""
+    import time as _t
+
+    workshop = _get_workshop(name, request)
+    if not workshop:
+        return JSONResponse(content={"detail": "Not found"}, status_code=404)
+
+    sessions: list[dict] = []
+    session_dir = Path.home() / ".nexus" / "sessions" / name
+    try:
+        if session_dir.exists():
+            for f in sorted(session_dir.glob("*.json"), key=lambda x: x.stat().st_mtime, reverse=True):
+                try:
+                    data = json.loads(f.read_text(encoding="utf-8"))
+                    sessions.append({
+                        "id": f.stem[:12],
+                        "first_message": (data.get("messages") or [{}])[0].get("content", "")[:100],
+                        "created_at": _t.strftime("%m-%d %H:%M", _t.localtime(f.stat().st_mtime)),
+                        "timestamp": f.stat().st_mtime,
+                    })
+                except Exception:
+                    continue
+    except Exception:
+        pass
+
+    return JSONResponse(content=sessions[:20])
+
+
+@router.get("/workspaces/{name}/files/{file_path:path}")
+async def get_file_content(name: str, file_path: str, request: Request):
+    """Read a single file's content from a workspace."""
+    workshop = _get_workshop(name, request)
+    if not workshop:
+        return JSONResponse(content={"detail": "Not found"}, status_code=404)
+
+    try:
+        root = Path(workshop.workspace).expanduser().resolve()
+        target = (root / file_path).resolve()
+        if not str(target).startswith(str(root)):
+            return JSONResponse(content={"detail": "Forbidden"}, status_code=403)
+        if not target.exists() or not target.is_file():
+            return JSONResponse(content={"detail": "Not found"}, status_code=404)
+
+        content = target.read_text(encoding="utf-8", errors="replace")
+        return JSONResponse(content={
+            "name": target.name,
+            "path": file_path,
+            "content": content[:100000],
+            "size": len(content),
+        })
+    except Exception as e:
+        return JSONResponse(content={"error": str(e)}, status_code=500)
