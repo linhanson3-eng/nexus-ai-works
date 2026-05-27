@@ -70,6 +70,57 @@ def _sse(event: str, data: dict) -> str:
     return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
 
 
+def _emit_artifacts(workspace: Any, run_start: float, sse_fn) -> None:
+    """Scan workspace for files modified during this run and emit artifact events."""
+    import os
+    from pathlib import Path
+
+    if not workspace or not hasattr(workspace, "workspace"):
+        return
+
+    try:
+        ws_path = Path(workspace.workspace).expanduser().resolve()
+        if not ws_path.exists():
+            return
+
+        artifact_exts = {".py", ".ts", ".tsx", ".js", ".jsx", ".json", ".yaml", ".yml",
+                         ".md", ".html", ".css", ".txt", ".toml", ".cfg", ".ini"}
+        skip_dirs = {"__pycache__", ".git", "node_modules", ".claude", ".port_sessions"}
+
+        for fpath in ws_path.rglob("*"):
+            if fpath.is_dir() or any(p in skip_dirs for p in fpath.parts):
+                continue
+            if fpath.suffix.lower() not in artifact_exts:
+                continue
+            try:
+                stat = fpath.stat()
+                if stat.st_mtime < run_start:
+                    continue
+                content = fpath.read_text(encoding="utf-8", errors="replace")
+                rel = str(fpath.relative_to(ws_path))
+                yield sse_fn("artifact", {
+                    "id": f"ws:{rel}",
+                    "name": rel,
+                    "type": _guess_artifact_type(rel),
+                    "content": content[:50000],
+                    "workspace": workspace.name,
+                })
+            except Exception:
+                continue
+    except Exception:
+        logger.exception("Artifact scan failed")
+
+
+def _guess_artifact_type(name: str) -> str:
+    ext = name.rsplit(".", 1)[-1].lower() if "." in name else ""
+    return {
+        "py": "python", "ts": "typescript", "tsx": "typescript",
+        "js": "javascript", "jsx": "javascript",
+        "json": "json", "yaml": "yaml", "yml": "yaml",
+        "md": "markdown", "html": "html", "css": "css",
+    }.get(ext, "text")
+
+
 @router.post("/agent/run/stream", dependencies=[Depends(require_auth)])
 async def agent_run_stream(body: AgentRunRequest, request: Request):
     from factory.workshop.manager import WorkshopManager
@@ -132,6 +183,7 @@ async def agent_run_stream(body: AgentRunRequest, request: Request):
     session_id = _session_manager(request).get(workshop_name) if workshop_name else ""
 
     async def event_stream():
+        run_start = _time.time()
         yield _sse("status", {"event": "started", "task": task[:200], "workshop": workshop_name, "request_id": request_id[:8]})
 
         event_queue: asyncio.Queue = asyncio.Queue()
@@ -180,6 +232,10 @@ async def agent_run_stream(body: AgentRunRequest, request: Request):
                 "session_id": result.session_id,
                 "model": result.model,
             })
+
+            # Emit artifacts: scan workspace for recently modified files
+            _emit_artifacts(workspace, run_start, _sse)
+
             if result.error:
                 yield _sse("error", {"message": result.error})
         except Exception:
