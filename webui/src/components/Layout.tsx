@@ -6,7 +6,6 @@ import {
 import { getMainPanels, getAdvancedPanels } from "../lib/panels";
 import { ArtifactPanel } from "./ArtifactPanel";
 import { FileTree } from "./FileTree";
-import { WorkspaceSwitcher } from "./WorkspaceSwitcher";
 import { useArtifactContext } from "../lib/ArtifactContext";
 import { api } from "../lib/api";
 import type { SessionSummary } from "../lib/types";
@@ -45,17 +44,37 @@ function Sidebar() {
   const [activeWorkspace, setActiveWorkspace] = useState(
     () => localStorage.getItem("nexus_active_workspace") || "demo"
   );
+  const [workshops, setWorkshops] = useState<string[]>([activeWorkspace]);
+
+  useEffect(() => {
+    api.listWorkshops().then((list) => {
+      setWorkshops(list.map((w: { name: string }) => w.name));
+    }).catch(() => {});
+  }, []);
 
   // Load session history
   useEffect(() => {
     api.listSessions(activeWorkspace).then(setSessions).catch(() => {});
   }, [activeWorkspace]);
 
-  const handleWorkspaceChange = useCallback((name: string) => {
+  const handleWorkspaceChange = useCallback((name: string, action?: "create") => {
+    if (action === "create") {
+      if (name.startsWith("new-file:") || name.startsWith("new-dir:")) {
+        // File/folder creation handled by FileTree
+        return;
+      }
+      // Create new workspace
+      api.createWorkspace(name).then(() => {
+        setActiveWorkspace(name);
+        localStorage.setItem("nexus_active_workspace", name);
+        api.listWorkshops().then((list) =>
+          setWorkshops(list.map((w: { name: string }) => w.name))
+        ).catch(() => {});
+      }).catch(() => {});
+      return;
+    }
     setActiveWorkspace(name);
     localStorage.setItem("nexus_active_workspace", name);
-    // Reload sessions for new workspace
-    api.listSessions(name).then(setSessions).catch(() => {});
   }, []);
 
   const toggleAdvanced = useCallback(() => {
@@ -113,11 +132,8 @@ function Sidebar() {
 
   return (
     <div className="app-layout__sidebar">
-      {/* Workspace switcher — Claude-style project selector */}
-      <WorkspaceSwitcher current={activeWorkspace} onChange={handleWorkspaceChange} />
-
       {/* New chat */}
-      <div className="px-3 pb-2">
+      <div className="px-3 pb-2 pt-3">
         <button
           onClick={() => {
             navigate("/chat");
@@ -183,9 +199,15 @@ function Sidebar() {
           );
         })}
 
-        {/* File tree */}
-        <div className="pt-3">
-          <FileTree workshop={activeWorkspace} onSelectFile={handleFileSelect} selectedPath={null} />
+        {/* File tree — primary project explorer (like Codex) */}
+        <div className="pt-1">
+          <FileTree
+            workshop={activeWorkspace}
+            workshops={workshops}
+            onSwitchWorkspace={handleWorkspaceChange}
+            onSelectFile={handleFileSelect}
+            selectedPath={null}
+          />
         </div>
 
         {/* Advanced section */}
