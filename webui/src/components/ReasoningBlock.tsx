@@ -1,25 +1,25 @@
 import { useState } from "react";
-import { Brain, ChevronDown, ChevronRight } from "lucide-react";
 
 export function ReasoningBlock({ text, isStreaming }: { text: string; isStreaming?: boolean }) {
   const [open, setOpen] = useState(true);
   if (!text || text === "undefined") return null;
+
   return (
-    <div className="mb-2 border border-primary/10 rounded-md overflow-hidden">
-      <button
-        onClick={() => setOpen(!open)}
-        className="w-full flex items-center gap-2 px-3 py-1.5 text-[11px] text-primary/60 hover:text-primary/80 transition-colors bg-primary/[0.02]"
-      >
-        <Brain className="w-3 h-3" />
-        <span>思考过程{isStreaming ? "..." : ""}</span>
-        <span className="flex-1" />
-        {open ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+    <div className="thinking-block">
+      <button className="thinking-block__header w-full" onClick={() => setOpen(!open)}>
+        <div className="thinking-dots">
+          <div className="thinking-dot animate-pulse-dot" />
+          <div className="thinking-dot animate-pulse-dot" />
+          <div className="thinking-dot animate-pulse-dot" />
+        </div>
+        <span>思考中{isStreaming ? "..." : ""}</span>
+        <span className="text-[10px]">{open ? "▾" : "▸"}</span>
       </button>
       {open && (
-        <div className="px-3 pb-2 text-xs text-muted-foreground/70 whitespace-pre-wrap leading-relaxed italic max-h-48 overflow-auto">
+        <div className="thinking-block__body">
           {text}
           {isStreaming && (
-            <span className="inline-block w-1.5 h-3.5 bg-primary/40 ml-0.5 animate-pulse rounded-sm align-middle" />
+            <span className="inline-block w-1.5 h-3.5 bg-text-200 ml-0.5 animate-thinking-cursor rounded-sm align-middle" />
           )}
         </div>
       )}
